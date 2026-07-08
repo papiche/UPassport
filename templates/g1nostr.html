@@ -671,34 +671,46 @@
             🌐️ MULTIPASS 🌐
         </div>
 
-        <form id="nostr-form" action="/g1nostr" method="post">
+        <form id="nostr-form" action="/g1/onboard" method="post">
             <input type="hidden" id="lang" name="lang" value="fr">
             <input type="hidden" id="lat" name="lat" value="0.00">
             <input type="hidden" id="lon" name="lon" value="0.00">
-        
+
         <h2>📧 Email</h2>
             <input type="text" id="email" name="email" placeholder="email@example.com" required>
-        
-        <input type="hidden" id="salt" name="salt" value="">
-        <input type="hidden" id="pepper" name="pepper" value="">
+
+        <div class="credentials-accordion">
+            <button type="button" class="accordion-toggle" id="donation-toggle">
+                <span>🎁 Transférer un ancien portefeuille Ğ1</span>
+                <span class="toggle-icon">▼</span>
+            </button>
+            <div class="accordion-content" id="donation-content">
+                <div class="credentials-info">
+                    <p>🎁 <strong>Offrez des Ğ1 à UPlanet :</strong> elles serviront à emettre les Ẑen de la coopérative.
+                       en retour de votre don, nous vous offrons 1 Ẑen pour chaque tranche de 10 Ğ1.</p>
+                </div>
+                <label for="v1_login">Identifiant du portefeuille Ğ1 v1</label>
+                <input type="text" id="v1_login" name="v1_login" placeholder="identifiant Cesium" autocomplete="off">
+                <label for="v1_password">Mot de passe du portefeuille Ğ1 v1</label>
+                <input type="password" id="v1_password" name="v1_password" placeholder="mot de passe Cesium" autocomplete="off">
+                <label style="display:flex;align-items:flex-start;gap:8px;padding:0 20px 15px 20px;font-weight:normal;">
+                    <input type="checkbox" id="confirm_donation" name="confirm_donation" value="true" style="width:auto;margin:4px 0 0 0;flex-shrink:0;">
+                    <span>Je comprends que mon portefeuille sera vidé et que mon MULTIPASS utilisera une clé indépendante générée aléatoirement.</span>
+                </label>
+            </div>
+        </div>
+
+        <div id="eos-installer" style="margin-top:15px;margin-bottom:15px;"></div>
 
         <div style="margin-top:15px;margin-bottom:15px;padding:16px 18px;background:rgba(45,90,27,.08);border:1px solid rgba(200,168,60,.35);border-radius:10px;text-align:center;">
             <div style="font-size:1.05em;font-weight:bold;color:#c8a83c;margin-bottom:6px;">🌿 Made In Zion</div>
             <p style="margin:0 0 12px;color:#b3d4c4;font-size:.87rem;line-height:1.55;">
-                <strong style="color:#e0f2e9;">Made In Zion</strong> est le chantier-école coopératif qui contractualise l'usage du Libre — habitat autonome, énergie low-tech, Monnaie Libre Ğ1, réseau NOSTR/IPFS. Imprimez et signez votre ZINE pour rejoindre la constellation.
+                <strong style="color:#e0f2e9;">Made In Zion</strong> fédère le réseau coopératif des G1FabLab (réseau UPlanet) et généralise l'usage de la  <strong style="color:#e0f2e9;">licence AGPL</strong> à l'ensemble des solutions couvrant nos besoins incluant habitat, énergie, transport et forêts comestibles...
             </p>
             <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;">
                 <a href="/earth/miz.html" target="_blank"
                    style="color:#00C968;background:rgba(0,201,104,.1);border:1px solid rgba(0,201,104,.35);font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
                     🔑 Made In Zion
-                </a>
-                <a href="/earth/ZINE.MIZ.html" target="_blank"
-                   style="color:#2d5a1b;background:#c8a83c;font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
-                    🌿 ZINE Made In Zion
-                </a>
-                <a href="/earth/ZINE.html" target="_blank"
-                   style="color:#e0e0e0;background:rgba(106,13,173,.55);border:1px solid rgba(106,13,173,.5);font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
-                    🛰 ZINE Astroport
                 </a>
             </div>
         </div>
@@ -748,11 +760,10 @@
                 <button class="modal-close" id="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <iframe id="result-iframe" style="width: 100%; height: 100%; min-height: 500px; border: none;"></iframe>
+                <div id="result-panel" style="padding: 20px; line-height: 1.6; color: #e0e0e0;"></div>
             </div>
             <div class="modal-footer">
                 <button class="modal-button modal-button-secondary" id="close-result">Fermer</button>
-                <button class="modal-button modal-button-primary" id="open-new-tab">Ouvrir</button>
             </div>
         </div>
     </div>
@@ -773,28 +784,21 @@
                 if (_emailEl) { _emailEl.value = _preEmail; _emailEl.focus(); }
             }
 
-            // Récupérer identifiants G1v1 depuis UPlanet Header (TTL 30s)
-            try {
-                const _uphCreds = localStorage.getItem('uph_g1creds');
-                if (_uphCreds) {
-                    const _creds = JSON.parse(_uphCreds);
-                    if (_creds && _creds.ts && (Date.now() - _creds.ts < 30000)) {
-                        const _saltEl   = document.getElementById('salt');
-                        const _pepperEl = document.getElementById('pepper');
-                        if (_saltEl   && _creds.salt)   _saltEl.value   = String(_creds.salt).slice(0, 56);
-                        if (_pepperEl && _creds.pepper) _pepperEl.value = String(_creds.pepper).slice(0, 56);
-                    }
-                    localStorage.removeItem('uph_g1creds');
-                }
-            } catch(e) {}
+            // Accordion don wallet Ğ1 v1
+            const donationToggle = document.getElementById('donation-toggle');
+            const donationContent = document.getElementById('donation-content');
+            if (donationToggle && donationContent) {
+                donationToggle.addEventListener('click', function() {
+                    donationToggle.classList.toggle('active');
+                    donationContent.classList.toggle('active');
+                });
+            }
 
             const form = document.getElementById('nostr-form');
             const errorMessageDiv = document.getElementById('error-message');
             const geoErrorDiv = document.getElementById('geo-error');
             const loaderContainer = document.getElementById('loader-container');
             const resultModal = document.getElementById('result-modal');
-            const resultIframe = document.getElementById('result-iframe');
-            const openNewTabButton = document.getElementById('open-new-tab');
             const closeResultButton = document.getElementById('close-result');
             const modalCloseButton = document.getElementById('modal-close');
 
@@ -939,38 +943,80 @@
                 }
             }
 
-            // Credentials (inputs cachés — génération côté serveur si vides)
-            const saltInput = document.getElementById('salt');
-            const pepperInput = document.getElementById('pepper');
+            const v1LoginInput      = document.getElementById('v1_login');
+            const v1PasswordInput   = document.getElementById('v1_password');
+            const confirmDonationCb = document.getElementById('confirm_donation');
+            const resultPanel       = document.getElementById('result-panel');
 
-            // DISCO ssss limit : salt and pepper must be ≤ 56 chars
-            const DISCO_MAX = 56;
-
-            // Generate random credentials
-            function generateRandomCredentials() {
-                // Generate a random 56-character alphanumeric string for salt
-                const salt = Array.from({length: DISCO_MAX}, () =>
-                    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
-                ).join('');
-                
-                // Generate a random 56-character alphanumeric string for pepper
-                const pepper = Array.from({length: DISCO_MAX}, () =>
-                    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
-                ).join('');
-                
-                saltInput.value = salt;
-                pepperInput.value = pepper;
-                
-                // Show feedback
-                generateCredentialsBtn.textContent = '✅ Généré !';
-                generateCredentialsBtn.style.backgroundColor = '#4CAF50';
-                setTimeout(() => {
-                    generateCredentialsBtn.textContent = '🎲 Générer aléatoirement';
-                    generateCredentialsBtn.style.backgroundColor = '#2196F3';
-                }, 2000);
+            function renderOcGate(data) {
+                const labels = {satellite: 'Sociétaire Satellite', constellation: 'Sociétaire Constellation',
+                                 cloud: 'Cloud', membre: 'Membre'};
+                const links = Object.entries(data.oc_urls || {})
+                    .filter(([, url]) => !!url)
+                    .map(([key, url]) => `<a href="${url}" target="_blank" style="display:inline-block;margin:4px 6px;">${labels[key] || key}</a>`)
+                    .join('');
+                errorMessageDiv.innerHTML = `
+                    <p>${data.message || "Devenez membre OpenCollective avec cet email avant de créer votre MULTIPASS."}</p>
+                    <div>${links}</div>
+                    <button type="button" id="oc-recheck-btn" class="map-button" style="margin-top:10px;">🔄 Revérifier mon adhésion</button>
+                `;
+                errorMessageDiv.style.display = 'block';
+                const recheckBtn = document.getElementById('oc-recheck-btn');
+                if (recheckBtn) {
+                    recheckBtn.addEventListener('click', function() {
+                        form.requestSubmit();
+                    });
+                }
             }
 
-            // generateCredentialsBtn supprimé (accordion G1 v1 remplacé)
+            function renderMultipassResult(data) {
+                const donation = data.donation || null;
+                let donationHtml = '';
+                if (donation) {
+                    donationHtml = donation.donated
+                        ? `<div style="margin-top:15px;padding:12px;background:rgba(76,175,80,.12);border:1px solid rgba(76,175,80,.4);border-radius:8px;">
+                               🎁 Don reçu : <strong>${donation.balance_g1} Ğ1</strong> — crédit de <strong>${donation.credited_zen} Ẑ</strong>
+                               ${donation.zen_credited ? '(crédité sur votre MULTIPASS)' : '(crédit en attente — contactez le support)'}
+                           </div>`
+                        : `<div style="margin-top:15px;padding:12px;background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);border-radius:8px;">
+                               ⚠️ Le don du portefeuille Ğ1 v1 n'a pas pu être traité (${donation.error || 'raison inconnue'}). Votre MULTIPASS a bien été créé.
+                           </div>`;
+                }
+                resultPanel.innerHTML = `
+                    <h2 style="margin-top:0;">✅ Votre MULTIPASS est prêt</h2>
+                    <p><strong>Clé publique NOSTR (npub) :</strong><br><code style="word-break:break-all;">${data.npub || ''}</code></p>
+                    <p><strong>🔑 Clé privée NOSTR (nsec) — à conserver précieusement :</strong></p>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" readonly value="${data.nsec || ''}" id="nsec-field" style="flex:1;font-family:monospace;">
+                        <button type="button" class="map-button" id="copy-nsec-btn">📋 Copier</button>
+                    </div>
+                    <div style="margin-top:15px;padding:12px;background:rgba(33,150,243,.1);border:1px solid rgba(33,150,243,.35);border-radius:8px;">
+                        <strong>📲 Pour vous connecter aux applications NOSTR (coracle, etc.) :</strong>
+                        <ol style="margin:8px 0 0 20px;padding:0;">
+                            <li>Installez l'extension <strong>nos2x</strong> (Chrome/Brave) ou <strong>nos2x-fox</strong> (Firefox).</li>
+                            <li>Ouvrez l'extension, choisissez « Importer une clé existante ».</li>
+                            <li>Collez votre <strong>nsec</strong> ci-dessus, puis validez.</li>
+                            <li>Les sites NOSTR pourront désormais signer en votre nom, sans jamais revoir votre clé.</li>
+                        </ol>
+                    </div>
+                    ${donationHtml}
+                `;
+                resultModal.style.display = 'flex';
+                const copyBtn = document.getElementById('copy-nsec-btn');
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', function() {
+                        const field = document.getElementById('nsec-field');
+                        field.select();
+                        if (navigator.clipboard) {
+                            navigator.clipboard.writeText(field.value).catch(() => document.execCommand('copy'));
+                        } else {
+                            document.execCommand('copy');
+                        }
+                        copyBtn.textContent = '✅ Copié !';
+                        setTimeout(() => { copyBtn.textContent = '📋 Copier'; }, 2000);
+                    });
+                }
+            }
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
@@ -979,18 +1025,15 @@
                 errorMessageDiv.style.display = 'none';
                 errorMessageDiv.innerText = '';
 
-                // Validate salt/pepper length (ssss DISCO limit = 56 chars each)
-                const saltVal   = saltInput.value.trim();
-                const pepperVal = pepperInput.value;
-                if (saltVal && saltVal.length > DISCO_MAX) {
-                    errorMessageDiv.innerText = `⚠️ Identifiant trop long (${saltVal.length} car., max ${DISCO_MAX}). Raccourcissez votre identifiant.`;
+                // Don wallet Ğ1 v1 : la checkbox est obligatoire si des identifiants sont saisis
+                const wantsDonation = v1LoginInput.value.trim() && v1PasswordInput.value;
+                if (wantsDonation && !confirmDonationCb.checked) {
+                    errorMessageDiv.innerText = "⚠️ Cochez la case de confirmation pour faire don de votre ancien portefeuille Ğ1.";
                     errorMessageDiv.style.display = 'block';
                     return;
                 }
-                if (pepperVal && pepperVal.length > DISCO_MAX) {
-                    errorMessageDiv.innerText = `⚠️ Mot de passe trop long (${pepperVal.length} car., max ${DISCO_MAX}). Utilisez un mot de passe plus court.`;
-                    errorMessageDiv.style.display = 'block';
-                    return;
+                if (!wantsDonation) {
+                    confirmDonationCb.checked = false;
                 }
 
                 loaderContainer.style.display = 'flex';
@@ -998,28 +1041,24 @@
 
                 const formData = new FormData(form);
 
-                fetch('/g1nostr', {
+                fetch('/g1/onboard', {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => {
-                    if (response.ok) {
-                        return response.blob();
-                    } else {
-                        return response.json().then(err => {
-                            throw new Error(err.error || `Server error: ${response.status} ${response.statusText}`);
-                        });
-                    }
-                })
-                .then(blob => {
+                .then(response => response.json().then(data => ({ status: response.status, data })))
+                .then(({ status, data }) => {
                     loaderContainer.style.display = 'none';
 
-                    if (blob) {
-                        const blobUrl = URL.createObjectURL(blob);
-                        resultIframe.src = blobUrl;
-                        resultModal.style.display = 'flex';
-                        resultIframe.dataset.src = blobUrl;
+                    if (status === 403 && data.error === 'OC_MEMBERSHIP_REQUIRED') {
+                        renderOcGate(data);
+                        return;
                     }
+                    if (status !== 200) {
+                        errorMessageDiv.innerText = 'Erreur: ' + (data.message || data.error || `Server error: ${status}`);
+                        errorMessageDiv.style.display = 'block';
+                        return;
+                    }
+                    renderMultipassResult(data);
                 })
                 .catch(error => {
                     loaderContainer.style.display = 'none';
@@ -1029,31 +1068,21 @@
                 });
             });
 
-            openNewTabButton.addEventListener('click', function() {
-                const currentSrc = resultIframe.dataset.src;
-                if (currentSrc) {
-                    window.open(currentSrc, '_blank');
-                }
-            });
-
             closeResultButton.addEventListener('click', function() {
                 resultModal.style.display = 'none';
-                resultIframe.src = '';
-                resultIframe.dataset.src = '';
+                resultPanel.innerHTML = '';
             });
 
             modalCloseButton.addEventListener('click', function() {
                 resultModal.style.display = 'none';
-                resultIframe.src = '';
-                resultIframe.dataset.src = '';
+                resultPanel.innerHTML = '';
             });
 
             // Close modal when clicking outside
             resultModal.addEventListener('click', function(e) {
                 if (e.target === resultModal) {
                     resultModal.style.display = 'none';
-                    resultIframe.src = '';
-                    resultIframe.dataset.src = '';
+                    resultPanel.innerHTML = '';
                 }
             });
 
@@ -1069,5 +1098,9 @@
 <!-- 📄 Source: UPassport/templates/g1nostr.html -->
 
 <script src="/earth/feedback.js"></script>
+<script src="/earth/eos_installer.js"></script>
+<script>
+    if (window.EosInstaller) { EosInstaller.init({ containerId: 'eos-installer' }); }
+</script>
 </body>
 </html>

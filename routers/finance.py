@@ -1185,9 +1185,9 @@ async def check_society_route(request: Request, html: Optional[str] = None, nost
 # ─────────────────────────────────────────────────────────────────────────────
 # CHECK_OC_MEMBER  —  Vérifie l'inscription OpenCollective d'un email
 # ─────────────────────────────────────────────────────────────────────────────
-@router.get("/check_oc_member")
-async def check_oc_member(email: str):
-    """Vérifie si un email est inscrit sur OpenCollective.
+async def get_oc_member_info(email: str) -> dict:
+    """Cœur de la vérification d'adhésion OpenCollective — réutilisable par
+    d'autres routers (ex: identity.py::/g1/onboard) sans repasser par HTTP.
 
     Stratégie :
       1. Cache local slug_email_map.json + tx.json  (rapide, sans réseau)
@@ -1200,7 +1200,7 @@ async def check_oc_member(email: str):
 
     cache_key = f"oc_member_{email_lc}"
     if cache_key in _oc_member_cache:
-        return JSONResponse(_oc_member_cache[cache_key])
+        return _oc_member_cache[cache_key]
 
     from core.config import settings
 
@@ -1247,21 +1247,21 @@ async def check_oc_member(email: str):
             "amount": amount, "last_contribution": last_tx, "source": "cache_local"
         }
         _oc_member_cache[cache_key] = result
-        return JSONResponse(result)
+        return result
 
     # ── 3. Requête live OC GraphQL ────────────────────────────────────────────
     oc_token = await _get_oc_token()
     if not oc_token:
-        return JSONResponse({"is_member": False, "email": email_lc,
-                             "message": "Données OC non disponibles sur cette station"})
+        return {"is_member": False, "email": email_lc,
+                "message": "Données OC non disponibles sur cette station"}
 
     oc_env  = _get_oc_env()
     oc_api  = _get_oc_api_url()
     oc_slug = oc_env.get("OCSLUG", "") or getattr(settings, "OCSLUG", "") \
               or await _get_coop_config("OCSLUG")
     if not oc_slug:
-        return JSONResponse({"is_member": False, "email": email_lc,
-                             "message": "OCSLUG non configuré sur cette station"})
+        return {"is_member": False, "email": email_lc,
+                "message": "OCSLUG non configuré sur cette station"}
 
     query = {
         "query": """query($slug: String) {
@@ -1299,7 +1299,7 @@ async def check_oc_member(email: str):
                     result = {"is_member": False, "email": email_lc,
                               "message": "Non inscrit sur OpenCollective"}
                     _oc_member_cache[cache_key] = result
-                    return JSONResponse(result)
+                    return result
                 # Trouver le tier dans les transactions
                 for node in account.get("transactions", {}).get("nodes", []):
                     fa = node.get("fromAccount", {})
@@ -1320,12 +1320,18 @@ async def check_oc_member(email: str):
                     "amount": amount, "last_contribution": last_tx, "source": "live_oc"
                 }
                 _oc_member_cache[cache_key] = result
-                return JSONResponse(result)
+                return result
     except Exception as e:
         logger.warning(f"[check_oc_member] OC GraphQL KO: {e}")
 
-    return JSONResponse({"is_member": False, "email": email_lc,
-                         "message": "Erreur lors de la vérification OpenCollective"})
+    return {"is_member": False, "email": email_lc,
+            "message": "Erreur lors de la vérification OpenCollective"}
+
+
+@router.get("/check_oc_member")
+async def check_oc_member(email: str):
+    """Wrapper HTTP mince autour de get_oc_member_info() — voir sa docstring."""
+    return JSONResponse(await get_oc_member_info(email))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTELLATION_REGISTER  —  Diffuse un kind 30078 sur les relais pairs

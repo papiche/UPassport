@@ -23,6 +23,8 @@ from fastapi.templating import Jinja2Templates
 
 from core.config import settings
 from services.memory_status import get_memory_status, reset_memory, RESET_SCOPES, regenerate_lifeos_from_mastodon
+from utils.crypto import verify_nostr_event as _verify_nostr_event
+from utils.crypto import _pt_mul, _SECP256K1_G as _G  # ECDH auto-chiffrement NIP-04 ci-dessous
 
 templates = Jinja2Templates(directory="templates")
 
@@ -37,81 +39,8 @@ import bro_watch_core  # noqa: E402
 # ─── Challenges NIP-42 (mémoire locale, TTL 5 min) ────────────────────────────
 _challenges: dict[str, float] = {}  # challenge_hex → expiry_timestamp
 
-# ─── secp256k1 / BIP-340 Schnorr (pur Python) ────────────────────────────────
-
-_P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
-_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-_G = (
-    0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
-    0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
-)
-
-
-def _pt_add(P, Q):
-    if P is None: return Q
-    if Q is None: return P
-    x1, y1 = P; x2, y2 = Q
-    if x1 == x2:
-        if y1 != y2: return None
-        lam = 3 * x1 * x1 * pow(2 * y1, _P - 2, _P) % _P
-    else:
-        lam = (y2 - y1) * pow(x2 - x1, _P - 2, _P) % _P
-    x3 = (lam * lam - x1 - x2) % _P
-    return x3, (lam * (x1 - x3) - y1) % _P
-
-
-def _pt_mul(P, n):
-    R = None
-    for i in range(256):
-        if (n >> i) & 1: R = _pt_add(R, P)
-        P = _pt_add(P, P)
-    return R
-
-
-def _lift_x(x: int):
-    if x >= _P: return None
-    y_sq = (pow(x, 3, _P) + 7) % _P
-    y = pow(y_sq, (_P + 1) // 4, _P)
-    if pow(y, 2, _P) != y_sq: return None
-    return x, (y if y % 2 == 0 else _P - y)
-
-
-def _tagged_hash(tag: str, data: bytes) -> bytes:
-    th = hashlib.sha256(tag.encode()).digest()
-    return hashlib.sha256(th + th + data).digest()
-
-
-def _schnorr_verify(msg: bytes, pk32: bytes, sig64: bytes) -> bool:
-    """Vérifie une signature Schnorr BIP-340."""
-    if len(pk32) != 32 or len(sig64) != 64: return False
-    P = _lift_x(int.from_bytes(pk32, "big"))
-    if P is None: return False
-    r = int.from_bytes(sig64[:32], "big")
-    s = int.from_bytes(sig64[32:], "big")
-    if r >= _P or s >= _N: return False
-    e = int.from_bytes(
-        _tagged_hash("BIP0340/challenge", sig64[:32] + pk32 + msg), "big"
-    ) % _N
-    R = _pt_add(_pt_mul(_G, s), _pt_mul(P, _N - e))
-    return R is not None and R[1] % 2 == 0 and R[0] == r
-
-
-def _verify_nostr_event(ev: dict) -> bool:
-    """Vérifie l'ID (SHA-256) et la signature Schnorr d'un événement NOSTR."""
-    try:
-        serial = json.dumps(
-            [0, ev["pubkey"], ev["created_at"], ev["kind"], ev["tags"], ev["content"]],
-            separators=(",", ":"), ensure_ascii=False,
-        )
-        if ev.get("id") != hashlib.sha256(serial.encode()).hexdigest():
-            return False
-        return _schnorr_verify(
-            bytes.fromhex(ev["id"]),
-            bytes.fromhex(ev["pubkey"]),
-            bytes.fromhex(ev["sig"]),
-        )
-    except Exception:
-        return False
+# La vérification Schnorr BIP-340 (_verify_nostr_event) vit désormais dans
+# utils/crypto.py — réutilisée aussi par routers/identity.py::/atom4love/*.
 
 
 # ─── NIP-04 self-encryption (mailjet prefs → NOSTR) ──────────────────────────

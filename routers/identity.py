@@ -19,9 +19,10 @@ from fastapi.templating import Jinja2Templates
 
 from core.config import settings
 from utils.helpers import run_script, get_myipfs_gateway, is_origin_mode, get_oc_tier_urls, get_uplanet_home_url
-from utils.security import is_multipass_user
-from utils.crypto import npub_to_hex, hex_to_npub
+from utils.security import is_multipass_user, is_safe_email
+from utils.crypto import npub_to_hex, hex_to_npub, verify_nostr_event
 from utils.observability import log_node_event, log_user_event
+from services.nostr import generate_nip42_challenge, consume_nip42_challenge
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -126,8 +127,67 @@ def _find_email_by_npub(npub: str) -> Optional[str]:
     return None
 
 
-# Double-soumission : un seul appel /g1nostr actif par email
+# Double-soumission : un seul appel /g1nostr actif par email (partagé avec
+# /g1/onboard, même risque de double création concurrente pour un même email)
 _g1nostr_in_progress: set[str] = set()
+
+
+async def _create_multipass_and_wait(
+    email: str, lang: str, lat: str, lon: str, salt: str, pepper: str,
+    birth_datetime: str = "", birth_place: str = "", birth_weight: str = "",
+    conception_datetime: str = "", conception_place: str = "",
+    birth_lat: str = "", birth_lon: str = "", polarity: str = "0",
+) -> dict:
+    """Lance g1.sh en arrière-plan et attend `.multipass.json` (jusqu'à 40 s).
+
+    Retourne le JSON enrichi (is_origin/oc_urls/uplanet_home/uplanetname_g1).
+    Lève HTTPException en cas d'échec. Factorisé depuis `/g1nostr` (cas
+    "nouvel email, format=json") pour être réutilisé par `POST /g1/onboard`
+    sans dupliquer le lancement du script + le polling.
+    """
+    multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bash", "./g1.sh",
+            email, lang, lat, lon, salt, pepper,
+            birth_datetime, birth_place, birth_weight,
+            conception_datetime, conception_place,
+            birth_lat, birth_lon, polarity,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        # Nettoyage zombie sans bloquer
+        asyncio.ensure_future(proc.wait())
+    except Exception as e:
+        logger.error(f"Failed to launch g1.sh for {email}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur lancement g1.sh : {e}")
+
+    # Poll jusqu'à 40 s (80 × 0.5 s) — .multipass.json apparaît vers 10–15 s
+    for _ in range(80):
+        if multipass_json.exists():
+            break
+        await asyncio.sleep(0.5)
+
+    if not multipass_json.exists():
+        logger.error(f"JSON sidecar not found after 40s for {email}")
+        raise HTTPException(status_code=500,
+                            detail="MULTIPASS non initialisé après 40 s. Contactez le support.")
+    try:
+        with open(multipass_json) as f:
+            data = json.load(f)
+        data["is_origin"]      = is_origin_mode()
+        data["oc_urls"]        = get_oc_tier_urls()
+        data["uplanet_home"]   = await get_uplanet_home_url()
+        data["uplanetname_g1"] = settings.UPLANETNAME_G1
+        if proc.returncode is None:
+            data["status"] = "creating"
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reading JSON sidecar for {email}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur lecture JSON : {e}")
+
 
 @router.post("/g1nostr")
 async def scan_qr(
@@ -204,44 +264,6 @@ async def _scan_qr_impl(
     conception_datetime = form_data.conception_datetime or ""
     conception_place    = form_data.conception_place or ""
     polarity            = form_data.polarity or "0"
-
-    # ── Convention +a4l : compléter (jamais dupliquer) le MULTIPASS existant ──
-    # "base+a4l@domain.tld" → active ATOM4LOVE (clé LOVE dédiée .secret.love,
-    # résonance Phi², event kind 30078) pour le compte déjà existant
-    # "base@domain.tld", sans jamais créer de second MULTIPASS.
-    _A4L_SUFFIX = "+a4l"
-    _local, _at, _domain = email.partition("@")
-    if _at and _local.endswith(_A4L_SUFFIX):
-        base_email = f"{_local[: -len(_A4L_SUFFIX)]}@{_domain}"
-        base_dir = settings.GAME_PATH / "nostr" / base_email
-        if not (base_dir / ".secret.nostr").exists() or not (base_dir / "G1PUBNOSTR").exists():
-            return JSONResponse(
-                status_code=404,
-                content={
-                    "error": "PRIMARY_ACCOUNT_NOT_FOUND",
-                    "message": "Créez d'abord votre MULTIPASS avant d'activer ATOM4LOVE."
-                }
-            )
-        return_code, last_line = await run_script(
-            str(settings.TOOLS_PATH / "atom4love_activate.sh"),
-            base_email, birth_datetime, birth_place, birth_lat, birth_lon,
-            birth_weight, conception_datetime, conception_place, polarity,
-        )
-        try:
-            data = json.loads(last_line.strip())
-        except (json.JSONDecodeError, AttributeError):
-            data = {}
-        if return_code != 0 or not data.get("activated"):
-            logger.warning(f"ATOM4LOVE activation failed for {base_email}: {last_line}")
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": data.get("error", "ACTIVATION_FAILED"),
-                    "message": "Échec de l'activation ATOM4LOVE."
-                }
-            )
-        logger.info(f"ATOM4LOVE activated for {base_email}")
-        return JSONResponse(data)
 
     # ── Détection email existant ──────────────────────────────────────────────
     nostr_dir    = settings.GAME_PATH / "nostr" / email
@@ -382,54 +404,19 @@ async def _scan_qr_impl(
 
     logger.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
 
-    multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
-
     if format == "json":
         # ── Retour anticipé : lance g1.sh en arrière-plan, poll .multipass.json ──
         try:
-            proc = await asyncio.create_subprocess_exec(
-                "bash", "./g1.sh",
+            data = await _create_multipass_and_wait(
                 email, lang, lat, lon, salt, pepper,
                 birth_datetime, birth_place, birth_weight,
                 conception_datetime, conception_place,
                 birth_lat, birth_lon, polarity,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
             )
-            # Nettoyage zombie sans bloquer
-            asyncio.ensure_future(proc.wait())
-        except Exception as e:
+        finally:
             _g1nostr_in_progress.discard(email)
-            logger.error(f"Failed to launch g1.sh for {email}: {e}")
-            raise HTTPException(status_code=500, detail=f"Erreur lancement g1.sh : {e}")
-
-        # Poll jusqu'à 40 s (80 × 0.5 s) — .multipass.json apparaît vers 10–15 s
-        for i in range(80):
-            if multipass_json.exists():
-                break
-            await asyncio.sleep(0.5)
-
-        _g1nostr_in_progress.discard(email)
-
-        if not multipass_json.exists():
-            logger.error(f"JSON sidecar not found after 40s for {email}")
-            raise HTTPException(status_code=500,
-                                detail="MULTIPASS non initialisé après 40 s. Contactez le support.")
-        try:
-            with open(multipass_json) as f:
-                data = json.load(f)
-            data["is_origin"]      = is_origin_mode()
-            data["oc_urls"]        = get_oc_tier_urls()
-            data["uplanet_home"]   = await get_uplanet_home_url()
-            data["uplanetname_g1"] = settings.UPLANETNAME_G1
-            # Indiquer si la publication IPFS/DID est encore en cours
-            if proc.returncode is None:
-                data["status"] = "creating"
-            logger.info(f"Early return for {email} (status={data.get('status','done')})")
-            return JSONResponse(data)
-        except Exception as e:
-            logger.error(f"Error reading JSON sidecar for {email}: {e}")
-            raise HTTPException(status_code=500, detail=f"Erreur lecture JSON : {e}")
+        logger.info(f"Early return for {email} (status={data.get('status','done')})")
+        return JSONResponse(data)
 
     # ── Format HTML : attendre la fin complète du script ─────────────────────
     try:
@@ -446,6 +433,136 @@ async def _scan_qr_impl(
         raise HTTPException(status_code=500, detail=f"Erreur script g1.sh : {last_line}")
 
     return FileResponse(last_line.strip())
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ATOM4LOVE — activation/complétion d'un MULTIPASS déjà existant
+#
+# Endpoint dédié, authentifié — remplace l'ancienne convention `+a4l@email`
+# détectée dans /g1nostr (retirée : n'importe qui pouvait POST
+# "victime+a4l@domain" avec de fausses données de naissance et faire signer
+# un event NOSTR par la clé de la victime, sans aucune preuve de possession).
+#
+# Authentification, l'une des deux :
+#   - pass_code : le code PASS reçu par email à la création du MULTIPASS
+#     (même mécanisme que /g1nostr, fichier ~/.zen/game/players/{email}/.pass)
+#   - auth_event : event NOSTR kind 22242 (NIP-42) signé avec le nsec
+#     PRINCIPAL du compte, prouvant sa possession sans jamais le transmettre.
+#     Challenge à obtenir au préalable via GET /atom4love/challenge.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/atom4love/challenge")
+async def get_atom4love_challenge(email: str):
+    """Émet un challenge NIP-42 scopé à la clé NOSTR principale de `email`."""
+    email = (email or "").strip().lower()
+    hex_file = settings.GAME_PATH / "nostr" / email / "HEX"
+    if not hex_file.exists():
+        raise HTTPException(status_code=404, detail="MULTIPASS introuvable pour cet email.")
+    hex_pubkey = hex_file.read_text().strip()
+    challenge = generate_nip42_challenge(hex_pubkey)
+    return JSONResponse({"challenge": challenge, "pubkey_hex": hex_pubkey, "expires_in": 120})
+
+
+@as_form
+class Atom4LoveActivateForm(BaseModel):
+    email: str
+    birth_datetime: str
+    birth_lat: str
+    birth_lon: str
+    birth_weight: str = ""
+    birth_place: str = ""
+    conception_datetime: str = ""
+    conception_place: str = ""
+    polarity: str = "0"
+    pass_code: str = ""    # Option A — code PASS
+    auth_event: str = ""   # Option B — event kind 22242 signé (JSON), voir /atom4love/challenge
+
+
+@router.post("/atom4love/activate")
+async def atom4love_activate(
+    request: Request,
+    form_data: Atom4LoveActivateForm = Depends(Atom4LoveActivateForm.as_form)
+):
+    email = (form_data.email or "").strip().lower()
+    if not re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", email):
+        raise HTTPException(status_code=400, detail="Email invalide.")
+
+    nostr_dir = settings.GAME_PATH / "nostr" / email
+    if not (nostr_dir / ".secret.nostr").exists() or not (nostr_dir / "G1PUBNOSTR").exists():
+        return JSONResponse(
+            status_code=404,
+            content={"error": "PRIMARY_ACCOUNT_NOT_FOUND",
+                     "message": "Créez d'abord votre MULTIPASS avant d'activer ATOM4LOVE."}
+        )
+
+    pass_code = (form_data.pass_code or "").strip()
+    auth_event_raw = (form_data.auth_event or "").strip()
+
+    if auth_event_raw:
+        try:
+            ev = json.loads(auth_event_raw)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="auth_event: JSON invalide.")
+
+        if not verify_nostr_event(ev):
+            return JSONResponse(status_code=401, content={
+                "error": "INVALID_SIGNATURE", "message": "Signature NOSTR invalide."})
+        if ev.get("kind") != 22242:
+            return JSONResponse(status_code=400, content={
+                "error": "INVALID_AUTH_KIND",
+                "message": "auth_event doit être un event kind 22242 (NIP-42)."})
+
+        hex_file = nostr_dir / "HEX"
+        account_hex = hex_file.read_text().strip() if hex_file.exists() else ""
+        if not account_hex or ev.get("pubkey", "").lower() != account_hex.lower():
+            logger.warning(f"ATOM4LOVE auth: pubkey mismatch for {email}")
+            return JSONResponse(status_code=401, content={
+                "error": "PUBKEY_MISMATCH",
+                "message": "Cette signature n'appartient pas au compte ciblé."})
+
+        challenge = next(
+            (t[1] for t in ev.get("tags", []) if len(t) >= 2 and t[0] == "challenge"), None)
+        expected = consume_nip42_challenge(account_hex)  # usage unique
+        if not challenge or not expected or challenge != expected:
+            return JSONResponse(status_code=401, content={
+                "error": "INVALID_CHALLENGE",
+                "message": "Challenge NIP-42 expiré, invalide ou déjà utilisé."})
+
+    elif pass_code:
+        pass_file = settings.GAME_PATH / "players" / email / ".pass"
+        if not pass_file.exists():
+            return JSONResponse(status_code=503, content={
+                "error": "PASS_UNAVAILABLE",
+                "message": "Code PASS non disponible sur ce nœud. Contactez le support."})
+        if pass_code != pass_file.read_text().strip():
+            logger.warning(f"ATOM4LOVE: wrong PASS attempt for {email}")
+            return JSONResponse(status_code=401, content={
+                "error": "INVALID_PASS", "message": "Code PASS incorrect."})
+
+    else:
+        return JSONResponse(status_code=401, content={
+            "error": "AUTH_REQUIRED",
+            "message": "Authentification requise : code PASS ou signature NOSTR (voir /atom4love/challenge)."})
+
+    return_code, last_line = await run_script(
+        str(settings.TOOLS_PATH / "atom4love_activate.sh"),
+        email, form_data.birth_datetime, form_data.birth_place,
+        form_data.birth_lat, form_data.birth_lon, form_data.birth_weight,
+        form_data.conception_datetime, form_data.conception_place, form_data.polarity,
+    )
+    try:
+        data = json.loads(last_line.strip())
+    except (json.JSONDecodeError, AttributeError):
+        data = {}
+    if return_code != 0 or not data.get("activated"):
+        logger.warning(f"ATOM4LOVE activation failed for {email}: {last_line}")
+        return JSONResponse(status_code=500, content={
+            "error": data.get("error", "ACTIVATION_FAILED"),
+            "message": "Échec de l'activation ATOM4LOVE."})
+
+    logger.info(f"ATOM4LOVE activated for {email}")
+    return JSONResponse(data)
+
 
 @as_form
 class UPassportForm(BaseModel):
@@ -716,3 +833,158 @@ async def pass_attempts_alert(request: Request, data: PassAlertBody) -> JSONResp
                    extra={"attempts": data.attempts})
 
     return JSONResponse({"status": "alerted", "invalidated": invalidated})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ONBOARDING /g1  —  Point d'entrée réservé aux membres OpenCollective
+#
+# Politique spécifique à CETTE page (u.DOMAIN/g1, templates/g1nostr.html) :
+# la création d'un nouveau MULTIPASS y est bloquée pour les emails non inscrits
+# sur OpenCollective. zelkova / atomic.html / miz.html continuent d'utiliser
+# /g1nostr directement, SANS aucune restriction — contrat inchangé pour eux.
+#
+# Permet en option de faire don d'un ancien portefeuille Ğ1 v1 (Cesium) à la
+# coopérative : le solde est vidé vers UPLANETNAME_G1 et crédité en ẐEN
+# (floor(Ğ1_donnés / 10)) sur le MULTIPASS — dont la clé est TOUJOURS générée
+# aléatoirement côté serveur, indépendamment du wallet donné.
+#
+# Ordre des opérations (irréversible en dernier — voir memory
+# feedback_g1_financial_ops_safety) :
+#   1. Vérification adhésion OpenCollective (avant toute création).
+#   2. Création du MULTIPASS (clé aléatoire).
+#   3. Seulement si 2 a réussi : don du wallet v1 (best-effort).
+#   4. Seulement si 3 a réussi (donated=true, credited_zen>0) : crédit ẐEN.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@as_form
+class G1OnboardForm(BaseModel):
+    email: str
+    lang: str
+    lat: str
+    lon: str
+    v1_login: str = ""
+    v1_password: str = ""
+    confirm_donation: bool = False
+
+    @field_validator('v1_login', 'v1_password', mode='before')
+    @classmethod
+    def validate_no_shell_injection(cls, v: str) -> str:
+        """Mêmes règles que G1NostrForm.salt/pepper — ces valeurs transitent
+        vers un fichier JSON, jamais un argument shell, mais on reste strict."""
+        if v and not _SAFE_CREDENTIAL_RE.match(v):
+            raise ValueError(
+                'Caractères non autorisés (exclus : guillemets " \' ` $ \\ et caractères de contrôle ; max 56 chars)'
+            )
+        return v
+
+
+async def _donate_g1v1_and_credit(email: str, v1_login: str, v1_password: str) -> dict:
+    """Écrit les credentials v1 dans un fichier 0600 sous /dev/shm (jamais en
+    argument de ligne de commande — voir memory feedback_g1_financial_ops_safety),
+    appelle donate_g1v1_wallet.sh (drain vers UPLANETNAME_G1), puis crédite le
+    ẐEN correspondant via UPLANET.official.sh.
+
+    Best-effort : un échec ici n'invalide jamais le MULTIPASS déjà créé —
+    l'appelant doit avoir déjà confirmé la création avant d'appeler ceci.
+    """
+    credfile = Path(f"/dev/shm/.g1v1_onboard_{secrets.token_hex(8)}")
+    try:
+        credfile.write_text(json.dumps({"salt": v1_login, "password": v1_password}))
+        credfile.chmod(0o600)
+        script = str(settings.TOOLS_PATH / "donate_g1v1_wallet.sh")
+        return_code, last_line = await run_script(
+            script, str(credfile), settings.UPLANETNAME_G1, f"UPLANET:DON_LEGACY:{email}"
+        )
+    except Exception as e:
+        logger.error(f"donate_g1v1_wallet.sh launch failed for {email}: {e}")
+        return {"donated": False, "error": "DONATION_SCRIPT_FAILED"}
+    finally:
+        # Double sécurité : le script bash supprime déjà CREDFILE (trap EXIT),
+        # on s'assure qu'il ne traîne pas si le lancement lui-même a échoué.
+        credfile.unlink(missing_ok=True)
+
+    try:
+        donation = json.loads(last_line.strip())
+    except (json.JSONDecodeError, AttributeError):
+        logger.warning(f"donate_g1v1_wallet.sh unparsable output for {email}: {last_line}")
+        return {"donated": False, "error": "DONATION_OUTPUT_UNPARSABLE"}
+
+    if return_code != 0 or not donation.get("donated"):
+        logger.info(f"Donation not applied for {email}: {donation}")
+        return donation
+
+    credited_zen = int(donation.get("credited_zen") or 0)
+    donation["zen_credited"] = False
+    if credited_zen > 0:
+        try:
+            await run_script(
+                str(settings.ZEN_PATH / "Astroport.ONE" / "UPLANET.official.sh"),
+                "-l", email, "-m", str(credited_zen),
+            )
+            donation["zen_credited"] = True
+            logger.info(f"Credited {credited_zen} Ẑ to {email} for legacy G1v1 donation")
+        except Exception as e:
+            logger.error(f"UPLANET.official.sh credit failed for {email} ({credited_zen} Ẑ): {e}")
+            donation["credit_error"] = str(e)
+
+    return donation
+
+
+@router.post("/g1/onboard")
+async def g1_onboard(
+    request: Request,
+    form_data: G1OnboardForm = Depends(G1OnboardForm.as_form)
+):
+    """Onboarding MULTIPASS gate OpenCollective + don optionnel de wallet Ğ1 v1.
+
+    Réutilise entièrement _scan_qr_impl (via un G1NostrForm construit ici, avec
+    salt/pepper vides — donc générés aléatoirement côté serveur) pour la
+    création elle-même : pas de duplication de la logique g1.sh / anti double-
+    soumission / enrichissement JSON, déjà éprouvée sur /g1nostr.
+    """
+    email = (form_data.email or "").strip().lower()
+    if not is_safe_email(email):
+        raise HTTPException(status_code=400, detail="Email invalide.")
+
+    nostr_dir    = settings.GAME_PATH / "nostr" / email
+    email_exists = nostr_dir.exists() and (nostr_dir / "G1PUBNOSTR").exists()
+
+    # ── Gate OpenCollective — uniquement pour une NOUVELLE création ──────────
+    # Un membre déjà inscrit n'a pas à re-prouver son adhésion pour récupérer
+    # son MULTIPASS existant.
+    if not email_exists:
+        from routers.finance import get_oc_member_info
+        oc_info = await get_oc_member_info(email)
+        if not oc_info.get("is_member"):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "error": "OC_MEMBERSHIP_REQUIRED",
+                    "message": "Devenez membre OpenCollective avec cet email avant de créer votre MULTIPASS.",
+                    "oc_urls": get_oc_tier_urls(),
+                }
+            )
+
+    # ── Création (ou récupération) — délègue entièrement à /g1nostr ─────────
+    g1nostr_form = G1NostrForm(
+        email=email, lang=form_data.lang, lat=form_data.lat, lon=form_data.lon,
+        format="json",
+    )
+    result = await _scan_qr_impl(request, g1nostr_form)
+
+    status_code = getattr(result, "status_code", 200)
+    if status_code != 200:
+        return result  # 409 (need_pass/conflict), 429 (in_progress), etc. — inchangé
+
+    data = json.loads(bytes(result.body))
+
+    # ── Don optionnel du wallet Ğ1 v1 — SEULEMENT après création réussie ────
+    # (email_exists était False au moment du gate : c'est donc une création
+    # neuve, jamais une récupération d'un compte déjà existant.)
+    if (not email_exists and form_data.confirm_donation
+            and form_data.v1_login and form_data.v1_password):
+        data["donation"] = await _donate_g1v1_and_credit(
+            email, form_data.v1_login, form_data.v1_password
+        )
+
+    return JSONResponse(data)
