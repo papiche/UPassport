@@ -958,6 +958,10 @@
                     .join('');
                 errorMessageDiv.innerHTML = `
                     <p>${data.message || "Devenez membre OpenCollective avec cet email avant de créer votre MULTIPASS."}</p>
+                    <a href="https://opencollective.com/monnaie-libre/contribute" target="_blank"
+                    style="color:#00C968;background:rgba(0,201,104,.1);border:1px solid rgba(0,201,104,.35);font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
+                    🌐️ Open Collective
+                    </a>
                     <div>${links}</div>
                     <button type="button" id="oc-recheck-btn" class="map-button" style="margin-top:10px;">🔄 Revérifier mon adhésion</button>
                 `;
