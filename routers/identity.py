@@ -463,6 +463,64 @@ async def get_atom4love_challenge(email: str):
     return JSONResponse({"challenge": challenge, "pubkey_hex": hex_pubkey, "expires_in": 120})
 
 
+def _check_atom4love_auth(email: str, pass_code: str, auth_event_raw: str) -> Optional[JSONResponse]:
+    """Vérifie l'authentification ATOM4LOVE : pass_code (code PASS) OU
+    auth_event (kind 22242 NIP-42 signé par la clé NOSTR principale du
+    compte, challenge obtenu via GET /atom4love/challenge). Retourne une
+    JSONResponse d'erreur, ou None si l'authentification est valide."""
+    nostr_dir = settings.GAME_PATH / "nostr" / email
+    pass_code = (pass_code or "").strip()
+    auth_event_raw = (auth_event_raw or "").strip()
+
+    if auth_event_raw:
+        try:
+            ev = json.loads(auth_event_raw)
+        except json.JSONDecodeError:
+            return JSONResponse(status_code=400, content={
+                "error": "INVALID_AUTH_EVENT", "message": "auth_event: JSON invalide."})
+
+        if not verify_nostr_event(ev):
+            return JSONResponse(status_code=401, content={
+                "error": "INVALID_SIGNATURE", "message": "Signature NOSTR invalide."})
+        if ev.get("kind") != 22242:
+            return JSONResponse(status_code=400, content={
+                "error": "INVALID_AUTH_KIND",
+                "message": "auth_event doit être un event kind 22242 (NIP-42)."})
+
+        hex_file = nostr_dir / "HEX"
+        account_hex = hex_file.read_text().strip() if hex_file.exists() else ""
+        if not account_hex or ev.get("pubkey", "").lower() != account_hex.lower():
+            logger.warning(f"ATOM4LOVE auth: pubkey mismatch for {email}")
+            return JSONResponse(status_code=401, content={
+                "error": "PUBKEY_MISMATCH",
+                "message": "Cette signature n'appartient pas au compte ciblé."})
+
+        challenge = next(
+            (t[1] for t in ev.get("tags", []) if len(t) >= 2 and t[0] == "challenge"), None)
+        expected = consume_nip42_challenge(account_hex)  # usage unique
+        if not challenge or not expected or challenge != expected:
+            return JSONResponse(status_code=401, content={
+                "error": "INVALID_CHALLENGE",
+                "message": "Challenge NIP-42 expiré, invalide ou déjà utilisé."})
+        return None
+
+    if pass_code:
+        pass_file = settings.GAME_PATH / "players" / email / ".pass"
+        if not pass_file.exists():
+            return JSONResponse(status_code=503, content={
+                "error": "PASS_UNAVAILABLE",
+                "message": "Code PASS non disponible sur ce nœud. Contactez le support."})
+        if pass_code != pass_file.read_text().strip():
+            logger.warning(f"ATOM4LOVE: wrong PASS attempt for {email}")
+            return JSONResponse(status_code=401, content={
+                "error": "INVALID_PASS", "message": "Code PASS incorrect."})
+        return None
+
+    return JSONResponse(status_code=401, content={
+        "error": "AUTH_REQUIRED",
+        "message": "Authentification requise : code PASS ou signature NOSTR (voir /atom4love/challenge)."})
+
+
 @as_form
 class Atom4LoveActivateForm(BaseModel):
     email: str
@@ -495,54 +553,9 @@ async def atom4love_activate(
                      "message": "Créez d'abord votre MULTIPASS avant d'activer ATOM4LOVE."}
         )
 
-    pass_code = (form_data.pass_code or "").strip()
-    auth_event_raw = (form_data.auth_event or "").strip()
-
-    if auth_event_raw:
-        try:
-            ev = json.loads(auth_event_raw)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="auth_event: JSON invalide.")
-
-        if not verify_nostr_event(ev):
-            return JSONResponse(status_code=401, content={
-                "error": "INVALID_SIGNATURE", "message": "Signature NOSTR invalide."})
-        if ev.get("kind") != 22242:
-            return JSONResponse(status_code=400, content={
-                "error": "INVALID_AUTH_KIND",
-                "message": "auth_event doit être un event kind 22242 (NIP-42)."})
-
-        hex_file = nostr_dir / "HEX"
-        account_hex = hex_file.read_text().strip() if hex_file.exists() else ""
-        if not account_hex or ev.get("pubkey", "").lower() != account_hex.lower():
-            logger.warning(f"ATOM4LOVE auth: pubkey mismatch for {email}")
-            return JSONResponse(status_code=401, content={
-                "error": "PUBKEY_MISMATCH",
-                "message": "Cette signature n'appartient pas au compte ciblé."})
-
-        challenge = next(
-            (t[1] for t in ev.get("tags", []) if len(t) >= 2 and t[0] == "challenge"), None)
-        expected = consume_nip42_challenge(account_hex)  # usage unique
-        if not challenge or not expected or challenge != expected:
-            return JSONResponse(status_code=401, content={
-                "error": "INVALID_CHALLENGE",
-                "message": "Challenge NIP-42 expiré, invalide ou déjà utilisé."})
-
-    elif pass_code:
-        pass_file = settings.GAME_PATH / "players" / email / ".pass"
-        if not pass_file.exists():
-            return JSONResponse(status_code=503, content={
-                "error": "PASS_UNAVAILABLE",
-                "message": "Code PASS non disponible sur ce nœud. Contactez le support."})
-        if pass_code != pass_file.read_text().strip():
-            logger.warning(f"ATOM4LOVE: wrong PASS attempt for {email}")
-            return JSONResponse(status_code=401, content={
-                "error": "INVALID_PASS", "message": "Code PASS incorrect."})
-
-    else:
-        return JSONResponse(status_code=401, content={
-            "error": "AUTH_REQUIRED",
-            "message": "Authentification requise : code PASS ou signature NOSTR (voir /atom4love/challenge)."})
+    auth_error = _check_atom4love_auth(email, form_data.pass_code, form_data.auth_event)
+    if auth_error:
+        return auth_error
 
     return_code, last_line = await run_script(
         str(settings.TOOLS_PATH / "atom4love_activate.sh"),
@@ -561,6 +574,181 @@ async def atom4love_activate(
             "message": "Échec de l'activation ATOM4LOVE."})
 
     logger.info(f"ATOM4LOVE activated for {email}")
+    return JSONResponse(data)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ATOM4LOVE — dream_vector (kind 30079, d=dream_vector) : Réalité Choisie (DR)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/atom4love/dream")
+async def get_atom4love_dream(email: str):
+    email = (email or "").strip().lower()
+    hex_file = settings.GAME_PATH / "nostr" / email / "HEX_LOVE"
+    if not hex_file.exists():
+        raise HTTPException(status_code=404, detail="ATOM4LOVE non activé pour cet email.")
+    love_hex = hex_file.read_text().strip()
+
+    return_code, last_line = await run_script(
+        str(settings.TOOLS_PATH / "nostr_get_events.sh"),
+        "--kind", "30079", "--author", love_hex, "--tag-d", "dream_vector", "--limit", "1",
+    )
+    if return_code != 0 or not last_line.strip():
+        return JSONResponse({"dream_vector": None, "love_hex": love_hex})
+
+    try:
+        event = json.loads(last_line.strip())
+    except json.JSONDecodeError:
+        return JSONResponse({"dream_vector": None, "love_hex": love_hex})
+
+    tags = event.get("tags", [])
+    dream_tags = [t[1] for t in tags if len(t) >= 2 and t[0] == "t"]
+    ratio = next((t[1] for t in tags if len(t) >= 2 and t[0] == "ratio"), "")
+    v = next((t[1] for t in tags if len(t) >= 2 and t[0] == "v"), "")
+    try:
+        content = json.loads(event.get("content", "{}"))
+    except json.JSONDecodeError:
+        content = {}
+
+    return JSONResponse({"dream_vector": {
+        "dream_tags": dream_tags,
+        "ratio": ratio,
+        "v": v,
+        "cr": content.get("cr", ""),
+        "dr": content.get("dr", ""),
+        "notes": content.get("notes", ""),
+        "created_at": event.get("created_at", 0),
+        "love_hex": love_hex,
+    }})
+
+
+@as_form
+class Atom4LoveDreamForm(BaseModel):
+    email: str
+    dream_tags: str = ""   # tags séparés par des virgules, ex: "setting:foret,values:souverainete"
+    ratio: str = ""        # time-ratio CR:DR, ex: "1:10"
+    cr: str = ""
+    dr: str = ""
+    notes: str = ""
+    birth_unix: str = ""
+    weight_kg: str = ""
+    pass_code: str = ""
+    auth_event: str = ""
+
+
+@router.post("/atom4love/dream")
+async def atom4love_dream(
+    request: Request,
+    form_data: Atom4LoveDreamForm = Depends(Atom4LoveDreamForm.as_form)
+):
+    email = (form_data.email or "").strip().lower()
+    if not re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", email):
+        raise HTTPException(status_code=400, detail="Email invalide.")
+
+    nostr_dir = settings.GAME_PATH / "nostr" / email
+    if not (nostr_dir / ".secret.love").exists():
+        return JSONResponse(status_code=404, content={
+            "error": "LOVE_KEY_NOT_FOUND",
+            "message": "Activez d'abord ATOM4LOVE (/atom4love/activate)."})
+
+    auth_error = _check_atom4love_auth(email, form_data.pass_code, form_data.auth_event)
+    if auth_error:
+        return auth_error
+
+    birth_unix = (form_data.birth_unix or "").strip()
+    if not birth_unix:
+        # .BIRTHDATE (jour seul, clair) est le seul repère de naissance non
+        # chiffré côté serveur — birth_datetime complet (heure) est chiffré
+        # avec G1PUBNOSTR, déchiffrable uniquement côté client. Repli sur midi
+        # UTC du jour connu plutôt que d'exiger une re-saisie systématique.
+        birthdate_file = nostr_dir / ".BIRTHDATE"
+        if birthdate_file.exists():
+            try:
+                from datetime import datetime, timezone
+                d = datetime.strptime(birthdate_file.read_text().strip(), "%Y-%m-%d")
+                birth_unix = str(int(d.replace(hour=12, tzinfo=timezone.utc).timestamp()))
+            except ValueError:
+                birth_unix = ""
+    if not birth_unix:
+        return JSONResponse(status_code=400, content={
+            "error": "MISSING_BIRTH_UNIX",
+            "message": "birth_unix requis (aucune date de naissance connue côté serveur)."})
+
+    weight_kg = (form_data.weight_kg or "").strip() or "3.5"
+
+    return_code, last_line = await run_script(
+        str(settings.TOOLS_PATH / "atom4love_dream.sh"),
+        email, birth_unix, weight_kg, form_data.dream_tags,
+        form_data.ratio, form_data.cr, form_data.dr, form_data.notes,
+    )
+    try:
+        data = json.loads(last_line.strip())
+    except (json.JSONDecodeError, AttributeError):
+        data = {}
+    if return_code != 0 or not data.get("published"):
+        logger.warning(f"ATOM4LOVE dream publish failed for {email}: {last_line}")
+        return JSONResponse(status_code=500, content={
+            "error": data.get("error", "PUBLISH_FAILED"),
+            "message": "Échec de la publication du dream_vector."})
+
+    logger.info(f"ATOM4LOVE dream_vector published for {email}")
+    return JSONResponse(data)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ATOM4LOVE — follow (kind 3, NIP-02) : liste de contacts de la clé LOVE
+# ═══════════════════════════════════════════════════════════════════════════
+
+@as_form
+class Atom4LoveFollowForm(BaseModel):
+    email: str
+    action: str        # add | remove
+    target_hex: str
+    pass_code: str = ""
+    auth_event: str = ""
+
+
+@router.post("/atom4love/follow")
+async def atom4love_follow(
+    request: Request,
+    form_data: Atom4LoveFollowForm = Depends(Atom4LoveFollowForm.as_form)
+):
+    email = (form_data.email or "").strip().lower()
+    if not re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", email):
+        raise HTTPException(status_code=400, detail="Email invalide.")
+
+    nostr_dir = settings.GAME_PATH / "nostr" / email
+    if not (nostr_dir / ".secret.love").exists():
+        return JSONResponse(status_code=404, content={
+            "error": "LOVE_KEY_NOT_FOUND",
+            "message": "Activez d'abord ATOM4LOVE (/atom4love/activate)."})
+
+    auth_error = _check_atom4love_auth(email, form_data.pass_code, form_data.auth_event)
+    if auth_error:
+        return auth_error
+
+    action = (form_data.action or "").strip().lower()
+    target_hex = (form_data.target_hex or "").strip().lower()
+    if action not in ("add", "remove"):
+        raise HTTPException(status_code=400, detail="action doit être 'add' ou 'remove'.")
+    if not re.match(r"^[0-9a-f]{64}$", target_hex):
+        raise HTTPException(status_code=400, detail="target_hex invalide (attendu : hex 64 caractères).")
+
+    return_code, last_line = await run_script(
+        str(settings.TOOLS_PATH / "atom4love_follow.sh"),
+        email, action, target_hex,
+    )
+    try:
+        data = json.loads(last_line.strip())
+    except (json.JSONDecodeError, AttributeError):
+        data = {}
+    if return_code != 0 or not data.get("published"):
+        logger.warning(f"ATOM4LOVE follow update failed for {email}: {last_line}")
+        return JSONResponse(status_code=500, content={
+            "error": data.get("error", "FOLLOW_UPDATE_FAILED"),
+            "message": "Échec de la mise à jour de la liste de contacts."})
+
+    logger.info(f"ATOM4LOVE follow updated for {email}: {action} {target_hex[:16]}…")
     return JSONResponse(data)
 
 
