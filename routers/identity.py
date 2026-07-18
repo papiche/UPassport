@@ -696,6 +696,124 @@ async def atom4love_dream(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# ATOM4LOVE — profil de rencontre (kind 30078, d=love-profile) : bio, âge,
+# intérêts, visibilité publique — jusqu'ici pilotable uniquement via chat BRO
+# (#love_profile, JSON brut). Condition l'apparition dans #love_match
+# (âge ≥ 18 + public=true, cf. IA/bro/love_handler.sh::_handle_love_match).
+# ═══════════════════════════════════════════════════════════════════════════
+
+from services.memory_status import get_memory_status, _flashmem_dir  # noqa: E402
+
+
+def _love_profile_path(email: str) -> Path:
+    return _flashmem_dir(email) / "love" / "profile.json"
+
+
+def _read_love_profile(email: str) -> dict:
+    path = _love_profile_path(email)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def _love_tier(email: str, profile: dict) -> int:
+    """Réplique _love_is_tier2/_love_is_tier3 (love_handler.sh) côté web."""
+    tier = 1
+    try:
+        age = int(profile.get("age", 0) or 0)
+    except (TypeError, ValueError):
+        age = 0
+    if age >= 18:
+        tier = 2
+    did_file = settings.GAME_PATH / "nostr" / email / "did.json"
+    if did_file.exists():
+        try:
+            contract_status = json.loads(did_file.read_text()).get("contractStatus", "").lower()
+            if any(x in contract_status for x in ("parrain", "captain", "capitaine")):
+                tier = 3
+        except json.JSONDecodeError:
+            pass
+    return tier
+
+
+@router.get("/atom4love/profile")
+async def get_atom4love_profile(email: str):
+    """Vue tableau de bord : profil déclaré + statut ATOM4LOVE agrégé
+    (même contenu que _handle_love_status en chat BRO, exposé pour le web)."""
+    email = (email or "").strip().lower()
+    hex_love_file = settings.GAME_PATH / "nostr" / email / "HEX_LOVE"
+    profile = _read_love_profile(email)
+    mem_status = await asyncio.to_thread(get_memory_status, email)
+
+    return JSONResponse({
+        "profile": {
+            "age": profile.get("age", 0),
+            "bio": profile.get("bio", ""),
+            "interests": profile.get("interests", []),
+            "public": bool(profile.get("public", False)),
+            "photo": profile.get("photo", ""),
+        },
+        "has_profile": bool(profile),
+        "a4l_active": hex_love_file.exists(),
+        "tier": _love_tier(email, profile),
+        "love_stats": mem_status.get("love", {}),
+    })
+
+
+@as_form
+class Atom4LoveProfileForm(BaseModel):
+    email: str
+    age: str = ""
+    bio: str = ""
+    interests: str = ""   # tags séparés par des virgules, ex: "nature,musique,voyage"
+    public: str = ""      # "true"/"false" — visibilité pour le matching
+    photo: str = ""       # URL IPFS (déjà uploadée via /api/upload/image)
+    pass_code: str = ""
+    auth_event: str = ""
+
+
+@router.post("/atom4love/profile")
+async def atom4love_profile(
+    request: Request,
+    form_data: Atom4LoveProfileForm = Depends(Atom4LoveProfileForm.as_form)
+):
+    email = (form_data.email or "").strip().lower()
+    if not re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", email):
+        raise HTTPException(status_code=400, detail="Email invalide.")
+
+    nostr_dir = settings.GAME_PATH / "nostr" / email
+    if not (nostr_dir / ".secret.love").exists():
+        return JSONResponse(status_code=404, content={
+            "error": "LOVE_KEY_NOT_FOUND",
+            "message": "Activez d'abord ATOM4LOVE (/atom4love/activate)."})
+
+    auth_error = _check_atom4love_auth(email, form_data.pass_code, form_data.auth_event)
+    if auth_error:
+        return auth_error
+
+    return_code, last_line = await run_script(
+        str(settings.TOOLS_PATH / "atom4love_profile.sh"),
+        email, form_data.age, form_data.bio, form_data.interests, form_data.public,
+        form_data.photo,
+    )
+    try:
+        data = json.loads(last_line.strip())
+    except (json.JSONDecodeError, AttributeError):
+        data = {}
+    if return_code != 0 or not data.get("published"):
+        logger.warning(f"ATOM4LOVE profile publish failed for {email}: {last_line}")
+        return JSONResponse(status_code=500, content={
+            "error": data.get("error", "PUBLISH_FAILED"),
+            "message": "Échec de la publication du profil."})
+
+    logger.info(f"ATOM4LOVE profile published for {email}")
+    return JSONResponse(data)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # ATOM4LOVE — follow (kind 3, NIP-02) : liste de contacts de la clé LOVE
 # ═══════════════════════════════════════════════════════════════════════════
 
