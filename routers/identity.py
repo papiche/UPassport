@@ -127,6 +127,42 @@ def _find_email_by_npub(npub: str) -> Optional[str]:
     return None
 
 
+def _resolve_pass_file(email: str) -> Optional[Path]:
+    """Localise le fichier PASS d'un compte.
+
+    nostr/{email}/.pass est créé dès make_NOSTRCARD.sh (jour 0, transmis avec
+    le nsec) — c'est la copie autoritaire. players/{email}/.pass n'existe
+    qu'une fois la ZEN Card créée (VISA.new.sh, différé) ; il ne sert plus que
+    de repli pour d'éventuels comptes créés avant cette évolution.
+    """
+    nostr_pass = settings.GAME_PATH / "nostr" / email / ".pass"
+    if nostr_pass.exists():
+        return nostr_pass
+    players_pass = settings.GAME_PATH / "players" / email / ".pass"
+    if players_pass.exists():
+        return players_pass
+    return None
+
+
+def _invalidate_pass_files(email: str) -> bool:
+    """Supprime TOUTES les copies du PASS (nostr/ ET players/).
+
+    Le PASS existe désormais potentiellement à deux endroits (voir
+    _resolve_pass_file) : laisser une copie vivante après un verrouillage pour
+    tentatives répétées rendrait l'invalidation inopérante.
+    """
+    invalidated = False
+    for base in ("nostr", "players"):
+        p = settings.GAME_PATH / base / email / ".pass"
+        if p.exists():
+            try:
+                p.unlink()
+                invalidated = True
+            except OSError as exc:
+                logger.error("Impossible d'invalider %s : %s", p, exc)
+    return invalidated
+
+
 # Double-soumission : un seul appel /g1nostr actif par email (partagé avec
 # /g1/onboard, même risque de double création concurrente pour un même email)
 _g1nostr_in_progress: set[str] = set()
@@ -291,7 +327,7 @@ async def _scan_qr_impl(
     # ── Cas 2 & 3 : email existant + format JSON ──────────────────────────────
     if email_exists and format == "json":
         multipass_json = nostr_dir / ".multipass.json"
-        pass_file      = settings.GAME_PATH / "players" / email / ".pass"
+        pass_file      = _resolve_pass_file(email)
 
         # Récupération silencieuse : même email + même npub dérivé → pas de PASS requis
         if derived_npub and not pass_code:
@@ -328,8 +364,8 @@ async def _scan_qr_impl(
             )
 
         # Cas 3 — vérifier le PASS
-        if not pass_file.exists():
-            logger.warning(f"PASS file missing for {email}: {pass_file}")
+        if not pass_file:
+            logger.warning(f"PASS file missing for {email}")
             return JSONResponse(
                 status_code=503,
                 content={
@@ -445,7 +481,7 @@ async def _scan_qr_impl(
 #
 # Authentification, l'une des deux :
 #   - pass_code : le code PASS reçu par email à la création du MULTIPASS
-#     (même mécanisme que /g1nostr, fichier ~/.zen/game/players/{email}/.pass)
+#     (même mécanisme que /g1nostr, voir _resolve_pass_file)
 #   - auth_event : event NOSTR kind 22242 (NIP-42) signé avec le nsec
 #     PRINCIPAL du compte, prouvant sa possession sans jamais le transmettre.
 #     Challenge à obtenir au préalable via GET /atom4love/challenge.
@@ -505,8 +541,8 @@ def _check_atom4love_auth(email: str, pass_code: str, auth_event_raw: str) -> Op
         return None
 
     if pass_code:
-        pass_file = settings.GAME_PATH / "players" / email / ".pass"
-        if not pass_file.exists():
+        pass_file = _resolve_pass_file(email)
+        if not pass_file:
             return JSONResponse(status_code=503, content={
                 "error": "PASS_UNAVAILABLE",
                 "message": "Code PASS non disponible sur ce nœud. Contactez le support."})
@@ -1116,17 +1152,12 @@ async def pass_attempts_alert(request: Request, data: PassAlertBody) -> JSONResp
     """Invalide le PASS et notifie le capitaine après 3 échecs consécutifs."""
     email = data.email.strip().lower()
 
-    # Supprimer le fichier .pass pour bloquer toute nouvelle tentative
-    pass_file = settings.GAME_PATH / "players" / email / ".pass"
-    invalidated = False
-    if pass_file.exists():
-        try:
-            pass_file.unlink()
-            invalidated = True
-            logger.warning("PASS invalidé pour %s après %d tentatives depuis %s",
-                           email, data.attempts, request.client.host if request.client else "?")
-        except OSError as exc:
-            logger.error("Impossible d'invalider .pass pour %s : %s", email, exc)
+    # Supprimer TOUTES les copies du PASS (nostr/ ET players/) pour bloquer
+    # toute nouvelle tentative — voir _invalidate_pass_files.
+    invalidated = _invalidate_pass_files(email)
+    if invalidated:
+        logger.warning("PASS invalidé pour %s après %d tentatives depuis %s",
+                       email, data.attempts, request.client.host if request.client else "?")
 
     ip = request.client.host if request.client else "inconnu"
     await _notify_pass_alert(email, data.attempts, ip)

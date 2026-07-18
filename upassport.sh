@@ -461,7 +461,8 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
                 source "${HOME}/.zen/game/nostr/${PLAYER}/.secret.nostr"
             fi
             SSSS_KEY=$(cat "${HOME}/.zen/game/nostr/${PLAYER}/.ssss.player.key" 2>/dev/null)
-            
+            PASS=$(cat "${HOME}/.zen/game/nostr/${PLAYER}/.pass" 2>/dev/null)
+
             # GPS from GPS file or defaults
             ZLAT="$LAT"
             ZLON="$LON"
@@ -477,6 +478,7 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
   "nsec": "${NSEC}",
   "npub": "${NPUB}",
   "hex": "${HEX}",
+  "pass": "${PASS}",
   "ssss": "${SSSS_KEY}",
   "nostrns": "${NOSTRNS}",
   "salt": "${salt}",

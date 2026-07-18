@@ -94,7 +94,10 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
                 
                 # Extract SSSS from .ssss.player.key (format M-...)
                 SSSS_KEY=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/.ssss.player.key" 2>/dev/null)
-                
+
+                # Extract PASS code (créé par make_NOSTRCARD.sh dès la création du MULTIPASS)
+                PASS=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/.pass" 2>/dev/null)
+
                 # Extract SALT/PEPPER from .secret.disco
                 if [[ -f "${HOME}/.zen/game/nostr/${EMAIL}/.secret.disco" ]]; then
                     DISCO_CONTENT=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/.secret.disco")
@@ -118,6 +121,7 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
   "nsec": "${NSEC}",
   "npub": "${NPUB}",
   "hex": "${HEX}",
+  "pass": "${PASS}",
   "ssss": "${SSSS_KEY}",
   "nostrns": "${NOSTRNS}",
   "salt": "${SALT}",
