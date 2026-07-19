@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import json
 import time
 import base64
@@ -558,6 +559,37 @@ def _check_atom4love_auth(email: str, pass_code: str, auth_event_raw: str) -> Op
 
 
 @as_form
+class RevealPassForm(BaseModel):
+    email: str
+    auth_event: str    # event kind 22242 signé (JSON), challenge via GET /atom4love/challenge
+
+
+@router.post("/reveal_pass")
+async def reveal_pass(
+    request: Request,
+    form_data: RevealPassForm = Depends(RevealPassForm.as_form)
+):
+    """Révèle le code PASS d'un MULTIPASS à son propriétaire connecté.
+    Authentification NIP-42 uniquement (pas de pass_code en alternative —
+    circulaire puisque c'est justement ce qu'on révèle)."""
+    email = (form_data.email or "").strip().lower()
+    if not re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", email):
+        raise HTTPException(status_code=400, detail="Email invalide.")
+
+    auth_error = _check_atom4love_auth(email, "", form_data.auth_event)
+    if auth_error:
+        return auth_error
+
+    pass_file = _resolve_pass_file(email)
+    if not pass_file:
+        return JSONResponse(status_code=404, content={
+            "error": "PASS_UNAVAILABLE",
+            "message": "Code PASS non disponible sur ce nœud."})
+
+    return JSONResponse({"pass": pass_file.read_text().strip()})
+
+
+@as_form
 class Atom4LoveActivateForm(BaseModel):
     email: str
     birth_datetime: str
@@ -617,6 +649,13 @@ async def atom4love_activate(
 # ATOM4LOVE — dream_vector (kind 30079, d=dream_vector) : Réalité Choisie (DR)
 # ═══════════════════════════════════════════════════════════════════════════
 
+# content chiffré à la publication (tools/uplanet_crypto.py::encrypt, clé
+# dérivée de $UPLANETNAME — même mécanisme que cooperative_config.sh) :
+# seules les stations de la constellation peuvent le déchiffrer.
+sys.path.insert(0, str(settings.TOOLS_PATH))
+import uplanet_crypto  # noqa: E402
+
+
 @router.get("/atom4love/dream")
 async def get_atom4love_dream(email: str):
     email = (email or "").strip().lower()
@@ -642,7 +681,8 @@ async def get_atom4love_dream(email: str):
     ratio = next((t[1] for t in tags if len(t) >= 2 and t[0] == "ratio"), "")
     v = next((t[1] for t in tags if len(t) >= 2 and t[0] == "v"), "")
     try:
-        content = json.loads(event.get("content", "{}"))
+        decrypted = uplanet_crypto.decrypt_or_passthrough(event.get("content", "{}"))
+        content = json.loads(decrypted or "{}")
     except json.JSONDecodeError:
         content = {}
 
