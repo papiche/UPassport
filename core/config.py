@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     }
     TRUSTED_IP_RANGES: List[str] = [
         "10.99.99.0/24",
+        "172.16.0.0/12",  # réseaux bridge Docker (ex: dragon-net/nginx-proxy-manager, subnet variable selon la machine)
     ]
     
     # Cache TTLs

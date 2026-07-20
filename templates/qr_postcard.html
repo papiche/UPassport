@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Carte Postale Generator — UPlanet</title>
+<style>
+:root{--bg:#090a0f;--panel:rgba(12,10,20,.97);--pink:#ff3399;--yellow:#ffd700;--accent:#00ffcc;--text:#e0e2e6}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 25% 40%,#2a0a18 0%,var(--bg) 70%);color:var(--text);font-family:'Segoe UI',monospace;min-height:100vh;display:flex;flex-direction:column}
+header{background:rgba(0,0,0,.7);border-bottom:2px solid var(--pink);padding:14px 28px;display:flex;align-items:center;gap:14px;box-shadow:0 0 20px rgba(255,51,153,.35)}
+header h1{color:var(--pink);font-size:1.4rem;text-transform:uppercase;text-shadow:0 0 10px var(--pink);letter-spacing:2px}
+header span{color:var(--accent);font-family:monospace;font-size:.82rem;opacity:.8}
+header a{margin-left:auto;color:var(--yellow);font-family:monospace;font-size:.75rem;text-decoration:none;opacity:.7;white-space:nowrap}
+header a:hover{opacity:1}
+.main{display:flex;flex:1}
+.cfg{width:370px;min-width:300px;background:var(--panel);border-right:1px solid rgba(255,51,153,.2);padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:15px}
+.prv{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px;overflow:auto}
+.sec{color:var(--pink);font-family:monospace;font-size:.7rem;text-transform:uppercase;letter-spacing:2px;padding-bottom:6px;border-bottom:1px solid rgba(255,51,153,.2)}
+.fld{display:flex;flex-direction:column;gap:5px}
+label.lbl{color:var(--accent);font-family:monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:1px}
+textarea,input[type=text]{background:rgba(0,0,0,.5);color:var(--text);border:1px solid rgba(255,51,153,.25);border-radius:5px;padding:8px 11px;font-family:monospace;font-size:.9rem;transition:border .2s;width:100%}
+textarea{resize:vertical;min-height:68px}
+textarea:focus,input[type=text]:focus{outline:none;border-color:var(--pink);box-shadow:0 0 8px rgba(255,51,153,.3)}
+.hint{color:#555;font-size:.68rem;font-family:monospace;margin-top:1px}
+.frame-wrap{background:#fff;border-radius:8px;box-shadow:0 0 40px rgba(255,51,153,.4);overflow:hidden;transition:opacity .2s}
+.frame-wrap.spin{opacity:.4}
+#pf{width:150mm;height:100mm;border:none;display:block;transform-origin:top left}
+#pv{width:150mm;height:100mm;border:none;display:block;transform-origin:top left}
+.tabs{display:flex;gap:8px}
+.tabs button{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,51,153,.3);background:transparent;color:var(--text);cursor:pointer;font-size:.8rem;transition:.2s}
+.tabs button.on{background:rgba(255,51,153,.18);border-color:var(--pink);color:var(--pink)}
+.api-url{background:rgba(0,0,0,.4);border:1px solid rgba(255,51,153,.15);border-radius:6px;padding:8px 10px;font-family:monospace;font-size:.68rem;color:#888;word-break:break-all;cursor:text;user-select:all}
+.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.btn{padding:11px 22px;border-radius:7px;font-weight:700;cursor:pointer;text-transform:uppercase;font-size:.85rem;border:none;transition:.2s}
+.bdl{background:var(--yellow);color:#000;box-shadow:0 0 14px rgba(255,215,0,.4)}
+.bdl:hover{box-shadow:0 0 24px rgba(255,215,0,.7);transform:translateY(-1px)}
+.bcp{background:transparent;color:var(--accent);border:2px solid var(--accent)}
+.bcp:hover{background:rgba(0,255,204,.1);box-shadow:0 0 12px rgba(0,255,204,.3)}
+#st{font-family:monospace;font-size:.8rem;min-height:18px;text-align:center}
+#st.ok{color:var(--accent)}#st.er{color:var(--pink)}
+@media(max-width:900px){.main{flex-direction:column}.cfg{width:100%;border-right:none;border-bottom:1px solid rgba(255,51,153,.2)}
+  #pf,#pv{width:100%;height:auto;aspect-ratio:150/100}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎴 Carte Postale</h1>
+  <span>// UPlanet — recto QR+image / verso message, format 10x15cm</span>
+  <a href="/qr?html=1">← 🔲 QR Generator</a>
+</header>
+<div class="main">
+<div class="cfg">
+
+  <div class="fld">
+    <div class="sec">QR (recto + verso)</div>
+    <label class="lbl">URL / texte encodé</label>
+    <textarea id="data" placeholder="https://qo-op.com">https://qo-op.com</textarea>
+  </div>
+
+  <div class="fld">
+    <div class="sec">Recto</div>
+    <label class="lbl">Titre</label>
+    <input type="text" id="title" placeholder="Titre du recto" value="Carte Postale">
+    <label class="lbl" style="margin-top:6px">Illustration (URL image, optionnel)</label>
+    <input type="text" id="image_url" placeholder="https://…/image.png">
+  </div>
+
+  <div class="fld">
+    <div class="sec">Verso</div>
+    <label class="lbl">Titre</label>
+    <input type="text" id="back_title" placeholder="Titre du verso">
+    <label class="lbl" style="margin-top:6px">Message (paragraphes séparés par une ligne vide)</label>
+    <textarea id="message" style="min-height:140px" placeholder="À toi qui liras cette carte…"></textarea>
+    <label class="lbl" style="margin-top:6px">Signature / pied de page</label>
+    <input type="text" id="footer" placeholder="Made In Zion — G1FabLab">
+  </div>
+
+  <div class="fld">
+    <div class="sec">URL API (partager / intégrer)</div>
+    <div class="api-url" id="apiurl" title="Cliquer pour sélectionner">—</div>
+  </div>
+
+</div><!-- cfg -->
+
+<div class="prv">
+  <div class="tabs">
+    <button id="tRecto" class="on" onclick="showSide('recto')">Recto</button>
+    <button id="tVerso" onclick="showSide('verso')">Verso</button>
+  </div>
+  <div class="frame-wrap" id="fw">
+    <iframe id="pf" src=""></iframe>
+    <iframe id="pv" src="" style="display:none"></iframe>
+  </div>
+  <div id="st"></div>
+  <div class="btns">
+    <button class="btn bdl" id="bprint">🖨️ Imprimer ce côté</button>
+    <button class="btn bcp" id="bcp">📋 Copier URL API</button>
+  </div>
+</div>
+</div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let _tmr=null, _side='recto';
+
+function params(){
+  return {
+    data:       $('data').value.trim(),
+    title:      $('title').value.trim(),
+    image_url:  $('image_url').value.trim(),
+    back_title: $('back_title').value.trim(),
+    message:    $('message').value,
+    footer:     $('footer').value.trim(),
+  };
+}
+
+function go(delay=500){ clearTimeout(_tmr); st('…',''); _tmr=setTimeout(run, delay); }
+function st(msg, cls=''){ const s=$('st'); s.innerHTML=msg; s.className=cls; }
+
+function showSide(side){
+  _side = side;
+  $('tRecto').classList.toggle('on', side==='recto');
+  $('tVerso').classList.toggle('on', side==='verso');
+  $('pf').style.display = side==='recto' ? 'block' : 'none';
+  $('pv').style.display = side==='verso' ? 'block' : 'none';
+}
+
+function run(){
+  const p = params();
+  if(!p.data){ st('Entrez une URL ou du texte','er'); return; }
+  $('fw').classList.add('spin');
+
+  const qs = new URLSearchParams(p);
+  $('apiurl').textContent = location.origin+'/qr/postcard?'+qs;
+  $('pf').src = '/qr/postcard?'+qs;
+  $('pv').src = '/qr/postcard?'+qs;
+
+  $('pf').onload = ()=>{ $('fw').classList.remove('spin'); st('✓ Aperçu à jour','ok'); };
+}
+
+['data','title','image_url','back_title','message','footer'].forEach(id=>{
+  $(id).addEventListener('input', ()=>go());
+});
+
+$('bprint').addEventListener('click', ()=>{
+  const frame = _side==='recto' ? $('pf') : $('pv');
+  try{
+    frame.contentWindow.printSide(_side);
+  }catch(e){
+    st('Ouvrez l\'URL API dans un nouvel onglet pour imprimer','er');
+  }
+});
+$('bcp').addEventListener('click', ()=>{
+  const qs=new URLSearchParams(params());
+  navigator.clipboard.writeText(location.origin+'/qr/postcard?'+qs).then(()=>st('✓ URL copiée !','ok'));
+});
+
+go(200);
+</script>
+
+<!-- feedback.js : capture console + bouton 🐛 automatique -->
+<script src="/earth/feedback.js" onerror="console.warn('feedback.js non disponible (earth/ non monté)')"></script>
+</body>
+</html>

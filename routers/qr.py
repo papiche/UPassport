@@ -18,9 +18,24 @@ Options amzqr :
   picture_url str             URL d'une image à télécharger (GET ou POST)
   color       str  RRGGBB    couleur modules (qrencode fallback)
   bgcolor     str  RRGGBB    couleur fond   (qrencode fallback)
+
+GET  /qr/postcard?html=1                 → Générateur de carte postale (config + preview)
+GET  /qr/postcard?data=URL[&title=][&image_url=][&back_title=][&message=][&footer=]
+         [&level=H][&version=1]
+POST /qr/postcard  (multipart, mêmes champs)
+    → Page imprimable 10x15cm (recto QR+image, verso message) — réutilisable
+      pour n'importe quel projet, pas seulement UPlanet.
+  data        str  requis     URL/texte encodé dans le QR (recto)
+  title       str             Titre recto
+  image_url   str             Illustration recto (optionnelle)
+  back_title  str             Titre verso
+  message     str             Corps du message verso (les doubles retours à la
+                               ligne \\n\\n séparent les paragraphes)
+  footer      str             Signature / ligne de pied verso
 """
 
 import base64
+import html as html_lib
 import os
 import asyncio
 import logging
@@ -41,6 +56,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _TEMPLATE = Path(__file__).parent.parent / "templates" / "qr.html"
+_TEMPLATE_POSTCARD = Path(__file__).parent.parent / "templates" / "qr_postcard.html"
 
 
 def _qr_html() -> str:
@@ -49,6 +65,150 @@ def _qr_html() -> str:
     except FileNotFoundError:
         logger.error("Template manquant : %s", _TEMPLATE)
         return "<h1>Template manquant : templates/qr.html</h1>"
+
+
+def _postcard_config_html() -> str:
+    try:
+        return _TEMPLATE_POSTCARD.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.error("Template manquant : %s", _TEMPLATE_POSTCARD)
+        return "<h1>Template manquant : templates/qr_postcard.html</h1>"
+
+
+_POSTCARD_PAGE = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__FRONT_TITLE__ — Carte Postale</title>
+<style>
+  :root{--ink:#222;--gold:#c8a83c;--green:#2d5a1b;--paper:#f5f0e8;--brown:#8b4513}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#ccc;font-family:Georgia,serif;color:var(--ink);
+       display:flex;flex-direction:column;align-items:center;gap:22px;padding:22px 0}
+  .bar{display:flex;gap:10px}
+  .bar button{padding:9px 18px;border:none;border-radius:6px;background:var(--gold);
+              color:#1a1209;font-weight:700;cursor:pointer;font-size:.9rem}
+  .bar button:hover{box-shadow:0 0 10px var(--gold)}
+  .card{width:150mm;height:100mm;background:var(--paper);
+        box-shadow:0 0 16px rgba(0,0,0,.35);position:relative;overflow:hidden}
+
+  /* ---- RECTO ---- */
+  #recto{display:flex;flex-direction:column;align-items:center;justify-content:center;
+         text-align:center;padding:8mm;gap:3mm}
+  #recto .front-title{font-size:15pt;color:var(--green);text-transform:uppercase;
+                       letter-spacing:1.5px}
+  #recto .front-img{max-width:70mm;max-height:45mm;object-fit:contain}
+  #recto .front-placeholder{font-size:40pt;line-height:1}
+  #recto .qr-row{display:flex;align-items:center;gap:6mm;margin-top:2mm}
+  #recto .qr-row img{width:24mm;height:24mm;image-rendering:pixelated}
+  #recto .qr-cap{font-family:monospace;font-size:8pt;color:#555;max-width:60mm;
+                 word-break:break-all;text-align:left}
+
+  /* ---- VERSO ---- */
+  #verso{display:flex}
+  #verso .msg{flex:1 1 60%;padding:9mm;display:flex;flex-direction:column;gap:2.5mm;
+              overflow:hidden}
+  #verso .msg h2{font-size:11pt;color:var(--brown);letter-spacing:.5px;
+                 border-bottom:1px solid var(--gold);padding-bottom:2mm;margin-bottom:1mm}
+  #verso .msg p{font-size:8.5pt;line-height:1.4}
+  #verso .msg .footer{margin-top:auto;font-size:8pt;color:var(--green);font-weight:700}
+  #verso .side{flex:0 0 40%;border-left:1px dashed var(--brown);padding:9mm 7mm;
+               display:flex;flex-direction:column;align-items:center;gap:4mm}
+  #verso .stamp{width:22mm;height:22mm;border:1px dashed #999;color:#999;
+                font-family:monospace;font-size:6.5pt;display:flex;align-items:center;
+                justify-content:center;text-align:center;align-self:flex-end}
+  #verso .side img{width:26mm;height:26mm;image-rendering:pixelated}
+  #verso .side .cap{font-family:monospace;font-size:7pt;color:#555;text-align:center;
+                    word-break:break-all}
+
+  @media print{
+    .no-print{display:none!important}
+    html,body{background:#fff!important;width:100%!important;height:100%!important;
+              margin:0!important;padding:0!important}
+    .card{box-shadow:none!important}
+    body.p-recto #verso{display:none!important}
+    body.p-verso #recto{display:none!important}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar no-print">
+  <button onclick="printSide('recto')">🖨️ Imprimer le Recto</button>
+  <button onclick="printSide('verso')">🖨️ Imprimer le Verso</button>
+</div>
+
+<main class="card" id="recto">
+  <div class="front-title">__FRONT_TITLE__</div>
+  __IMAGE_BLOCK__
+  <div class="qr-row">
+    <img src="__QR_DATA_URL__" alt="QR">
+    <div class="qr-cap">__QR_TARGET__</div>
+  </div>
+</main>
+
+<div class="card" id="verso">
+  <div class="msg">
+    __BACK_TITLE_BLOCK__
+    __MESSAGE_PARAGRAPHS__
+    __FOOTER_BLOCK__
+  </div>
+  <div class="side">
+    <div class="stamp">TIMBRE</div>
+    <img src="__QR_DATA_URL__" alt="QR">
+    <div class="cap">__QR_TARGET__</div>
+  </div>
+</div>
+
+<script>
+  var pageStyle = document.createElement('style');
+  document.head.appendChild(pageStyle);
+  function printSide(side){
+    pageStyle.innerHTML = '@page { size: 150mm 100mm; margin: 0; }';
+    document.body.classList.remove('p-recto','p-verso');
+    document.body.classList.add(side === 'recto' ? 'p-recto' : 'p-verso');
+    setTimeout(function(){ window.print(); }, 100);
+  }
+</script>
+</body>
+</html>
+"""
+
+
+def _render_postcard_html(
+    data: str,
+    qr_data_url: str,
+    front_title: str,
+    front_image_url: Optional[str],
+    back_title: str,
+    message: str,
+    footer: str,
+) -> str:
+    """Compose la page HTML imprimable (recto QR+image / verso message)."""
+    esc = html_lib.escape
+
+    image_block = (
+        f'<img class="front-img" src="{esc(front_image_url)}" alt="">'
+        if front_image_url else
+        '<div class="front-placeholder">🔲</div>'
+    )
+    back_title_block = f"<h2>{esc(back_title)}</h2>" if back_title else ""
+    paragraphs = "".join(
+        f"<p>{esc(p.strip())}</p>" for p in message.split("\n\n") if p.strip()
+    )
+    footer_block = f'<div class="footer">{esc(footer)}</div>' if footer else ""
+
+    return (
+        _POSTCARD_PAGE
+        .replace("__FRONT_TITLE__", esc(front_title))
+        .replace("__IMAGE_BLOCK__", image_block)
+        .replace("__QR_DATA_URL__", qr_data_url)
+        .replace("__QR_TARGET__", esc(data))
+        .replace("__BACK_TITLE_BLOCK__", back_title_block)
+        .replace("__MESSAGE_PARAGRAPHS__", paragraphs)
+        .replace("__FOOTER_BLOCK__", footer_block)
+    )
 
 
 # ── Mailjet ───────────────────────────────────────────────────────────────────
@@ -304,3 +464,70 @@ async def generate_qr(
         f"?size=180x180&data={urllib.parse.quote_plus(data)}&color={color}"
     )
     return RedirectResponse(url=fallback)
+
+
+@router.get("/qr/postcard")
+@router.post("/qr/postcard")
+async def generate_postcard(
+    request:    Request,
+    data:       Optional[str] = Query(None),
+    title:      Optional[str] = Query(None),
+    image_url:  Optional[str] = Query(None),
+    back_title: Optional[str] = Query(None),
+    message:    Optional[str] = Query(None),
+    footer:     Optional[str] = Query(None),
+    level:      Optional[str] = Query(None),
+    version:    Optional[int] = Query(None),
+    html:       Optional[int] = Query(None),
+):
+    """Carte postale imprimable 10x15cm — recto QR+image, verso message.
+
+    Générique : réutilisable pour n'importe quel projet (`data` est la seule
+    valeur obligatoire), pas seulement pour un manuel UPlanet donné.
+    """
+    if html:
+        return HTMLResponse(_postcard_config_html())
+
+    if request.method == "POST":
+        form = await request.form()
+
+        def _f(k: str, default: str = "") -> str:
+            return str(form.get(k) or default)
+
+        data       = data       or _f("data")
+        title      = title      or _f("title")
+        image_url  = image_url  or (_f("image_url") or None)
+        back_title = back_title or _f("back_title")
+        message    = message    or _f("message")
+        footer     = footer     or _f("footer")
+        level      = level      or _f("level", "H")
+        version    = version    if version is not None else int(_f("version", "1") or "1")
+
+    data = (data or "").strip()
+    if not data:
+        return JSONResponse({"error": "missing data parameter"}, status_code=400)
+
+    title      = (title or "Carte Postale").strip()
+    image_url  = (image_url or "").strip() or None
+    back_title = (back_title or "").strip()
+    message    = (message or "").strip()
+    footer     = (footer or "").strip()
+    level      = (level or "H").upper()
+    if level not in ("L", "M", "Q", "H"):
+        level = "H"
+    version = max(1, min(40, int(version or 1)))
+
+    png, engine = await asyncio.to_thread(_generate_qr_png, data, version, level)
+    qr_data_url = ("data:image/png;base64," + base64.b64encode(png).decode()) if png else ""
+    logger.info("Postcard — data=%.60r engine=%s png=%s", data, engine, bool(png))
+
+    page = _render_postcard_html(
+        data=data,
+        qr_data_url=qr_data_url,
+        front_title=title,
+        front_image_url=image_url,
+        back_title=back_title,
+        message=message,
+        footer=footer,
+    )
+    return HTMLResponse(page)
