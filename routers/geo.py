@@ -24,6 +24,53 @@ from utils.security import find_user_directory_by_hex
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+
+def _resolve_home_hostname(home_ipfsnodeid: Optional[str], user_email: Optional[str]) -> Optional[str]:
+    """Résout le hostname HTTP réel (ex: "sagittarius.copylaradio.com") de la home
+    station d'un utilisateur roaming, en lisant le 12345.json que le swarm P2P
+    (Astroport.ONE) a mis en cache localement dans ~/.zen/tmp/swarm/<peer>/.
+
+    NOSTRNS ne donne qu'une adresse IPFS de contenu (/ipns/k51...), pas l'endpoint
+    HTTP UPassport de la station (u.<hostname>) qui sert réellement /earth/*.html —
+    d'où ce scan séparé. Retourne None si la home station n'est pas (encore)
+    synchronisée dans le swarm local.
+    """
+    swarm_dir = settings.ZEN_PATH / "tmp" / "swarm"
+    if not swarm_dir.exists():
+        return None
+    try:
+        station_dirs = [d for d in swarm_dir.iterdir() if d.is_dir()]
+    except Exception:
+        return None
+
+    # 1. Match rapide : dossier swarm nommé exactement d'après le peer IPFS
+    if home_ipfsnodeid:
+        direct = swarm_dir / home_ipfsnodeid / "12345.json"
+        if direct.exists():
+            try:
+                hostname = json.loads(direct.read_text()).get("hostname")
+                if hostname:
+                    return hostname
+            except Exception:
+                pass
+
+    # 2. Fallback : scan des 12345.json, match par ipfsnodeid déclaré ou par TW/<email>
+    for station_dir in station_dirs:
+        station_12345 = station_dir / "12345.json"
+        if not station_12345.exists():
+            continue
+        try:
+            data = json.loads(station_12345.read_text())
+        except Exception:
+            continue
+        matches_id    = home_ipfsnodeid and data.get("ipfsnodeid") == home_ipfsnodeid
+        matches_email = user_email and (station_dir / "TW" / user_email).exists()
+        if matches_id or matches_email:
+            hostname = data.get("hostname")
+            if hostname:
+                return hostname
+    return None
+
 class UmapGeolinksResponse(BaseModel):
     success: bool
     message: str
@@ -380,7 +427,13 @@ async def get_my_gps_coordinates(npub: str):
         home_ipfsnodeid_file = user_dir / "HOME_IPFSNODEID"
         if home_ipfsnodeid_file.exists():
             home_ipfsnodeid = home_ipfsnodeid_file.read_text().strip() or None
-        logger.info(f"[myGPS] → source={source} home_station_url={home_station_url} home_node_hex={home_node_hex and home_node_hex[:12]+'…'} gps_file={gps_file_path}")
+
+        # Hostname HTTP réel de la home station (u.<hostname>) — distinct de
+        # home_station_url (adresse IPFS de contenu, cf. NOSTRNS ci-dessus)
+        home_hostname = _resolve_home_hostname(home_ipfsnodeid, user_email)
+        home_http_url = f"https://u.{home_hostname}" if home_hostname else None
+
+        logger.info(f"[myGPS] → source={source} home_station_url={home_station_url} home_hostname={home_hostname} home_node_hex={home_node_hex and home_node_hex[:12]+'…'} gps_file={gps_file_path}")
 
         if not gps_file_path:
             # GPS absent localement — pour un utilisateur roaming, tenter IPFS home station
@@ -428,6 +481,8 @@ async def get_my_gps_coordinates(npub: str):
                 "udrive_url": _udrive_url,
                 "home_node_hex": home_node_hex,
                 "home_ipfsnodeid": home_ipfsnodeid,
+                "home_hostname": home_hostname,
+                "home_http_url": home_http_url,
                 "ipfsnodeid": ipfs_node_id,
                 "message": gps_message,
                 "timestamp": datetime.now().isoformat(),
@@ -479,6 +534,8 @@ async def get_my_gps_coordinates(npub: str):
                 "udrive_url": _udrive_url,
                 "home_node_hex": home_node_hex,
                 "home_ipfsnodeid": home_ipfsnodeid,
+                "home_hostname": home_hostname,
+                "home_http_url": home_http_url,
                 "ipfsnodeid": ipfs_node_id,
                 "message": "GPS coordinates retrieved successfully",
                 "timestamp": datetime.now().isoformat(),
