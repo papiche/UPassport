@@ -583,6 +583,54 @@ async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> b
 
     return auth_result
 
+from fastapi import Request
+import base64
+
+# Délai de fraîcheur maximal pour un event NIP-98 (anti-rejeu) — aligné sur
+# NIP42_CHALLENGE_TTL ci-dessus, plus permissif que les ~60s du NIP-98 strict
+# pour tolérer un peu de dérive d'horloge côté client.
+NIP98_MAX_AGE = 120  # seconds
+
+
+def _decode_and_verify_nip98_event(auth_header: str) -> dict:
+    """Décode un header 'Authorization: Nostr <base64>' et vérifie RÉELLEMENT
+    l'event NIP-98 (kind 27235) : id NIP-01 (SHA-256) + signature Schnorr
+    BIP-340 (via utils.crypto.verify_nostr_event) + fraîcheur (created_at).
+
+    Avant ce correctif, require_nostr_auth/verify_nip98_auth faisaient
+    confiance au champ "pubkey" de l'event SANS vérifier sa signature — un
+    attaquant connaissant un pubkey ciblé (ex: captain_hex, exposé publiquement
+    par GET /api/nostr/admin/captain_info) pouvait forger un faux event non
+    signé et se faire passer pour ce pubkey. Lève ValueError si invalide.
+
+    Ne vérifie PAS les tags u/method (l'infra est derrière des proxies qui
+    peuvent réécrire l'URL vue par la requête) — seule la preuve de
+    possession de la clé privée est garantie ici, ce qui est la propriété
+    recherchée pour l'auth admin (cf. _is_captain_signed_request).
+    """
+    from utils.crypto import verify_nostr_event
+
+    if not auth_header or not auth_header.startswith("Nostr "):
+        raise ValueError("Missing or invalid NIP-98 Authorization header")
+
+    token = auth_header[len("Nostr "):].strip()
+    padded = token + "=" * (-len(token) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(padded)
+    except Exception:
+        decoded = base64.b64decode(padded)
+    auth_event = json.loads(decoded)
+
+    if auth_event.get("kind") != 27235:
+        raise ValueError("Invalid NIP-98 event kind (must be 27235)")
+    if not verify_nostr_event(auth_event):
+        raise ValueError("Invalid NIP-98 signature")
+    created_at = auth_event.get("created_at", 0)
+    if abs(time.time() - created_at) > NIP98_MAX_AGE:
+        raise ValueError(f"NIP-98 event too old/in the future (created_at={created_at})")
+    return auth_event
+
+
 async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None), force_check: bool = False) -> str:
     """
     FastAPI dependency to require NOSTR authentication.
@@ -591,27 +639,20 @@ async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None),
     """
     # 1. Try NIP-98 Auth first
     try:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Nostr "):
-            import base64
-            auth_base64 = auth_header.replace("Nostr ", "").strip()
-            padded = auth_base64 + "=" * (-len(auth_base64) % 4)
-            auth_json = base64.urlsafe_b64decode(padded).decode('utf-8')
-            auth_event = json.loads(auth_json)
-            if auth_event.get("kind") == 27235 and "pubkey" in auth_event:
-                user_pubkey_hex = auth_event["pubkey"]
-                from utils.crypto import npub_to_hex, hex_to_npub
-                if npub is None:
-                    # Roaming: npub not sent in form — derive it from NIP-98 pubkey
-                    derived_npub = hex_to_npub(user_pubkey_hex)
-                    if derived_npub:
-                        logger.info(f"✅ NIP-98 Auth: npub derived from header for {user_pubkey_hex[:16]}...")
-                        return derived_npub
-                else:
-                    expected_hex = npub_to_hex(npub) if npub.startswith("npub") else npub
-                    if expected_hex and user_pubkey_hex.lower() == expected_hex.lower():
-                        logger.info(f"✅ NIP-98 Auth verified in require_nostr_auth for: {user_pubkey_hex[:16]}...")
-                        return npub
+        auth_event = _decode_and_verify_nip98_event(request.headers.get("Authorization", ""))
+        user_pubkey_hex = auth_event["pubkey"]
+        from utils.crypto import npub_to_hex, hex_to_npub
+        if npub is None:
+            # Roaming: npub not sent in form — derive it from NIP-98 pubkey
+            derived_npub = hex_to_npub(user_pubkey_hex)
+            if derived_npub:
+                logger.info(f"✅ NIP-98 Auth: npub derived from header for {user_pubkey_hex[:16]}...")
+                return derived_npub
+        else:
+            expected_hex = npub_to_hex(npub) if npub.startswith("npub") else npub
+            if expected_hex and user_pubkey_hex.lower() == expected_hex.lower():
+                logger.info(f"✅ NIP-98 Auth verified in require_nostr_auth for: {user_pubkey_hex[:16]}...")
+                return npub
     except Exception as e:
         logger.warning(f"⚠️ NIP-98 Auth check failed: {e}")
 
@@ -629,32 +670,17 @@ async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None),
         )
     return npub
 
-from fastapi import Request
-import base64
 
 async def verify_nip98_auth(request: Request) -> str:
     """
     FastAPI dependency to verify NIP-98 HTTP Auth.
     Returns the authenticated pubkey or raises HTTPException.
     """
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Nostr "):
-        raise HTTPException(status_code=401, detail="Missing or invalid NIP-98 Authorization header")
-    
     try:
-        token = auth_header.replace("Nostr ", "")
-        decoded = base64.b64decode(token)
-        auth_event = json.loads(decoded)
-        
-        if auth_event.get("kind") != 27235:
-            raise HTTPException(status_code=401, detail="Invalid NIP-98 event kind (must be 27235)")
-        
-        # Basic validation (in a real app, verify signature and tags)
-        pubkey = auth_event.get("pubkey")
-        if not pubkey:
-            raise HTTPException(status_code=401, detail="Missing pubkey in NIP-98 event")
-            
-        return pubkey
+        auth_event = _decode_and_verify_nip98_event(request.headers.get("Authorization", ""))
+        return auth_event["pubkey"]
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"NIP-98 Auth failed: {e}")
     except Exception as e:
         logger.error(f"NIP-98 Auth error: {e}")
         raise HTTPException(status_code=401, detail=f"NIP-98 Auth failed: {str(e)}")

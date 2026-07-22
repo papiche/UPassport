@@ -67,6 +67,37 @@ def _validate_uplanetname(submitted: str) -> bool:
         return False
     return submitted.lower() == _get_uplanetname().lower()
 
+
+async def _is_captain_signed_request(request: Request) -> bool:
+    """True si la requête porte un header Authorization NIP-98 valide
+    (signature Schnorr vérifiée par verify_nip98_auth) ET signé par le
+    pubkey du Capitaine de cette station. Permet au Capitaine d'agir sur les
+    endpoints admin/* sans connaître le secret UPLANETNAME (~/.ipfs/swarm.key)
+    — seule la possession de sa clé privée NOSTR fait foi."""
+    auth_header = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
+    if not auth_header.lower().startswith("nostr "):
+        return False
+    try:
+        from services.nostr import verify_nip98_auth
+        pubkey = await verify_nip98_auth(request)
+    except HTTPException:
+        return False
+    _, captain_hex = _get_node_and_captain_hex()
+    return bool(captain_hex) and pubkey.lower() == captain_hex.lower()
+
+
+async def _check_admin_auth(request: Request, uplanetname: Optional[str]) -> None:
+    """Autorise un endpoint admin/* si UPLANETNAME est valide OU si la requête
+    est signée NIP-98 par le Capitaine reconnu de la station. Lève 403 sinon."""
+    if uplanetname and _validate_uplanetname(uplanetname):
+        return
+    if await _is_captain_signed_request(request):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail="UPLANETNAME invalide et aucune signature NIP-98 du Capitaine reconnue",
+    )
+
 @router.get("/nostr", summary="NOSTR Page", description="Route NOSTR avec support de différents types de templates.")
 async def get_nostr(request: Request, type: str = "default"):
     """
@@ -496,7 +527,8 @@ async def test_nostr_auth_get(npub: str):
 
 @router.get("/api/nostr/admin/events")
 async def admin_get_nostr_events(
-    uplanetname: str,
+    request: Request,
+    uplanetname: Optional[str] = None,
     kind: Optional[str] = None,
     author: Optional[str] = None,
     tag_d: Optional[str] = None,
@@ -507,9 +539,9 @@ async def admin_get_nostr_events(
     until: Optional[int] = None,
     limit: int = 100
 ):
-    """Interroge les événements NOSTR du relay local (strfry) — auth UPLANETNAME requise."""
-    if not _validate_uplanetname(uplanetname):
-        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    """Interroge les événements NOSTR du relay local (strfry) — auth UPLANETNAME
+    ou signature NIP-98 du Capitaine."""
+    await _check_admin_auth(request, uplanetname)
 
     from core.config import settings
     script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
@@ -562,13 +594,13 @@ async def admin_get_nostr_events(
 
 @router.post("/api/nostr/admin/delete")
 async def admin_delete_nostr_events(request: Request):
-    """Supprime des événements NOSTR par IDs via strfry delete — auth UPLANETNAME requise."""
+    """Supprime des événements NOSTR par IDs via strfry delete — auth UPLANETNAME
+    ou signature NIP-98 du Capitaine."""
     body = await request.json()
     uplanetname = body.get("uplanetname", "")
     ids: list = body.get("ids", [])
 
-    if not _validate_uplanetname(uplanetname):
-        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    await _check_admin_auth(request, uplanetname)
     if not ids or not isinstance(ids, list):
         raise HTTPException(status_code=400, detail="Liste d'IDs requise")
 
@@ -646,24 +678,23 @@ def _multipass_accounts() -> list:
 
 
 @router.get("/api/nostr/admin/multipass_list")
-async def admin_multipass_list(uplanetname: str):
+async def admin_multipass_list(request: Request, uplanetname: Optional[str] = None):
     """Liste tous les comptes MULTIPASS de la station (email + hex + npub) —
     point de départ de la vue admin 'BRO mémoire' (aucune liste de ce type
-    n'existait auparavant, cf. nostr_admin.html)."""
-    if not _validate_uplanetname(uplanetname):
-        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    n'existait auparavant, cf. nostr_admin.html). Auth UPLANETNAME ou
+    signature NIP-98 du Capitaine."""
+    await _check_admin_auth(request, uplanetname)
     accounts = _multipass_accounts()
     return JSONResponse({"accounts": accounts, "count": len(accounts)})
 
 
 @router.get("/api/nostr/admin/memory_status")
-async def admin_memory_status(uplanetname: str, email: str):
+async def admin_memory_status(request: Request, email: str, uplanetname: Optional[str] = None):
     """État des mémoires (fichiers + Qdrant) d'un MULTIPASS donné — vue admin.
     Les cookies liés au compte (kind 31903) se lisent côté client via
     GET /api/nostr/admin/events?kind=31903&author=<hex> (déjà existant),
-    pas dupliqués ici."""
-    if not _validate_uplanetname(uplanetname):
-        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    pas dupliqués ici. Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    await _check_admin_auth(request, uplanetname)
     from services.memory_status import get_memory_status
     status = await asyncio.to_thread(get_memory_status, email)
     return JSONResponse(status)
@@ -672,14 +703,14 @@ async def admin_memory_status(uplanetname: str, email: str):
 @router.post("/api/nostr/admin/memory_reset")
 async def admin_memory_reset(request: Request):
     """Réinitialise un périmètre de mémoire d'un MULTIPASS — action du capitaine
-    depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email, scope}."""
+    depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email, scope}.
+    Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
     body = await request.json()
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
     scope = body.get("scope", "")
 
-    if not _validate_uplanetname(uplanetname):
-        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    await _check_admin_auth(request, uplanetname)
     if not email:
         raise HTTPException(status_code=400, detail="email requis")
 
@@ -696,13 +727,13 @@ async def admin_memory_reset(request: Request):
 async def admin_memory_regenerate(request: Request):
     """Régénère le profil LifeOS d'un MULTIPASS depuis ses propres posts
     Mastodon (si un cookie mastodon.social est déposé) — action du capitaine
-    depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email}."""
+    depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email}.
+    Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
     body = await request.json()
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
 
-    if not _validate_uplanetname(uplanetname):
-        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    await _check_admin_auth(request, uplanetname)
     if not email:
         raise HTTPException(status_code=400, detail="email requis")
 
@@ -820,8 +851,7 @@ async def admin_constellation_delete(request: Request):
         except ValueError:
             raise HTTPException(status_code=400, detail=f"author hex invalide : {a[:12]}…")
 
-    if not _validate_uplanetname(uplanetname):
-        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    await _check_admin_auth(request, uplanetname)
     if not authors_list:
         raise HTTPException(status_code=400, detail="authors (liste de pubkeys hex 64 chars) requis")
 
