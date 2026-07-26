@@ -600,6 +600,8 @@ class Atom4LoveActivateForm(BaseModel):
     conception_datetime: str = ""
     conception_place: str = ""
     polarity: str = "0"
+    home_lat: str = ""     # résidence actuelle (distincte de la naissance) — optionnel
+    home_lon: str = ""     # republie atom4love-home/atom4love-priv si fourni, cf. atom4love_publish.py
     pass_code: str = ""    # Option A — code PASS
     auth_event: str = ""   # Option B — event kind 22242 signé (JSON), voir /atom4love/challenge
 
@@ -624,6 +626,17 @@ async def atom4love_activate(
     auth_error = _check_atom4love_auth(email, form_data.pass_code, form_data.auth_event)
     if auth_error:
         return auth_error
+
+    # ── Résidence actuelle — écrite AVANT l'activation pour que atom4love_publish.py
+    # (invoqué par atom4love_activate.sh) republie atom4love-home/atom4love-priv à
+    # jour dans la même passe (voir tools/atom4love_publish.py:279-325).
+    if form_data.home_lat and form_data.home_lon:
+        try:
+            _home_lat = float(form_data.home_lat)
+            _home_lon = float(form_data.home_lon)
+            (nostr_dir / "GPS").write_text(f"LAT={_home_lat};LON={_home_lon};\n")
+        except (ValueError, OSError) as exc:
+            logger.warning(f"ATOM4LOVE: écriture GPS échouée pour {email}: {exc}")
 
     return_code, last_line = await run_script(
         str(settings.TOOLS_PATH / "atom4love_activate.sh"),

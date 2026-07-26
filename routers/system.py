@@ -47,7 +47,10 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
 
     args = []
     if lat is not None and lon is not None:
-        args.extend([lat, lon, deg])
+        # deg est optionnel côté requête, mais asyncio.create_subprocess_exec exige
+        # des str — un None ici plante le subprocess (TypeError) avant même de lancer
+        # le script. Ustats.sh accepte une chaîne vide (positionnel $3 non renseigné).
+        args.extend([lat, lon, deg if deg is not None else ""])
 
     return_code, last_line = await run_script(script_path, *args)
 
