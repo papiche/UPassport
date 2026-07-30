@@ -16,87 +16,17 @@ from utils.helpers import render_page
 router = APIRouter()
 
 
-def _get_node_and_captain_hex() -> tuple:
-    """Résout (node_hex, captain_hex) — même logique que admin_captain_info."""
-    node_hex = ""
-    captain_hex = ""
-    secret_file = Path.home() / ".zen" / "game" / "secret.nostr"
-    if secret_file.exists():
-        try:
-            content = secret_file.read_text()
-            for part in content.replace(";", "\n").splitlines():
-                part = part.strip()
-                if part.startswith("HEX="):
-                    node_hex = part[4:].strip()
-                    break
-        except Exception:
-            pass
-    if node_hex:
-        for json_file in (Path.home() / ".zen" / "tmp").glob("*/12345.json"):
-            try:
-                data = json.loads(json_file.read_text())
-                if data.get("NODEHEX") == node_hex:
-                    captain_hex = data.get("captainHEX", "") or node_hex
-                    break
-            except Exception:
-                pass
-    return node_hex, (captain_hex or node_hex)
-
-
-def _get_uplanetname() -> str:
-    """Lit UPLANETNAME depuis ~/.ipfs/swarm.key (dernière ligne)."""
-    swarm_key_path = os.path.expanduser("~/.ipfs/swarm.key")
-    try:
-        if os.path.exists(swarm_key_path):
-            with open(swarm_key_path, 'r') as f:
-                lines = f.readlines()
-                if lines:
-                    return lines[-1].strip()
-    except Exception:
-        pass
-    return "0000000000000000000000000000000000000000000000000000000000000000"
-
-
-def _validate_uplanetname(submitted: str) -> bool:
-    """Valide le UPLANETNAME soumis contre la swarm.key locale."""
-    if not submitted or len(submitted) != 64:
-        return False
-    try:
-        int(submitted, 16)
-    except ValueError:
-        return False
-    return submitted.lower() == _get_uplanetname().lower()
-
-
-async def _is_captain_signed_request(request: Request) -> bool:
-    """True si la requête porte un header Authorization NIP-98 valide
-    (signature Schnorr vérifiée par verify_nip98_auth) ET signé par le
-    pubkey du Capitaine de cette station. Permet au Capitaine d'agir sur les
-    endpoints admin/* sans connaître le secret UPLANETNAME (~/.ipfs/swarm.key)
-    — seule la possession de sa clé privée NOSTR fait foi."""
-    auth_header = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
-    if not auth_header.lower().startswith("nostr "):
-        return False
-    try:
-        from services.nostr import verify_nip98_auth
-        pubkey = await verify_nip98_auth(request)
-    except HTTPException:
-        return False
-    _, captain_hex = _get_node_and_captain_hex()
-    return bool(captain_hex) and pubkey.lower() == captain_hex.lower()
-
-
-async def _check_admin_auth(request: Request, uplanetname: Optional[str]) -> None:
-    """Autorise un endpoint admin/* si UPLANETNAME est valide OU si la requête
-    est signée NIP-98 par le Capitaine reconnu de la station. Lève 403 sinon."""
-    if uplanetname and _validate_uplanetname(uplanetname):
-        return
-    if await _is_captain_signed_request(request):
-        return
-    raise HTTPException(
-        status_code=403,
-        detail="UPLANETNAME invalide et aucune signature NIP-98 du Capitaine reconnue",
-    )
+# Auth admin Capitaine — extraite dans services/admin_auth.py pour être
+# partagée avec d'autres routers (ex. routers/finance.py::/api/oc_admin/*)
+# sans dupliquer la logique NIP-98/UPLANETNAME. Alias locaux (noms historiques
+# préservés) pour ne pas toucher aux nombreux appels existants dans ce fichier.
+from services.admin_auth import (
+    get_node_and_captain_hex as _get_node_and_captain_hex,
+    get_uplanetname as _get_uplanetname,
+    validate_uplanetname as _validate_uplanetname,
+    is_captain_signed_request as _is_captain_signed_request,
+    check_admin_auth as _check_admin_auth,
+)
 
 @router.get("/nostr", summary="NOSTR Page", description="Route NOSTR avec support de différents types de templates.")
 async def get_nostr(request: Request, type: str = "default"):

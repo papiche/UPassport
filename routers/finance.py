@@ -567,24 +567,15 @@ async def check_balances_route(g1pubs: str):
     return {"balances": result}
 
 
-def _is_origin_mode():
-    from core.config import settings
-    swarm_key_path = os.path.expanduser("~/.ipfs/swarm.key")
-    uplanet_name = ""
-    if os.path.exists(swarm_key_path):
-        with open(swarm_key_path, 'r') as f:
-            lines = f.readlines()
-            if lines:
-                uplanet_name = lines[-1].strip()
-    return not uplanet_name or uplanet_name == "0000000000000000000000000000000000000000000000000000000000000000"
-
 def _get_oc_api_url():
-    ## Priorité : OC_API depuis .env → sinon auto-detect via swarm.key
+    ## Priorité : OC_API depuis .env → sinon API de production. Pas de bascule
+    ## staging en mode ORIGIN : ce collectif OpenCollective n'a pas d'API staging
+    ## configurée — ORIGIN reste un régime économique réel (1Ẑ=0.1Ğ1), pas un
+    ## sandbox factice (même correctif déjà appliqué à oc2uplanet.sh et
+    ## oc_expense_monitor.sh — celui-ci avait été manqué lors de cette correction).
     oc_env = _get_oc_env()
     if oc_env.get("OC_API"):
         return oc_env["OC_API"]
-    if _is_origin_mode():
-        return "https://api-staging.opencollective.com/graphql/v2"
     return "https://api.opencollective.com/graphql/v2"
 
 async def _resolve_g1pubnostr_from_swarm(email: str) -> str:
@@ -1578,12 +1569,356 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
         
         if html is not None:
             return generate_impots_html_page(request, impots_data)
-        
+
         return impots_data
-        
+
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Tax provisions retrieval timeout")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── OC Admin — Facturation Armateur/Capitaine ──────────────────────────────
+# Auth : réutilise check_admin_auth (extrait de routers/nostr.py dans
+# services/admin_auth.py) — même garde NIP-98/UPLANETNAME que /api/nostr/admin/*.
+from services.admin_auth import check_admin_auth as _oc_check_admin_auth
+
+OC2UPLANET_PATH = settings.ZEN_PATH / "workspace" / "OC2UPlanet"
+ZEN_INVOICE_SCRIPT = settings.ZEN_PATH / "Astroport.ONE" / "RUNTIME" / "ZEN.INVOICE.sh"
+
+
+async def _run_subprocess_capture(cmd: list, cwd: Path = None, timeout: float = 60.0) -> str:
+    """Exécute une commande, retourne stdout (str) — lève HTTPException sur échec/timeout."""
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(cwd) if cwd else None,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        # asyncio.wait_for n'arrête pas le process sous-jacent à l'expiration : sans
+        # kill explicite, le script (et ses éventuels curl/enfants) continue de tourner
+        # orphelin en arrière-plan après que la requête HTTP a déjà répondu 504. Le
+        # process peut néanmoins s'être terminé pile entre l'expiration du timeout et
+        # ce kill() (course bénigne) — ProcessLookupError dans ce cas précis n'est pas
+        # une vraie erreur, juste "déjà mort", donc ignoré plutôt que remonté en 500.
+        try:
+            proc.kill()
+            await proc.wait()
+        except ProcessLookupError:
+            pass
+        raise HTTPException(status_code=504, detail=f"Timeout: {' '.join(cmd)}")
+    except Exception as e:
+        try:
+            proc.kill()
+            await proc.wait()
+        except ProcessLookupError:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+    stdout_str = stdout.decode("utf-8", errors="ignore")
+    if proc.returncode != 0:
+        # oc2uplanet.sh (flock) signale un verrou déjà pris par un '{"error":"... déjà en
+        # cours ..."}' sur STDOUT (pas STDERR) avec exit 1 — cas attendu (double appel
+        # rapproché), pas une vraie panne : 503/retry plutôt que 500 générique.
+        if "déjà en cours" in stdout_str:
+            raise HTTPException(status_code=503, detail=stdout_str.strip()[:300])
+        err = stderr.decode("utf-8", errors="ignore")[:500] or stdout_str[:500]
+        raise HTTPException(status_code=500, detail=f"Erreur ({cmd[0]}): {err or 'code ' + str(proc.returncode)}")
+
+    return stdout_str
+
+
+@router.get("/api/oc_admin/contributions")
+async def oc_admin_contributions(request: Request, uplanetname: Optional[str] = None):
+    """Contributions €→Ẑen (rattrapage 12 mois) — délègue à oc2uplanet.sh --json --sync
+    plutôt que de réimplémenter la logique de tiers/statuts déjà mûre côté bash.
+
+    Mesuré en conditions réelles (station de dev, 63 comptes sur le rattrapage 12
+    mois) : ~25s pour un run isolé. oc2uplanet.sh protège désormais ses invocations
+    par flock (comme oc_expense_monitor.sh/ZEN.INVOICE.sh) — un appel concurrent
+    échoue vite avec un message explicite plutôt que de ralentir les deux runs en
+    se disputant les sous-process (curl OC, strfry scan par transaction) ; cette
+    route relaie ce cas en 503 (voir _run_subprocess_capture)."""
+    await _oc_check_admin_auth(request, uplanetname)
+    script = OC2UPLANET_PATH / "oc2uplanet.sh"
+    if not script.exists():
+        raise HTTPException(status_code=500, detail="oc2uplanet.sh introuvable")
+
+    out = await _run_subprocess_capture(
+        [str(script), "--json", "--sync"], cwd=OC2UPLANET_PATH, timeout=60.0
+    )
+    try:
+        return JSONResponse(json.loads(out.strip()))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Sortie oc2uplanet.sh invalide: {out[:300]}")
+
+
+@router.get("/api/oc_admin/expenses")
+async def oc_admin_expenses(request: Request, uplanetname: Optional[str] = None):
+    """Dépenses OC (remboursements Armateur, factures Capitaine) — lit directement
+    data/expenses.json (rafraîchi par oc_expense_monitor.sh ; pas de résumé CLI
+    existant à réutiliser pour ce flux)."""
+    await _oc_check_admin_auth(request, uplanetname)
+    expenses_file = OC2UPLANET_PATH / "data" / "expenses.json"
+    if not expenses_file.exists():
+        return JSONResponse({"expenses": [], "note": "expenses.json absent — lancer oc_expense_monitor.sh"})
+    try:
+        data = json.loads(expenses_file.read_text())
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="expenses.json illisible")
+    nodes = data.get("data", {}).get("account", {}).get("expenses", {}).get("nodes", [])
+    return JSONResponse({"expenses": nodes, "count": len(nodes)})
+
+
+@router.get("/api/oc_admin/dues")
+async def oc_admin_dues(request: Request, uplanetname: Optional[str] = None):
+    """Données de découverte pour composer une facture : stations sœurs (même
+    Capitaine, convention email+alias@domaine) + champs économiques/capacité publiés
+    par chaque station dans son 12345.json. Ne calcule PAS un montant dû — décider
+    du montant reste au Capitaine (risque financier à deviner une formule)."""
+    await _oc_check_admin_auth(request, uplanetname)
+
+    captain_email = await get_env_from_mysh("CAPTAINEMAIL", "")
+    armateur_email_fallback = await get_env_from_mysh("ARMATEUR_EMAIL", "")
+
+    # Même source que ZEN.INVOICE.sh::_payee_for_role() — le registre Armateur
+    # (tools/armateur_registry.sh), lu directement ici (pas de sous-processus par
+    # nœud). Exposer cette résolution au client permet à oc_admin.html d'auto-remplir
+    # le bénéficiaire par ligne plutôt que de laisser le Capitaine le taper à la main :
+    # une saisie divergente du registre ferait diverger le d_tag NOSTR publié côté
+    # client de celui que ZEN.INVOICE.sh publie réellement (deux events jamais réconciliés).
+    armateur_registry = {}
+    registry_file = settings.GAME_PATH / ".armateur_registry.json"
+    if registry_file.exists():
+        try:
+            armateur_registry = json.loads(registry_file.read_text())
+        except json.JSONDecodeError:
+            pass
+
+    sibling_script = settings.TOOLS_PATH / "sibling_stations.sh"
+    stations = []
+    if sibling_script.exists() and captain_email:
+        out = await _run_subprocess_capture([str(sibling_script), "list", captain_email], timeout=15.0)
+        for line in out.strip().splitlines():
+            if ":" not in line:
+                continue
+            node_id, node_captain = line.split(":", 1)
+            armateur_email = (armateur_registry.get(node_id) or {}).get("email") or armateur_email_fallback
+            entry = {"node_id": node_id, "captain": node_captain, "armateur_email": armateur_email}
+            for json_file in (
+                settings.ZEN_PATH / "tmp" / node_id / "12345.json",
+                settings.ZEN_PATH / "tmp" / "swarm" / node_id / "12345.json",
+            ):
+                if json_file.exists():
+                    try:
+                        station_data = json.loads(json_file.read_text())
+                        entry.update({
+                            "hostname": station_data.get("hostname"),
+                            "PAF": station_data.get("PAF"),
+                            "NODEZEN": station_data.get("NODEZEN"),
+                            "captainZEN": station_data.get("captainZEN"),
+                            "MACHINE_VALUE_ZEN": station_data.get("MACHINE_VALUE_ZEN"),
+                            "NCARD": station_data.get("NCARD"),
+                            "ZCARD": station_data.get("ZCARD"),
+                        })
+                    except json.JSONDecodeError:
+                        pass
+                    break
+            stations.append(entry)
+
+    return JSONResponse({
+        "captain_email": captain_email,
+        "armateur_email_fallback": armateur_email_fallback,
+        "stations": stations,
+    })
+
+
+@router.get("/api/oc_admin/g1n2_wallets")
+async def oc_admin_g1n2_wallets(request: Request, uplanetname: Optional[str] = None):
+    """Liste tous les wallets Ğ1-Nostr (N²) de CETTE station — lecture directe du
+    cache tenu par NIP-101/relay.writePolicy.plugin/filter/30852.sh (source de
+    vérité du solde, jamais recalculée ici), pas d'appel à g1n2_check.sh par
+    compte (lecture native des fichiers JSON, même esprit que check_balance()
+    qui n'invoque plus G1check.sh non plus). Un seul scan du dossier local —
+    jamais un appel par wallet.
+
+    Kind 30852 n'est JAMAIS synchronisé entre stations (cf. NIP-101/KIND_REGISTRY.md) :
+    cette route ne peut donc voir que le ledger LOCAL. Pour une vue constellation,
+    le client doit interroger la même route sur chaque station sœur directement
+    (cf. /api/oc_admin/dues pour la découverte des stations).
+
+    Enrichit chaque compte résolu (HEX -> email MULTIPASS local) avec son solde
+    Ẑen existant (Duniter, via G1PUBNOSTR) — un seul appel batch Squid GraphQL
+    (get_g1_balances_batch, déjà utilisé par /check_balances), pas un par wallet."""
+    await _oc_check_admin_auth(request, uplanetname)
+
+    ipfsnodeid = await get_env_from_mysh("IPFSNODEID", "")
+    ledger_dir = settings.ZEN_PATH / "tmp" / ipfsnodeid / "n2_ledger" if ipfsnodeid else None
+
+    # HEX -> email pour enrichir l'affichage (même pattern que N2_Economics.py::local_members(),
+    # dupliqué ici plutôt que sourcé : ce fichier est Python, ce script-là est un outil CLI
+    # indépendant sans interface d'import stable).
+    hex_to_email = {}
+    nostr_dir = settings.GAME_PATH / "nostr"
+    if nostr_dir.is_dir():
+        for d in nostr_dir.iterdir():
+            hex_file = d / "HEX"
+            if not hex_file.is_file():
+                continue
+            try:
+                h = hex_file.read_text().strip()
+            except OSError:
+                continue
+            if len(h) == 64 and all(c in "0123456789abcdef" for c in h):
+                hex_to_email[h] = d.name
+
+    wallets = []
+    if ledger_dir and ledger_dir.is_dir():
+        for f in ledger_dir.glob("*.json"):
+            hex_pub = f.stem
+            try:
+                data = json.loads(f.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            email = hex_to_email.get(hex_pub)
+            wallets.append({
+                "hex": hex_pub,
+                "email": email,
+                "balance": data.get("balance", 0),
+                "last_tx_id": data.get("last_tx_id") or None,
+                "cached_at": data.get("cached_at"),
+                "g1pub_duniter": None,   # G1PUBNOSTR — G1/Duniter du MULTIPASS (PAS la ZenCard), résolu ci-dessous
+                "zen": None,
+            })
+    wallets.sort(key=lambda w: w["balance"], reverse=True)
+
+    # Ẑen (MULTIPASS existant, Duniter) des comptes résolus — UN SEUL appel batch
+    # Squid GraphQL (get_g1_balances_batch, déjà utilisé par /check_balances)
+    # plutôt qu'un appel réseau par wallet.
+    g1pub_by_hex = {}
+    for w in wallets:
+        if not w["email"]:
+            continue
+        g1pub_file = settings.GAME_PATH / "nostr" / w["email"] / "G1PUBNOSTR"
+        if g1pub_file.exists():
+            try:
+                g1pub_by_hex[w["hex"]] = g1pub_file.read_text().strip()
+            except OSError:
+                pass
+
+    if g1pub_by_hex:
+        batch_raw = await get_g1_balances_batch(list(g1pub_by_hex.values())[:20])
+        for w in wallets:
+            g1pub = g1pub_by_hex.get(w["hex"])
+            if not g1pub:
+                continue
+            w["g1pub_duniter"] = g1pub
+            b = batch_raw.get(g1pub)
+            if b:
+                centimes = b.get("total", 0)
+                g1_val = centimes / 100
+                w["zen"] = round(max(0.0, (g1_val - 1) * 10), 2)
+
+    mint_authorities = []
+    mint_file = settings.ZEN_PATH / "strfry" / "n2_mint_authorities.txt"
+    if mint_file.exists():
+        mint_authorities = [
+            line.strip() for line in mint_file.read_text().splitlines() if line.strip()
+        ]
+
+    return JSONResponse({
+        "ipfsnodeid": ipfsnodeid,
+        "wallets": wallets,
+        "total_balance": round(sum(w["balance"] for w in wallets), 2),
+        "total_zen": round(sum(w["zen"] or 0 for w in wallets), 2),
+        "mint_authorities": mint_authorities,
+    })
+
+
+@router.get("/api/g1n2/balance")
+async def g1n2_balance(hex: str):
+    """Solde Ğ1-Nostr (N²) PUBLIC en lecture seule pour un pubkey NOSTR hex64 donné —
+    typiquement une identité LOVE (.secret.love/HEX_LOVE, cf. atom4love_publish.py),
+    jamais le HEX du MULTIPASS (qui reste sur Ğ1/Duniter). Lecture directe du cache
+    tenu par NIP-101/relay.writePolicy.plugin/filter/30852.sh (source de vérité du
+    solde, jamais recalculée ici) — pas d'appel à g1n2_check.sh (lecture native du
+    fichier JSON, même esprit que /api/oc_admin/g1n2_wallets).
+
+    Utilisé par les clients (atomic_chat.html, Zelkova love_screen.dart) pour afficher
+    le solde en ♥ (converti en Ẑen) et pour construire le tag `prev` avant de publier
+    un nouveau kind 30852. Aucune authentification requise : un solde Ğ1-N² est de
+    toute façon dérivable par quiconque a accès au relay (`strfry scan` public en
+    lecture) — cette route ne fait qu'éviter au client de réimplémenter le calcul."""
+    hex = (hex or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", hex):
+        raise HTTPException(status_code=400, detail="hex doit être un pubkey NOSTR hex64 valide")
+
+    ipfsnodeid = await get_env_from_mysh("IPFSNODEID", "")
+    cache_file = (
+        settings.ZEN_PATH / "tmp" / ipfsnodeid / "n2_ledger" / f"{hex}.json"
+        if ipfsnodeid else None
+    )
+
+    balance = 0.0
+    last_tx_id = None
+    if cache_file and cache_file.exists():
+        try:
+            data = json.loads(cache_file.read_text())
+            balance = data.get("balance", 0) or 0
+            last_tx_id = data.get("last_tx_id") or None
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    zen = round(max(0.0, (balance - 1) * 10), 2)
+    return JSONResponse({"hex": hex, "balance": balance, "last_tx_id": last_tx_id, "zen": zen})
+
+
+@router.post("/api/oc_admin/invoice/burn")
+async def oc_admin_invoice_burn(request: Request):
+    """Déclenche le burn Ẑen + soumission OpenCollective consolidée pour les lignes
+    fournies — jamais automatique (bouton Capitaine explicite dans oc_admin.html).
+    Body JSON : {uplanetname, invoice_id?, lines: [{role, node_id, amount_zen,
+    description}, ...]}."""
+    body = await request.json()
+    uplanetname = body.get("uplanetname", "")
+    invoice_id = body.get("invoice_id", "")
+    lines = body.get("lines", [])
+
+    await _oc_check_admin_auth(request, uplanetname)
+    if not lines or not isinstance(lines, list):
+        raise HTTPException(status_code=400, detail="lines (tableau non vide) requis")
+    for line in lines:
+        if not isinstance(line, dict) or line.get("role") not in ("armateur", "capitaine"):
+            raise HTTPException(status_code=400, detail="role doit être 'armateur' ou 'capitaine'")
+        try:
+            float(line.get("amount_zen"))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="amount_zen numérique requis par ligne")
+
+    if not ZEN_INVOICE_SCRIPT.exists():
+        raise HTTPException(status_code=500, detail="ZEN.INVOICE.sh introuvable")
+
+    lines_file = settings.ZEN_PATH / "tmp" / f"zen_invoice_lines_{uuid.uuid4().hex}.json"
+    lines_file.write_text(json.dumps(lines))
+    try:
+        args = [str(lines_file)] + ([invoice_id] if invoice_id else [])
+        return_code, last_line = await run_script(str(ZEN_INVOICE_SCRIPT), *args)
+    finally:
+        lines_file.unlink(missing_ok=True)
+
+    if not last_line:
+        raise HTTPException(status_code=500, detail="ZEN.INVOICE.sh n'a produit aucune sortie")
+    try:
+        result = json.loads(last_line)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Sortie ZEN.INVOICE.sh invalide: {last_line[:300]}")
+
+    if return_code != 0 and "error" not in result:
+        raise HTTPException(status_code=500, detail=f"ZEN.INVOICE.sh a échoué (code {return_code})")
+
+    return JSONResponse(result)

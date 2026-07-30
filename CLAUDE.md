@@ -45,6 +45,12 @@ templates/        ← Jinja2 HTML templates
 - `GET  /check_zencard` — État ZenCard
 - `GET  /check_impots` — Calcul fiscal coopératif
 - `POST /coinflip/start|flip|payout` — Jeu pile/face ẐEN
+- `GET  /api/oc_admin/contributions` — Contributions €→Ẑen (délègue à `oc2uplanet.sh --json --sync`), admin NIP-98/UPLANETNAME
+- `GET  /api/oc_admin/expenses` — Dépenses OpenCollective (lecture `OC2UPlanet/data/expenses.json`)
+- `GET  /api/oc_admin/dues` — Découverte stations sœurs + PAF/capacités (pas de calcul de montant dû)
+- `POST /api/oc_admin/invoice/burn` — Déclenche `ZEN.INVOICE.sh` (burn Ẑen + soumission OC), jamais automatique
+- `GET  /api/oc_admin/g1n2_wallets` — Wallets Ğ1-Nostr (N²) de CETTE station (lecture directe du cache `filter/30852.sh`, jamais recalculé) — kind 30852 n'étant jamais synchronisé entre stations, ne reflète que le ledger local
+- `GET  /api/g1n2/balance?hex=<hex64>` — Solde Ğ1-N² PUBLIC (pas d'auth) d'un pubkey donné, typiquement une identité LOVE (`HEX_LOVE`) — utilisé par atomic_chat.html/Zelkova pour l'affichage ♥ et la construction du tag `prev`
 
 ### media_upload.py
 - `GET  /webcam` — Interface webcam HTML
