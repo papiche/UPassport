@@ -7,12 +7,19 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>🎬 YouTube - NOSTR Video Library</title>
     <!-- Nostr integration -->
+    <script src="/earth/nacl-fast.min.js"></script>
     <script src="/earth/nostr.bundle.js"></script>
     <!-- Common.js with NOSTR functions -->
     {% if use_local_js %}
     <script src="/earth/common.js"></script>
     {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    {% endif %}
+    <!-- Bandeau NOSTR unifié UPlanet (navigation, connexion, station, ẐEN) -->
+    {% if use_local_js %}
+    <script src="/earth/uplanet-header.js"></script>
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/uplanet-header.js"></script>
     {% endif %}
     <!-- NOSTR Tube functions -->
     {% if use_local_js %}
@@ -2211,77 +2218,6 @@
                                 <span class="badge bg-info">
                                     <i class="bi bi-collection-play"></i> <span id="header-channel-count">{{ youtube_data.total_channels }}</span>
                                 </span>
-                            </div>
-                            
-                            <!-- Connection Badge with Auto-Login -->
-                            <div id="connection-badge" class="connection-badge disconnected" onclick="toggleConnectionPanel()">
-                                <div id="connection-badge-content">
-                                    <span class="status-text">⚫ Not Connected</span>
-                                </div>
-                                <button class="btn-connect" onclick="event.stopPropagation(); authenticateNIP42()" id="connectBtn">
-                                    <i class="bi bi-key"></i> Connect
-                                </button>
-                            </div>
-                            
-                            <!-- GPS Chat Button (Header) - Moved to connection panel overlay, kept hidden -->
-                            <div id="gps-chat-header-btn" class="connection-badge" style="display: none; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); cursor: pointer;" onclick="openUMAPChatFromHeader()" title="Open UMAP Chat Room">
-                                <i class="bi bi-chat-dots-fill" style="color: #3b82f6;"></i>
-                                <span class="status-text" style="color: #3b82f6;">Chat</span>
-                            </div>
-                            
-                            <!-- Connection Panel (Dropdown) -->
-                            <div id="connectionPanel" class="connection-panel">
-                                <div class="panel-header">
-                                    <h6 id="panelTitle">Connection Status</h6>
-                                    <span class="panel-status-icon" id="panelStatusIcon">⚫</span>
-                                </div>
-                                
-                                <!-- Step 1: Relay Connection -->
-                                <div id="step1" class="connection-step pending">
-                                    <div class="step-header">
-                                        <span class="step-icon">🌐</span>
-                                        <span class="step-title">1. Relay Connection</span>
-                                    </div>
-                                    <div class="step-description" id="step1-desc">NOSTR Relay - Read public videos</div>
-                                    <div class="step-action">
-                                        <button onclick="manualConnectRelay()" id="step1-btn">Connect to Relay</button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Step 2: NIP-42 Authentication -->
-                                <div id="step2" class="connection-step pending">
-                                    <div class="step-header">
-                                        <span class="step-icon">🔐</span>
-                                        <span class="step-title">2. Personal Authentication</span>
-                                    </div>
-                                    <div class="step-description" id="step2-desc">NIP-42 Auth - Access uDRIVE & GPS</div>
-                                    <div class="step-action">
-                                        <button onclick="authenticateNIP42()" id="step2-btn" disabled>Authenticate with MULTIPASS</button>
-                                        <button onclick="authenticateNIP42()" id="step2-reauth-btn" style="display: none; margin-left: 8px;" class="btn btn-sm btn-outline-warning">
-                                            <i class="bi bi-arrow-clockwise"></i> Re-authenticate
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <!-- User Info (After Connection) -->
-                                <div id="user-info-panel" class="user-info-panel" style="display: none;">
-                                    <div class="info-row">
-                                    <i class="bi bi-person-circle"></i>
-                                        <span id="user-pubkey-display" title="Click badge to copy">...</span>
-                                    </div>
-                                    <div class="info-row" id="udrive-row" style="display: none;">
-                                        <i class="bi bi-folder-fill"></i>
-                                        <a href="#" onclick="openUserDrive(); return false;">Open uDRIVE</a>
-                                    </div>
-                                    <div class="info-row" id="gps-chat-row" style="display: none;">
-                                        <i class="bi bi-chat-dots-fill"></i>
-                                        <a href="#" onclick="openUMAPChatFromHeader(); return false;" id="gps-chat-link">GPS Chat</a>
-                                    </div>
-                                    <div class="info-row" id="gps-row" style="display: none;">
-                                        <i class="bi bi-geo-alt-fill"></i>
-                                        <span id="gps-coords" title="UMAP coordinates">...</span>
-                                    </div>
-                                </div>
                             </div>
                             
                             <!-- Action buttons compacts -->
@@ -5535,214 +5471,51 @@
         });
         
         // ========================================
-        // AUTO-CONNECTION SYSTEM FOR YOUTUBE
-        // Inspired by index.html MULTIPASS login system
+        // CONNEXION — déléguée à uplanet-header.js (bandeau NOSTR unifié)
+        // La connexion, le NIP-42 et le badge d'état sont gérés par uplanet-header.js.
+        // Cette page se contente de réagir à la connexion pour révéler ses propres
+        // fonctionnalités (boutons supprimer/éditer, uDRIVE, GPS chat).
         // ========================================
-        
-        /**
-         * Wait for NOSTR functions to be available from common.js
-         */
-        async function waitForNostrFunctions() {
-            return new Promise((resolve) => {
-                const checkInterval = setInterval(() => {
-                    if (typeof connectToRelay === 'function' && typeof connectNostr === 'function') {
-                        clearInterval(checkInterval);
-                        console.log('[YOUTUBE] ✅ NOSTR functions loaded from common.js');
-                        resolve();
-                    }
-                }, 100);
-                
-                // Timeout after 10 seconds
-                setTimeout(() => {
-                    clearInterval(checkInterval);
-                    console.warn('[YOUTUBE] ⚠️ Timeout waiting for NOSTR functions');
-                    resolve();
-                }, 10000);
-            });
-        }
-        
-        /**
-         * Step 1: Auto-connect to relay (public read access)
-         */
-        async function autoConnectRelay() {
-            try {
-                console.log('[YOUTUBE] 🌐 Step 1: Connecting to NOSTR relay...');
-                updateStep(1, 'in-progress', 'Connecting to relay...');
-                
-                if (typeof connectToRelay === 'function') {
-                    await connectToRelay();
-                    console.log('[YOUTUBE] ✅ Connected to relay');
-                    updateStep(1, 'success', 'Connected to relay - Can read public videos ✓');
-                    
-                    // Enable step 2
-                    const step2Btn = document.getElementById('step2-btn');
-                    if (step2Btn) {
-                        step2Btn.disabled = false;
-                    }
-                    
-                    return true;
-                }
-            } catch (error) {
-                console.error('[YOUTUBE] ❌ Relay connection failed:', error);
-                updateStep(1, 'error', 'Failed to connect to relay - Click to retry');
-                return false;
-            }
-        }
-        
-        /**
-         * Step 2: Auto-connect user (if previously connected)
-         */
-        async function autoConnectUser() {
-            try {
-                console.log('[YOUTUBE] 🔐 Step 2: Auto-connecting user...');
-                updateConnectionBadgeYoutube(null, 'connecting');
-                
-                // Try to get pubkey from extension (no forced NIP-42 yet)
-                if (typeof connectNostr === 'function') {
-                    const pubkey = await connectNostr(false); // No force NIP-42
-                    
-                    if (pubkey) {
-                        userPubkey = pubkey;
-                        localStorage.setItem('nostr_pubkey', pubkey);
-                        console.log('[YOUTUBE] ✅ User pubkey retrieved:', pubkey.substring(0, 12) + '...');
 
-                        // Afficher immédiatement les boutons delete/edit sans attendre NIP-42
-                        showDeleteButtonsForUserVideos(pubkey);
-
-                        // Update UI
-                        updateConnectionBadgeYoutube(pubkey, 'connected');
-                        updateStep(2, 'in-progress', 'Checking NIP-42 authentication...');
-
-                        // Check NIP-42 authentication
-                        await checkNIP42Authentication();
-
-                        // Show action buttons (webcam, playlists)
-                        showActionButtons();
-                    }
-                }
-            } catch (error) {
-                console.error('[YOUTUBE] ❌ Auto-connection failed:', error);
-                updateConnectionBadgeYoutube(null, 'disconnected');
-                updateStep(2, 'pending', 'Click to authenticate with MULTIPASS');
-            }
-        }
-        
         /**
-         * Check NIP-42 authentication status
+         * Vérifie l'authentification NIP-42 côté serveur puis révèle les
+         * fonctionnalités qui nécessitent une identité confirmée (uDRIVE, GPS).
          */
         async function checkNIP42Authentication() {
             try {
                 console.log('[YOUTUBE] 🔍 Checking NIP-42 authentication...');
-                
+
                 // Wait a bit for NIP-42 event to be processed (if recently sent)
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Check with API
+
+                const pubkey = window.userPubkey;
                 const isAuthenticated = typeof verifyAuthenticationWithAPI === 'function'
-                    ? await verifyAuthenticationWithAPI(userPubkey)
+                    ? await verifyAuthenticationWithAPI(pubkey)
                     : false;
-                
-                    if (isAuthenticated) {
+
+                if (isAuthenticated) {
                     console.log('[YOUTUBE] ✅ NIP-42 authenticated!');
-                    updateStep(2, 'success', 'Authenticated - uDRIVE & GPS access ✓');
-                    updateConnectionBadgeYoutube(userPubkey, 'authenticated');
-                    
-                    // Show delete buttons for user's own videos
-                    showDeleteButtonsForUserVideos(userPubkey);
-                    
-                    // Fetch user info in background (uDRIVE, GPS, email)
+                    showDeleteButtonsForUserVideos(pubkey);
+
                     console.log('[YOUTUBE] 📡 Starting background fetch of user info...');
                     await fetchUserInfoBackground();
                     console.log('[YOUTUBE] ✅ Background fetch completed');
-                    
-                    // Check and show GPS coordinates (simple, like index.html)
+
                     checkAndShowGPS();
-            } else {
+                } else {
                     console.log('[YOUTUBE] ⚠️ Not authenticated with NIP-42');
-                    updateStep(2, 'pending', 'Click to authenticate with MULTIPASS');
-                    updateConnectionBadgeYoutube(userPubkey, 'not-authenticated');
                 }
             } catch (error) {
                 console.error('[YOUTUBE] ❌ Authentication check failed:', error);
-                updateStep(2, 'pending', 'Click to authenticate with MULTIPASS');
-                updateConnectionBadgeYoutube(userPubkey, 'not-authenticated');
             }
         }
-        
-        /**
-         * Manually authenticate with NIP-42 (Step 2)
-         */
-        async function authenticateNIP42() {
-            try {
-                console.log('[YOUTUBE] 🔐 Authenticating with NIP-42...');
-                updateStep(2, 'in-progress', 'Sending authentication event...');
-                updateConnectionBadgeYoutube(userPubkey || null, 'authenticating');
-                
-                // Force NIP-42 authentication
-                if (typeof connectNostr === 'function') {
-                    userPubkey = await connectNostr(true); // Force NIP-42
-                    
-                    if (!userPubkey) {
-                        throw new Error('No public key returned from extension');
-                    }
-                    
-                    // Save pubkey
-                    localStorage.setItem('nostr_pubkey', userPubkey);
-                    
-                    // Wait for processing
-                    console.log('[YOUTUBE] ⏳ Waiting for NIP-42 processing...');
-                    await new Promise(resolve => setTimeout(resolve, 2500));
-                    
-                    // Verify authentication
-                    await checkNIP42Authentication();
-                    
-                    // Show action buttons
-                    showActionButtons();
-                }
-            } catch (error) {
-                console.error('[YOUTUBE] ❌ Authentication failed:', error);
-                updateStep(2, 'error', 'Authentication failed - Try again');
-                updateConnectionBadgeYoutube(userPubkey || null, 'disconnected');
-                alert(`❌ Authentication failed: ${error.message}\n\nPlease ensure you have a NOSTR extension installed (Alby, nos2x, etc.)`);
-            }
-        }
-        
-        /**
-         * Manually connect to relay (Step 1)
-         */
-        async function manualConnectRelay() {
-            await autoConnectRelay();
-        }
-        
+
         /**
          * Fetch user info in background (uDRIVE, GPS)
          */
         async function fetchUserInfoBackground() {
             console.log('[YOUTUBE] 📡 Fetching user info in background...');
-            
-            // Show user info panel
-            const userInfoPanel = document.getElementById('user-info-panel');
-            if (userInfoPanel) {
-                userInfoPanel.style.display = 'block';
-                
-                // Display pubkey
-                const pubkeyDisplay = document.getElementById('user-pubkey-display');
-                if (pubkeyDisplay && userPubkey) {
-                    const shortPubkey = userPubkey.substring(0, 16) + '...';
-                    pubkeyDisplay.textContent = shortPubkey;
-                    pubkeyDisplay.title = `Full pubkey: ${userPubkey}\nClick to copy`;
-                    pubkeyDisplay.style.cursor = 'pointer';
-                    pubkeyDisplay.onclick = () => {
-                        navigator.clipboard.writeText(userPubkey);
-                        const original = pubkeyDisplay.textContent;
-                        pubkeyDisplay.textContent = '✅ Copied!';
-                        setTimeout(() => {
-                            pubkeyDisplay.textContent = original;
-                        }, 2000);
-                    };
-                }
-            }
-            
+
             // Store uDRIVE and GPS data globally for sidebar access
             window.userServices = {
                 udrive: null,
@@ -5802,88 +5575,42 @@
          * Check and show GPS coordinates (simple, like index.html)
          */
         async function checkAndShowGPS() {
-            const gpsChatRow = document.getElementById('gps-chat-row');
-            const gpsRow = document.getElementById('gps-row');
-            const gpsCoords = document.getElementById('gps-coords');
-            
             if (!userPubkey) {
                 console.log('[YOUTUBE] [GPS] No user pubkey, skipping GPS check');
                 return;
             }
-            
+
             try {
                 console.log('[YOUTUBE] [GPS] Fetching GPS coordinates from /api/myGPS...');
-                
+
                 const gpsResponse = await fetch(`/api/myGPS?npub=${userPubkey}`);
-                
+
                 if (gpsResponse.ok) {
                     const gpsData = await gpsResponse.json();
-                    
+
                     if (gpsData.success && gpsData.coordinates) {
                         console.log('[YOUTUBE] [GPS] ✅ GPS coordinates retrieved:', gpsData.umap_key);
-                        
-                        // Store globally
+
                         window.userServices.gps = {
                             lat: gpsData.coordinates.lat,
                             lon: gpsData.coordinates.lon,
                             umapKey: gpsData.umap_key
                         };
                         window.userServices.umapKey = gpsData.umap_key;
-                        
-                        // Show GPS Chat link in connection panel with coordinates
-                        if (gpsChatRow) {
-                            gpsChatRow.style.display = 'flex';
-                            const gpsChatLink = document.getElementById('gps-chat-link');
-                            if (gpsChatLink) {
-                                gpsChatLink.textContent = `GPS Chat (${gpsData.umap_key})`;
-                                gpsChatLink.title = `Open UMAP chat at ${gpsData.umap_key}`;
-                            }
-                            console.log('[YOUTUBE] [GPS] ✅ GPS Chat link shown in overlay with coordinates:', gpsData.umap_key);
-                        }
-                        
-                        // Show GPS coordinates in connection panel
-                        if (gpsRow && gpsCoords) {
-                            gpsRow.style.display = 'flex';
-                            gpsCoords.textContent = `UMAP: ${gpsData.umap_key}`;
-                            gpsCoords.title = `Exact GPS: ${gpsData.coordinates.lat}, ${gpsData.coordinates.lon}\nClick to view on map`;
-                            gpsCoords.style.cursor = 'pointer';
-                            gpsCoords.onclick = () => {
-                                // Open map view centered on user location
-                                if (typeof toggleMapView === 'function') {
-                                    toggleMapView();
-                                    setTimeout(() => {
-                                        if (map) {
-                                            map.setView([gpsData.coordinates.lat, gpsData.coordinates.lon], 13);
-                                        }
-                                    }, 500);
-                                }
-                            };
-                        }
-                        
-                        // Show GPS in sidebar
+
                         showGPSInSidebar(gpsData.umap_key);
                     } else {
                         console.log('[YOUTUBE] [GPS] No valid GPS data received');
-                        if (gpsChatRow) gpsChatRow.style.display = 'none';
-                        if (gpsRow) gpsRow.style.display = 'none';
                     }
                 } else if (gpsResponse.status === 403) {
                     console.log('[YOUTUBE] [GPS] GPS access denied (authentication required)');
-                    if (gpsChatRow) gpsChatRow.style.display = 'none';
-                    if (gpsRow) gpsRow.style.display = 'none';
                 } else if (gpsResponse.status === 404) {
                     console.log('[YOUTUBE] [GPS] GPS coordinates not found for this user');
-                    if (gpsChatRow) gpsChatRow.style.display = 'none';
-                    if (gpsRow) gpsRow.style.display = 'none';
                 } else {
                     console.warn('[YOUTUBE] [GPS] GPS fetch failed with status:', gpsResponse.status);
-                    if (gpsChatRow) gpsChatRow.style.display = 'none';
-                    if (gpsRow) gpsRow.style.display = 'none';
                 }
             } catch (error) {
                 console.warn('[YOUTUBE] [GPS] Error fetching GPS coordinates:', error);
-                if (gpsChatRow) gpsChatRow.style.display = 'none';
-                if (gpsRow) gpsRow.style.display = 'none';
             }
         }
         
@@ -5980,21 +5707,6 @@
                 });
             }
             
-            // Show GPS Chat link in connection panel overlay (instead of header button)
-            const gpsChatRow = document.getElementById('gps-chat-row');
-            if (gpsChatRow) {
-                gpsChatRow.style.display = 'flex';
-                console.log('[YOUTUBE] ✅ GPS Chat link shown in connection panel');
-            } else {
-                console.error('[YOUTUBE] ❌ gps-chat-row not found in DOM');
-            }
-            
-            // Hide GPS button in header (moved to overlay)
-            const gpsHeaderBtn = document.getElementById('gps-chat-header-btn');
-            if (gpsHeaderBtn) {
-                gpsHeaderBtn.style.display = 'none';
-            }
-            
             // Mobile sidebar
             const gpsMobileItem = document.getElementById('gps-mobile-item');
             const gpsMobileSubtitle = document.getElementById('gps-mobile-subtitle');
@@ -6069,50 +5781,6 @@
         }
         
         /**
-         * Open UMAP Chat from header button
-         */
-        async function openUMAPChatFromHeader() {
-            const gpsHeaderBtn = document.getElementById('gps-chat-header-btn');
-            const gpsItem = document.getElementById('gps-sidebar-item');
-            const gpsMobileItem = document.getElementById('gps-mobile-item');
-            
-            let umapKey = gpsHeaderBtn?.dataset.umapKey || gpsItem?.dataset.umapKey || gpsMobileItem?.dataset.umapKey || window.userServices?.umapKey;
-            
-            // If no GPS available, try to fetch it
-            if (!umapKey && (window.userPubkey || (typeof userPubkey !== 'undefined' && userPubkey))) {
-                const currentPubkey = window.userPubkey || userPubkey;
-                try {
-                    console.log('[YOUTUBE] 📍 No GPS cached, fetching from /api/myGPS...');
-                    const gpsResponse = await fetch(`/api/myGPS?npub=${currentPubkey}`);
-                    
-                    if (gpsResponse.ok) {
-                        const gpsData = await gpsResponse.json();
-                        if (gpsData.success && gpsData.coordinates) {
-                            const umapLat = (Math.floor(gpsData.coordinates.lat / 0.01) * 0.01).toFixed(2);
-                            const umapLon = (Math.floor(gpsData.coordinates.lon / 0.01) * 0.01).toFixed(2);
-                            umapKey = `${umapLat},${umapLon}`;
-                            window.userServices.umapKey = umapKey;
-                            console.log('[YOUTUBE] ✅ GPS fetched:', umapKey);
-                        }
-                    }
-                } catch (error) {
-                    console.warn('[YOUTUBE] Could not fetch GPS:', error);
-                }
-            }
-            
-            // Fallback to 0.00,0.00 if still no GPS
-            if (!umapKey) {
-                console.log('[YOUTUBE] ⚠️ No GPS available, using default 0.00,0.00');
-                umapKey = '0.00,0.00';
-            }
-            
-            // Open chat with UMAP room
-            const chatUrl = `/chat?room=${encodeURIComponent(umapKey)}`;
-            console.log('[YOUTUBE] 💬 Opening UMAP Chat:', chatUrl);
-            window.open(chatUrl, '_blank');
-        }
-        
-        /**
          * Open UMAP Chat from sidebar
          */
         async function openUMAPChatFromSidebar() {
@@ -6153,61 +5821,6 @@
             const chatUrl = `/chat?room=${encodeURIComponent(umapKey)}`;
             console.log('[YOUTUBE] 💬 Opening UMAP Chat:', chatUrl);
             window.open(chatUrl, '_blank');
-        }
-        
-        /**
-         * Open user's uDRIVE (using common.js buildUDriveUrl)
-         */
-        async function openUserDrive() {
-            const udriveRow = document.getElementById('udrive-row');
-            if (!udriveRow || !udriveRow.dataset.ipnsVault) {
-                alert('❌ uDRIVE not available');
-                return;
-            }
-            
-            const ipnsVault = udriveRow.dataset.ipnsVault;
-            
-            // Get user email (from cache or fetch if needed)
-            let userEmail = window.userServices?.email;
-            
-            if (!userEmail || !userEmail.includes('@')) {
-                // Try to fetch email if not cached
-                console.log('[YOUTUBE] 📧 Email not cached, fetching...');
-                if (typeof window.fetchUserEmailWithFallback === 'function' && userPubkey) {
-                    try {
-                        userEmail = await window.fetchUserEmailWithFallback(userPubkey);
-                        if (userEmail && userEmail.includes('@')) {
-                            window.userServices.email = userEmail;
-                            console.log('[YOUTUBE] ✅ Email fetched:', userEmail);
-                        } else {
-                            console.warn('[YOUTUBE] ⚠️ No valid email found');
-                            alert('❌ User email not found. Cannot open uDRIVE.');
-                            return;
-                        }
-                    } catch (error) {
-                        console.error('[YOUTUBE] ❌ Error fetching email:', error);
-                        alert('❌ Error fetching user email. Cannot open uDRIVE.');
-                        return;
-                    }
-                } else {
-                    alert('❌ User email not available. Cannot open uDRIVE.');
-                    return;
-                }
-            }
-            
-            // Use common.js function to build URL
-            try {
-                const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
-                const udriveUrl = typeof window.buildUDriveUrl === 'function'
-                    ? window.buildUDriveUrl(ipnsVault, userEmail, gateway)
-                    : `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
-                
-                console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
-                window.open(udriveUrl, '_blank');
-            } catch (error) {
-                console.error('[YOUTUBE] ❌ Error building uDRIVE URL:', error);
-                alert('❌ Error building uDRIVE URL: ' + error.message);
-            }
         }
         
         /**
@@ -6266,204 +5879,6 @@
         }
         
         /**
-         * Update connection badge UI
-         */
-        async function updateConnectionBadgeYoutube(pubkey, state) {
-            const badge = document.getElementById('connection-badge');
-            const content = document.getElementById('connection-badge-content');
-            const connectBtn = document.getElementById('connectBtn');
-            const panelStatusIcon = document.getElementById('panelStatusIcon');
-            
-            if (!badge || !content) return;
-            
-            // Remove all state classes
-            badge.className = 'connection-badge';
-            
-            switch (state) {
-                case 'authenticated':
-                    badge.classList.add('authenticated');
-                    // Get user email from cache or fetch it
-                    let userEmail = window.userServices?.email;
-                    const fullPubkey = pubkey || '';
-                    const shortPubkey = fullPubkey.substring(0, 12) + '...';
-                    
-                    // If email not available, try to fetch it
-                    if (!userEmail || !userEmail.includes('@')) {
-                        if (typeof window.fetchUserEmailWithFallback === 'function' && fullPubkey) {
-                            try {
-                                userEmail = await window.fetchUserEmailWithFallback(fullPubkey);
-                                if (userEmail && userEmail.includes('@')) {
-                                    window.userServices = window.userServices || {};
-                                    window.userServices.email = userEmail;
-                                }
-                            } catch (error) {
-                                console.warn('[YOUTUBE] Could not fetch email for badge:', error);
-                            }
-                        }
-                    }
-                    
-                    // Display email if available, otherwise show pubkey
-                    // Truncate email if too long
-                    let displayEmail = (userEmail && userEmail.includes('@')) ? userEmail : '';
-                    if (displayEmail && displayEmail.length > 20) {
-                        displayEmail = displayEmail.substring(0, 17) + '...';
-                    }
-                    const displayText = displayEmail || shortPubkey;
-                    
-                    content.innerHTML = `
-                        <span class="status-text">✅</span>
-                        <span class="user-email" title="${userEmail || fullPubkey}">${displayText}</span>
-                        <span class="user-pubkey-copy" 
-                              title="Click to copy HEX key: ${fullPubkey}" 
-                              onclick="event.stopPropagation(); copyToClipboard('${fullPubkey}', 'HEX key copied!');">
-                            ${shortPubkey}
-                        </span>
-                    `;
-                    // Replace connect button with profile button
-                    if (connectBtn) {
-                        connectBtn.outerHTML = `
-                            <button class="btn-profile" onclick="event.stopPropagation(); openUserProfile()">
-                                <i class="bi bi-person-circle"></i>
-                            </button>
-                        `;
-                    }
-                    if (panelStatusIcon) {
-                        panelStatusIcon.textContent = '✅';
-                    }
-                    break;
-                    
-                case 'connected':
-                case 'not-authenticated':
-                    badge.classList.add('connected-not-auth');
-                    content.innerHTML = `
-                        <span class="status-text">⚠️ Connected</span>
-                        <span class="user-npub">${pubkey.substring(0, 12)}...</span>
-                    `;
-                    if (panelStatusIcon) {
-                        panelStatusIcon.textContent = '⚠️';
-                    }
-                    break;
-                    
-                case 'connecting':
-                case 'authenticating':
-                    badge.classList.add('connecting');
-                    content.innerHTML = `
-                        <span class="status-text">🔄 Connecting...</span>
-                    `;
-                    if (connectBtn) {
-                        connectBtn.disabled = true;
-                    }
-                    if (panelStatusIcon) {
-                        panelStatusIcon.textContent = '🔄';
-                    }
-                    break;
-                    
-                case 'disconnected':
-                default:
-                    badge.classList.add('disconnected');
-                    content.innerHTML = `
-                        <span class="status-text">⚫ Not Connected</span>
-                    `;
-                    // Restore connect button if it was replaced
-                    const profileBtn = badge.querySelector('.btn-profile');
-                    if (profileBtn) {
-                        profileBtn.outerHTML = `
-                            <button class="btn-connect" onclick="event.stopPropagation(); authenticateNIP42()" id="connectBtn">
-                                <i class="bi bi-key"></i> Connect
-                            </button>
-                        `;
-                    } else if (connectBtn) {
-                connectBtn.disabled = false;
-                    }
-                    if (panelStatusIcon) {
-                        panelStatusIcon.textContent = '⚫';
-                    }
-                    break;
-            }
-        }
-        
-        /**
-         * Update step status
-         */
-        function updateStep(stepNum, status, description) {
-            const step = document.getElementById(`step${stepNum}`);
-            const desc = document.getElementById(`step${stepNum}-desc`);
-            const btn = document.getElementById(`step${stepNum}-btn`);
-            const reauthBtn = document.getElementById(`step${stepNum}-reauth-btn`);
-            
-            if (!step || !desc) return;
-            
-            // Remove all status classes
-            step.className = 'connection-step';
-            
-            // Add new status
-            step.classList.add(status);
-            
-            // Update description
-            desc.textContent = description;
-            
-            // Update button state
-            if (btn) {
-                if (status === 'success') {
-                    // For step 2, show "Done" but keep re-auth button visible
-                    if (stepNum === 2) {
-                        btn.disabled = true;
-                        btn.textContent = '✓ Done';
-                        // Show re-authenticate button
-                        if (reauthBtn) {
-                            reauthBtn.style.display = 'inline-block';
-                        }
-                    } else {
-                        // For step 1, just disable
-                        btn.disabled = true;
-                        btn.textContent = '✓ Done';
-                    }
-                } else if (status === 'in-progress') {
-                    btn.disabled = true;
-                    btn.textContent = '⏳ Processing...';
-                    if (reauthBtn) {
-                        reauthBtn.style.display = 'none';
-                    }
-                } else if (status === 'error') {
-                    btn.disabled = false;
-                    btn.textContent = 'Retry';
-                    if (reauthBtn) {
-                        reauthBtn.style.display = 'none';
-                    }
-                } else {
-                    // pending
-                    btn.disabled = stepNum === 2; // Step 2 disabled until step 1 is done
-                    btn.textContent = stepNum === 1 ? 'Connect to Relay' : 'Authenticate with MULTIPASS';
-                    if (reauthBtn) {
-                        reauthBtn.style.display = 'none';
-                    }
-                }
-            }
-        }
-        
-        /**
-         * Toggle connection panel
-         */
-        function toggleConnectionPanel() {
-            const panel = document.getElementById('connectionPanel');
-            if (panel) {
-                panel.classList.toggle('show');
-            }
-        }
-        
-        /**
-         * Open user profile viewer
-         */
-        function openUserProfile() {
-            if (!userPubkey) {
-                alert('❌ Not connected');
-                return;
-            }
-            
-            openProfileModal(userPubkey, 'My Profile');
-        }
-        
-        /**
          * Show action buttons (webcam, playlists) after connection
          */
         function showActionButtons() {
@@ -6479,27 +5894,29 @@
         }
         
         /**
-         * Initialize auto-connection on page load
+         * Réagit à une connexion établie par uplanet-header.js (silencieuse au
+         * chargement, ou via son bandeau/modal) : révèle les boutons d'action
+         * et déclenche la vérification NIP-42 + uDRIVE/GPS de cette page.
+         */
+        function onYoutubeUserConnected() {
+            const pubkey = window.userPubkey;
+            if (!pubkey) return;
+            console.log('[YOUTUBE] ✅ Connecté via uplanet-header:', pubkey.substring(0, 12) + '...');
+            showDeleteButtonsForUserVideos(pubkey);
+            showActionButtons();
+            checkNIP42Authentication();
+        }
+
+        /**
+         * Initialize connection reactions on page load
          */
         async function initAutoConnection() {
-            console.log('[YOUTUBE] 🚀 Initializing NOSTR auto-connection system...');
-            
-            // Wait for NOSTR functions to load
-            await waitForNostrFunctions();
-            
-            // Step 1: Auto-connect to relay (public read access)
-            const relayConnected = await autoConnectRelay();
-            
-            if (relayConnected) {
-                // Step 2: Check for saved user and try auto-connect
-                const savedPubkey = localStorage.getItem('nostr_pubkey');
-                if (savedPubkey && typeof window.nostr !== 'undefined') {
-                    console.log('[YOUTUBE] 🔐 Found saved pubkey, attempting auto-connect...');
-                    await autoConnectUser();
-                } else {
-                    console.log('[YOUTUBE] ℹ️ No saved pubkey found. User can connect manually.');
-                }
+            console.log('[YOUTUBE] 🚀 Waiting for uplanet-header connection...');
+
+            if (window.waitForConnection) {
+                window.waitForConnection(onYoutubeUserConnected);
             }
+            document.addEventListener('nostr:connected', onYoutubeUserConnected);
         }
         
         // ========================================
