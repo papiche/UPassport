@@ -2573,7 +2573,7 @@
                                     </small>
                                     {% endif %}
                                 </div>
-                                {% if video.content and (video.kind == 21 or video.kind == 22) %}
+                                {% if video.content and (video.event_kind == 21 or video.event_kind == 22) %}
                                 <div class="video-description" title="{{ video.content|e }}">{{ video.content|e }}</div>
                                 {% endif %}
                                 {% if video.message_id %}

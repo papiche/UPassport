@@ -14,9 +14,12 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 import aiofiles
+import httpx
 from fastapi import APIRouter, Request, Form, UploadFile, File, HTTPException, Depends
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+
+from core.config import settings
 
 from utils.helpers import run_script, get_myipfs_gateway, as_form, render_page
 from core.middleware import get_client_ip
@@ -38,6 +41,28 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 from utils.helpers import send_server_side_analytics
+
+# Cache permanent CID → source.* de info.json (les CID sont content-addressed,
+# jamais besoin d'invalider). Alimente tmdb_metadata/youtube_metadata ci-dessous.
+_INFO_JSON_SOURCE_CACHE: Dict[str, Dict[str, Any]] = {}
+
+async def _fetch_info_json_source(info_cid: str) -> Dict[str, Any]:
+    """Récupère la section `source` (tmdb/youtube) de info.json pour un info_cid.
+    Retourne {} si absent/inaccessible — ne doit jamais lever d'exception."""
+    if info_cid in _INFO_JSON_SOURCE_CACHE:
+        return _INFO_JSON_SOURCE_CACHE[info_cid]
+    result: Dict[str, Any] = {}
+    try:
+        clean_cid = info_cid.replace("/ipfs/", "").replace("ipfs://", "").strip()
+        url = f"{settings.IPFS_GATEWAY}/ipfs/{clean_cid}"
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                result = resp.json().get("source", {}) or {}
+    except Exception as e:
+        logger.debug(f"[youtube] info.json source non récupéré pour {info_cid}: {e}")
+    _INFO_JSON_SOURCE_CACHE[info_cid] = result
+    return result
 
 @router.head("/theater")
 async def theater_modal_head(request: Request, video: Optional[str] = None):
@@ -247,14 +272,34 @@ async def youtube_route(
             logger.error(f"❌ Error fetching NOSTR events: {fetch_error}")
             video_messages = []
         
+        valid_video_items = [
+            v for v in video_messages if v.get('title') and v.get('ipfs_url')
+        ]
+
+        # Enrichissement tmdb_metadata/youtube_metadata depuis info.json (source.tmdb/source.youtube) —
+        # récupéré en parallèle, mis en cache par CID (content-addressed, jamais invalidé).
+        unique_info_cids = {v.get('info_cid') for v in valid_video_items if v.get('info_cid')}
+        if unique_info_cids:
+            fetched_sources = await asyncio.gather(
+                *[_fetch_info_json_source(cid) for cid in unique_info_cids],
+                return_exceptions=True
+            )
+            info_json_sources = {
+                cid: (src if isinstance(src, dict) else {})
+                for cid, src in zip(unique_info_cids, fetched_sources)
+            }
+        else:
+            info_json_sources = {}
+
         validated_videos = []
-        for video_item in video_messages:
-            if not video_item.get('title') or not video_item.get('ipfs_url'):
-                continue
-            
+        for video_item in valid_video_items:
             info_cid = video_item.get('info_cid', '')
             metadata_ipfs = video_item.get('metadata_ipfs', '') or info_cid
-            
+
+            source_data = info_json_sources.get(info_cid, {}) or {}
+            tmdb_source = source_data.get('tmdb') or {}
+            youtube_source = source_data.get('youtube') or {}
+
             normalized_video = {
                 'title': video_item.get('title', ''),
                 'uploader': video_item.get('uploader', ''),
@@ -285,7 +330,10 @@ async def youtube_route(
                 'file_hash': video_item.get('file_hash', ''),
                 'info_cid': info_cid,
                 'upload_chain': video_item.get('upload_chain', ''),
-                'upload_chain_list': video_item.get('upload_chain_list', [])
+                'upload_chain_list': video_item.get('upload_chain_list', []),
+                'event_kind': video_item.get('event_kind', 21),
+                'tmdb_metadata': {'tmdb_id': tmdb_source['id'], 'year': tmdb_source.get('year')} if tmdb_source.get('id') else {},
+                'youtube_metadata': {'video_id': youtube_source['id']} if youtube_source.get('id') else {}
             }
             validated_videos.append(normalized_video)
         

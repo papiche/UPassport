@@ -949,31 +949,6 @@
             const confirmDonationCb = document.getElementById('confirm_donation');
             const resultPanel       = document.getElementById('result-panel');
 
-            function renderOcGate(data) {
-                const labels = {satellite: 'Sociétaire Satellite', constellation: 'Sociétaire Constellation',
-                                 cloud: 'Cloud', membre: 'Membre'};
-                const links = Object.entries(data.oc_urls || {})
-                    .filter(([, url]) => !!url)
-                    .map(([key, url]) => `<a href="${url}" target="_blank" style="display:inline-block;margin:4px 6px;">${labels[key] || key}</a>`)
-                    .join('');
-                errorMessageDiv.innerHTML = `
-                    <p>${data.message || "Devenez membre OpenCollective avec cet email avant de créer votre MULTIPASS."}</p>
-                    <a href="https://opencollective.com/monnaie-libre/contribute" target="_blank"
-                    style="color:#00C968;background:rgba(0,201,104,.1);border:1px solid rgba(0,201,104,.35);font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
-                    🌐️ Open Collective
-                    </a>
-                    <div>${links}</div>
-                    <button type="button" id="oc-recheck-btn" class="map-button" style="margin-top:10px;">🔄 Revérifier mon adhésion</button>
-                `;
-                errorMessageDiv.style.display = 'block';
-                const recheckBtn = document.getElementById('oc-recheck-btn');
-                if (recheckBtn) {
-                    recheckBtn.addEventListener('click', function() {
-                        form.requestSubmit();
-                    });
-                }
-            }
-
             function renderMultipassResult(data) {
                 const donation = data.donation || null;
                 let donationHtml = '';
@@ -987,6 +962,12 @@
                                ⚠️ Le don du portefeuille Ğ1 v1 n'a pas pu être traité (${donation.error || 'raison inconnue'}). Votre MULTIPASS a bien été créé.
                            </div>`;
                 }
+                const ocMember = data.oc_member || null;
+                const ocHtml = (ocMember && ocMember.is_member)
+                    ? `<div style="margin-top:15px;padding:12px;background:rgba(0,201,104,.1);border:1px solid rgba(0,201,104,.35);border-radius:8px;">
+                           🌐️ Sociétaire OpenCollective reconnu${ocMember.tier_name ? ` — <strong>${ocMember.tier_name}</strong>` : ''}
+                       </div>`
+                    : '';
                 resultPanel.innerHTML = `
                     <h2 style="margin-top:0;">✅ Votre MULTIPASS est prêt</h2>
                     <p><strong>Clé publique NOSTR (npub) :</strong><br><code style="word-break:break-all;">${data.npub || ''}</code></p>
@@ -1004,6 +985,7 @@
                             <li>Les sites NOSTR pourront désormais signer en votre nom, sans jamais revoir votre clé.</li>
                         </ol>
                     </div>
+                    ${ocHtml}
                     ${donationHtml}
                 `;
                 resultModal.style.display = 'flex';
@@ -1054,10 +1036,6 @@
                 .then(({ status, data }) => {
                     loaderContainer.style.display = 'none';
 
-                    if (status === 403 && data.error === 'OC_MEMBERSHIP_REQUIRED') {
-                        renderOcGate(data);
-                        return;
-                    }
                     if (status !== 200) {
                         errorMessageDiv.innerText = 'Erreur: ' + (data.message || data.error || `Server error: ${status}`);
                         errorMessageDiv.style.display = 'block';

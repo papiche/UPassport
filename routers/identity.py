@@ -1226,12 +1226,14 @@ async def pass_attempts_alert(request: Request, data: PassAlertBody) -> JSONResp
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ONBOARDING /g1  —  Point d'entrée réservé aux membres OpenCollective
+# ONBOARDING /g1  —  Point d'entrée public (OpenCollective optionnel)
 #
 # Politique spécifique à CETTE page (u.DOMAIN/g1, templates/g1nostr.html) :
-# la création d'un nouveau MULTIPASS y est bloquée pour les emails non inscrits
-# sur OpenCollective. zelkova / atomic.html / miz.html continuent d'utiliser
-# /g1nostr directement, SANS aucune restriction — contrat inchangé pour eux.
+# la création d'un MULTIPASS n'est PLUS conditionnée à une adhésion
+# OpenCollective. L'appartenance OC (si l'email est déjà membre) est
+# simplement remontée à titre informatif dans la réponse (tier/statut
+# sociétaire), sans jamais bloquer la création. zelkova / atomic.html /
+# miz.html continuent d'utiliser /g1nostr directement, contrat inchangé.
 #
 # Permet en option de faire don d'un ancien portefeuille Ğ1 v1 (Cesium) à la
 # coopérative : le solde est vidé vers UPLANETNAME_G1 et crédité en ẐEN
@@ -1240,7 +1242,7 @@ async def pass_attempts_alert(request: Request, data: PassAlertBody) -> JSONResp
 #
 # Ordre des opérations (irréversible en dernier — voir memory
 # feedback_g1_financial_ops_safety) :
-#   1. Vérification adhésion OpenCollective (avant toute création).
+#   1. Vérification (best-effort, non bloquante) de l'adhésion OpenCollective.
 #   2. Création du MULTIPASS (clé aléatoire).
 #   3. Seulement si 2 a réussi : don du wallet v1 (best-effort).
 #   4. Seulement si 3 a réussi (donated=true, credited_zen>0) : crédit ẐEN.
@@ -1339,21 +1341,19 @@ async def g1_onboard(
     nostr_dir    = settings.GAME_PATH / "nostr" / email
     email_exists = nostr_dir.exists() and (nostr_dir / "G1PUBNOSTR").exists()
 
-    # ── Gate OpenCollective — uniquement pour une NOUVELLE création ──────────
-    # Un membre déjà inscrit n'a pas à re-prouver son adhésion pour récupérer
-    # son MULTIPASS existant.
+    # ── OpenCollective — best-effort, jamais bloquant ────────────────────────
+    # Uniquement pour une NOUVELLE création : un membre déjà inscrit n'a pas
+    # besoin de re-vérifier son adhésion pour récupérer son MULTIPASS existant.
+    # Si la vérification échoue ou si l'email n'est pas membre, on continue
+    # quand même — c'est une information d'affichage, pas une condition.
+    oc_info = None
     if not email_exists:
         from routers.finance import get_oc_member_info
-        oc_info = await get_oc_member_info(email)
-        if not oc_info.get("is_member"):
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "error": "OC_MEMBERSHIP_REQUIRED",
-                    "message": "Devenez membre OpenCollective avec cet email avant de créer votre MULTIPASS.",
-                    "oc_urls": get_oc_tier_urls(),
-                }
-            )
+        try:
+            oc_info = await get_oc_member_info(email)
+        except Exception as e:
+            logger.warning(f"get_oc_member_info a échoué pour {email}: {e}")
+            oc_info = None
 
     # ── Création (ou récupération) — délègue entièrement à /g1nostr ─────────
     g1nostr_form = G1NostrForm(
@@ -1367,6 +1367,10 @@ async def g1_onboard(
         return result  # 409 (need_pass/conflict), 429 (in_progress), etc. — inchangé
 
     data = json.loads(bytes(result.body))
+
+    # ── Statut OpenCollective — informatif uniquement (tier/sociétaire) ─────
+    if oc_info and oc_info.get("is_member"):
+        data["oc_member"] = oc_info
 
     # ── Don optionnel du wallet Ğ1 v1 — SEULEMENT après création réussie ────
     # (email_exists était False au moment du gate : c'est donc une création
