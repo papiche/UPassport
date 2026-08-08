@@ -77,6 +77,14 @@ templates/        ← Jinja2 HTML templates
   Routing : `source="coracle"` → `{GIT_OWNER}/coracle`. Config via kind 30800 : `GIT_HOST`, `GIT_TOKEN`, `GIT_OWNER`.
   Dégradation gracieuse si token absent. Voir `docs/FEEDBACK_INTEGRATION.md`.
 
+### zine.py
+- `POST /api/zine-submit` — Alternative numérique aux ZINE imprimables (`UPlanet/earth/ZINE.html`,
+  `ZINE.MIZ.html`, `ZINE.MOUVEMENT.html`). Reçoit `zine` (`"armateur"|"adhesion"|"talent"`) + `fields`
+  (JSON stringifié `{label: valeur}`), envoie un email formaté au capitaine (`settings.CAPTAINEMAIL`)
+  via `mailjet.sh`. Pas d'authentification (visiteurs sans MULTIPASS) ; honeypot `website` + rate
+  limiting global. Dégradation : si `CAPTAINEMAIL`/`mailjet.sh` indisponible ou l'envoi échoue,
+  répond `ok=false` — le front invite alors à imprimer le zine.
+
 ### skills.py
 - `GET  /api/skill/session` — Lit `~/.zen/tmp/$IPFSNODEID/install_session.json` (écrit par `install.sh`). Retourne le JSON de session : mode, profile, score, tier, cpu_model, ram_gb, vram_gb, log_cid. Fallback : dernier fichier `~/.zen/log/install_session_*.log`
 - `GET  /api/skill/media/{skill}` — Interroge strfry (Kind 30504, `#t=[skill_norm]`, limit=20). Retourne les CIDs IPFS des preuves partagées dans la constellation. Dédoublonnage par CID. Utilisé par `install_craft.html` pour afficher les médias existants
