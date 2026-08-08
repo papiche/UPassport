@@ -197,58 +197,63 @@ async def parse_video_metadata(event: Dict[str, Any], ipfs_gateway: Optional[str
                     metadata["video_url"] = f"{ipfs_gateway}{ipfs_path}"
                     break
     
+    # Static thumbnail is preferred over animated GIF: Telegram/Twitter/Facebook
+    # crawlers tend to block/refuse animated GIFs as og:image previews.
+    gifanim_url = ""
     for tag in tags:
         if isinstance(tag, list) and len(tag) >= 2:
             tag_type = tag[0]
             tag_value = tag[1]
-            
+
             if tag_type == "gifanim_ipfs":
-                cid = tag_value
-                if not cid.startswith("/ipfs/"):
-                    cid = f"/ipfs/{cid}"
-                metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
-                break
-            
+                if not gifanim_url:
+                    cid = tag_value
+                    if not cid.startswith("/ipfs/"):
+                        cid = f"/ipfs/{cid}"
+                    gifanim_url = f"{ipfs_gateway}{cid}"
+
             elif tag_type == "thumbnail_ipfs":
                 if not metadata["thumbnail_url"]:
                     cid = tag_value
                     if not cid.startswith("/ipfs/"):
                         cid = f"/ipfs/{cid}"
                     metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
-            
+
             elif tag_type == "image" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
                 if not metadata["thumbnail_url"]:
                     ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
                     if ipfs_path.startswith("/ipfs/"):
                         metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
-            
+
             elif tag_type == "r" and len(tag) >= 3 and tag[2] == "Thumbnail":
                 if not metadata["thumbnail_url"]:
                     ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
                     if ipfs_path.startswith("/ipfs/"):
                         metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
-    
+
     if not metadata["thumbnail_url"]:
         for tag in tags:
             if isinstance(tag, list) and tag[0] == "imeta":
                 for i in range(1, len(tag)):
                     prop = tag[i]
-                    if prop.startswith("gifanim "):
-                        gifanim_value = prop[8:].strip()
-                        if "/ipfs/" in gifanim_value or "ipfs://" in gifanim_value:
-                            ipfs_path = gifanim_value.replace("ipfs://", "/ipfs/")
-                            if ipfs_path.startswith("/ipfs/"):
-                                metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
-                                break
-                    elif prop.startswith("image "):
+                    if prop.startswith("image "):
                         image_value = prop[6:].strip()
                         if "/ipfs/" in image_value or "ipfs://" in image_value:
                             ipfs_path = image_value.replace("ipfs://", "/ipfs/")
                             if ipfs_path.startswith("/ipfs/"):
                                 metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
                                 break
+                    elif prop.startswith("gifanim ") and not gifanim_url:
+                        gifanim_value = prop[8:].strip()
+                        if "/ipfs/" in gifanim_value or "ipfs://" in gifanim_value:
+                            ipfs_path = gifanim_value.replace("ipfs://", "/ipfs/")
+                            if ipfs_path.startswith("/ipfs/"):
+                                gifanim_url = f"{ipfs_gateway}{ipfs_path}"
                 if metadata["thumbnail_url"]:
                     break
+
+    if not metadata["thumbnail_url"] and gifanim_url:
+        metadata["thumbnail_url"] = gifanim_url
     
     info_cid = None
     if not metadata["description"]:
@@ -275,13 +280,13 @@ async def parse_video_metadata(event: Dict[str, Any], ipfs_gateway: Optional[str
                     
                     if is_v2 and media.get("thumbnails"):
                         thumbnails = media["thumbnails"]
-                        thumbnail_cid = thumbnails.get("animated") or thumbnails.get("static")
+                        thumbnail_cid = thumbnails.get("static") or thumbnails.get("animated")
                         if thumbnail_cid:
                             clean_cid = thumbnail_cid.replace("/ipfs/", "").replace("ipfs://", "")
                             metadata["thumbnail_url"] = f"{ipfs_gateway}/ipfs/{clean_cid}"
-                    
+
                     elif not is_v2:
-                        thumbnail_cid = media.get("gifanim_ipfs") or media.get("thumbnail_ipfs")
+                        thumbnail_cid = media.get("thumbnail_ipfs") or media.get("gifanim_ipfs")
                         if thumbnail_cid:
                             clean_cid = thumbnail_cid.replace("/ipfs/", "").replace("ipfs://", "")
                             metadata["thumbnail_url"] = f"{ipfs_gateway}/ipfs/{clean_cid}"
