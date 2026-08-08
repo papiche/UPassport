@@ -129,11 +129,14 @@ async def fetch_video_event_from_nostr(event_id: str, timeout: int = 5) -> Optio
     logger.warning(f"Video event {event_id[:16]}... not found on any relay")
     return None
 
-async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Parse video event tags to extract metadata for Open Graph/Twitter Cards"""
+async def parse_video_metadata(event: Dict[str, Any], ipfs_gateway: Optional[str] = None) -> Dict[str, Any]:
+    """Parse video event tags to extract metadata for Open Graph/Twitter Cards.
+    `ipfs_gateway` should be a publicly reachable HTTPS gateway (e.g. https://ipfs.domain.tld) —
+    social crawlers (Telegram, etc.) cannot resolve settings.IPFS_GATEWAY's default
+    http://127.0.0.1:8080, so og:image/og:video would otherwise be unreachable previews."""
     if not event or not isinstance(event, dict):
         return {}
-    
+
     metadata = {
         "title": "Video",
         "description": "",
@@ -143,10 +146,10 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
         "event_id": event.get("id", ""),
         "kind": event.get("kind", 21)
     }
-    
+
     tags = event.get("tags", [])
     content = event.get("content", "")
-    ipfs_gateway = settings.IPFS_GATEWAY
+    ipfs_gateway = ipfs_gateway or settings.IPFS_GATEWAY
     
     for tag in tags:
         if isinstance(tag, list) and len(tag) >= 2:

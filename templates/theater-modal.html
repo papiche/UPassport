@@ -19,6 +19,11 @@
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:type" content="image/jpeg">
+    {% elif fallback_image_url %}
+    <meta property="og:image" content="{{ fallback_image_url }}">
+    <meta property="og:image:width" content="460">
+    <meta property="og:image:height" content="460">
+    <meta property="og:image:type" content="image/png">
     {% endif %}
     {% if video_metadata.video_url %}
     <meta property="og:video" content="{{ video_metadata.video_url }}">
@@ -30,23 +35,34 @@
     <meta property="og:url" content="{{ theater_url }}">
     <meta property="og:title" content="Theater Mode - Nostr Tube">
     <meta property="og:description" content="Immersive video viewing experience on Astroport Nostr Tubes">
+    {% if fallback_image_url %}
+    <meta property="og:image" content="{{ fallback_image_url }}">
+    <meta property="og:image:width" content="460">
+    <meta property="og:image:height" content="460">
+    <meta property="og:image:type" content="image/png">
+    {% endif %}
     <meta property="og:site_name" content="Astroport Nostr Video Tubes">
     {% endif %}
-    
+
     <!-- Twitter Card -->
     {% if video_metadata %}
-    <meta name="twitter:card" content="{% if video_metadata.thumbnail_url %}summary_large_image{% else %}summary{% endif %}">
+    <meta name="twitter:card" content="{% if video_metadata.thumbnail_url or fallback_image_url %}summary_large_image{% else %}summary{% endif %}">
     <meta name="twitter:url" content="{{ theater_url }}">
     <meta name="twitter:title" content="{{ video_metadata.title }}">
     <meta name="twitter:description" content="{{ video_metadata.description }}">
     {% if video_metadata.thumbnail_url %}
     <meta name="twitter:image" content="{{ video_metadata.thumbnail_url }}">
+    {% elif fallback_image_url %}
+    <meta name="twitter:image" content="{{ fallback_image_url }}">
     {% endif %}
     {% else %}
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="{% if fallback_image_url %}summary_large_image{% else %}summary{% endif %}">
     <meta name="twitter:url" content="{{ theater_url }}">
     <meta name="twitter:title" content="Theater Mode - Nostr Tube">
     <meta name="twitter:description" content="Immersive video viewing experience on Astroport Nostr Video Tubes">
+    {% if fallback_image_url %}
+    <meta name="twitter:image" content="{{ fallback_image_url }}">
+    {% endif %}
     {% endif %}
     
     <!-- Additional meta tags -->
@@ -2292,7 +2308,7 @@
                 const timeout = setTimeout(() => {
                     // After 3 seconds, display existing comments but KEEP subscription active
                     initialLoadComplete = true;
-                    displayComments(comments, commentStats);
+                    displayTheaterComments(comments, commentStats);
                     console.log('✅ Initial comments loaded, subscription kept active for real-time updates');
                 }, 3000);
                 
@@ -2369,7 +2385,7 @@
                         if (initialLoadComplete) {
                             console.log('🔴 LIVE: New comment received!', newComment);
                             // Re-display all comments with the new one
-                            displayComments(comments, commentStats);
+                            displayTheaterComments(comments, commentStats);
                             
                             // Update author names after displaying (including the new comment)
                             setTimeout(() => {
@@ -2400,7 +2416,7 @@
                     clearTimeout(timeout);
                     initialLoadComplete = true;
                     // DO NOT unsub() - keep subscription active for real-time comments!
-                    displayComments(comments, commentStats);
+                    displayTheaterComments(comments, commentStats);
                     console.log('📡 Comment subscription active - listening for real-time comments');
                 });
                 
@@ -2413,7 +2429,7 @@
         /**
          * Display comments with threading (original first, then hierarchical)
          */
-        function displayComments(comments, commentStats) {
+        function displayTheaterComments(comments, commentStats) {
             const commentsList = document.getElementById('theaterCommentsList');
             if (!commentsList) return;
             
@@ -2430,7 +2446,7 @@
             }
             
             // Build comment tree structure
-            const commentTree = buildCommentTree(comments);
+            const commentTree = buildTheaterCommentTree(comments);
             
             // Render tree with threading
             const html = renderCommentTree(commentTree, 0);
@@ -2454,7 +2470,7 @@
          * Build comment tree structure based on NIP-22 tags
          * Returns: { topLevel: [], replies: Map(parentId -> [comments]) }
          */
-        function buildCommentTree(comments) {
+        function buildTheaterCommentTree(comments) {
             const topLevel = [];
             const replies = new Map(); // parentId -> [comment, comment, ...]
             
@@ -2507,7 +2523,7 @@
             let html = '';
             
             tree.topLevel.forEach(comment => {
-                html += renderComment(comment, tree.replies, escapeFn, formatRelativeFn, depth);
+                html += renderTheaterComment(comment, tree.replies, escapeFn, formatRelativeFn, depth);
             });
             
             return html;
@@ -2852,7 +2868,7 @@
         /**
          * Render a single comment with its replies
          */
-        function renderComment(comment, repliesMap, escapeFn, formatRelativeFn, depth = 0) {
+        function renderTheaterComment(comment, repliesMap, escapeFn, formatRelativeFn, depth = 0) {
             const timeAgo = comment.created_at && formatRelativeFn ? formatRelativeFn(comment.created_at) : '';
             const timestampDisplay = comment.timestamp ? formatVideoTimestamp(comment.timestamp) : '';
             
@@ -2908,7 +2924,7 @@
             if (replyCount > 0) {
                 html += '<div class="theater-comment-replies">';
                 replies.forEach(reply => {
-                    html += renderComment(reply, repliesMap, escapeFn, formatRelativeFn, depth + 1);
+                    html += renderTheaterComment(reply, repliesMap, escapeFn, formatRelativeFn, depth + 1);
                 });
                 html += '</div>';
             }
@@ -3143,8 +3159,8 @@
                                     // Refresh display
                                     const commentsList = document.getElementById('theaterCommentsList');
                                     const commentStats = document.getElementById('theaterCommentStats');
-                                    if (typeof displayComments === 'function') {
-                                        displayComments(window.theaterComments, commentStats);
+                                    if (typeof displayTheaterComments === 'function') {
+                                        displayTheaterComments(window.theaterComments, commentStats);
                                         console.log('✅ Reply added locally to UI');
                                         
                                         // Scroll to new reply
@@ -3410,8 +3426,8 @@
                                     // Refresh display
                                     const commentsList = document.getElementById('theaterCommentsList');
                                     const commentStats = document.getElementById('theaterCommentStats');
-                                    if (typeof displayComments === 'function') {
-                                        displayComments(window.theaterComments, commentStats);
+                                    if (typeof displayTheaterComments === 'function') {
+                                        displayTheaterComments(window.theaterComments, commentStats);
                                         console.log('✅ Comment added locally to UI');
                                         
                                         // Scroll to new comment

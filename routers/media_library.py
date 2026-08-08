@@ -85,9 +85,19 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
     if video:
         try:
             from services.nostr import fetch_video_event_from_nostr, parse_video_metadata
+            # Public HTTPS gateway (Telegram/Twitter/Facebook crawlers can't reach
+            # settings.IPFS_GATEWAY's default http://127.0.0.1:8080), same derivation as /tags, /contrib
+            hostname = request.headers.get("host", "u.copylaradio.com")
+            if hostname.startswith("u."):
+                public_ipfs_gateway = f"https://ipfs.{hostname[2:]}"
+            elif hostname.startswith("127.0.0.1") or hostname.startswith("localhost"):
+                public_ipfs_gateway = "http://127.0.0.1:8080"
+            else:
+                public_ipfs_gateway = "https://ipfs.copylaradio.com"
+
             video_event = await fetch_video_event_from_nostr(video, timeout=5)
             if video_event:
-                video_metadata = await parse_video_metadata(video_event)
+                video_metadata = await parse_video_metadata(video_event, ipfs_gateway=public_ipfs_gateway)
                 video_title       = video_metadata.get('title', 'Unknown')
                 video_description = video_metadata.get('description', '')
                 video_author      = video_metadata.get('author_id', '')
@@ -174,9 +184,13 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
     theater_url = f"{base_url}/theater"
     if video:
         theater_url = f"{theater_url}?video={video}"
+    # Generic Astroport image so Telegram/Facebook/Twitter always get a preview,
+    # even when the NOSTR event has no thumbnail or wasn't found on any relay in time.
+    fallback_image_url = f"{base_url}/static/img/astroport.png"
 
     return render_page(request, "theater-modal.html", {
         "use_local_js":      use_local_js,
+        "fallback_image_url": fallback_image_url,
         "video_id":          video,
         "video_metadata":    video_metadata,
         "theater_url":       theater_url,
