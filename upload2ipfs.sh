@@ -261,9 +261,9 @@ reduce_video_if_needed() {
     fi
 }
 
-# Check if file size exceeds 650MB (according to CD standard limits per format)
-MAX_FILE_SIZE=$((650 * 1024 * 1024)) # 650MB in bytes
-TARGET_FILE_SIZE=$((600 * 1024 * 1024)) # 600MB target (margin below 650MB limit)
+# Check if file size exceeds 1024MB
+MAX_FILE_SIZE=$((1024 * 1024 * 1024)) # 1024MB in bytes
+TARGET_FILE_SIZE=$((950 * 1024 * 1024)) # 950MB target (margin below 1024MB limit)
 
 # CRITICAL: Reduce video resolution BEFORE calculating hash (if file exceeds limit)
 # This ensures the hash matches the actual file that will be uploaded
@@ -275,7 +275,7 @@ if [[ "$FILE_TYPE" == "video/"* ]] && [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; the
         FILE_SIZE=$(stat -c%s "$FILE_PATH")
         echo "DEBUG: New file size: $FILE_SIZE bytes" >&2
     else
-        echo '{"status": "error", "message": "File size exceeds 650MB limit and could not be reduced.", "debug": "Video resize failed", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
+        echo '{"status": "error", "message": "File size exceeds 1024MB limit and could not be reduced.", "debug": "Video resize failed", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
     exit 1
     fi
 fi

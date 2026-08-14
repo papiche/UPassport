@@ -23,7 +23,7 @@ from utils.helpers import run_script, get_myipfs_gateway, is_origin_mode, get_oc
 from utils.security import is_multipass_user, is_safe_email
 from utils.crypto import npub_to_hex, hex_to_npub, verify_nostr_event
 from utils.observability import log_node_event, log_user_event
-from services.nostr import generate_nip42_challenge, consume_nip42_challenge
+from services.nostr import generate_nip42_challenge, consume_nip42_challenge, get_nip42_challenge, get_n1_follows
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -558,6 +558,35 @@ def _check_atom4love_auth(email: str, pass_code: str, auth_event_raw: str) -> Op
         "message": "Authentification requise : code PASS ou signature NOSTR (voir /atom4love/challenge)."})
 
 
+def _verify_viewer_identity(email: str, auth_event_raw: str) -> bool:
+    """Variante NON-consommatrice de _check_atom4love_auth (auth_event
+    uniquement), pour prouver "je suis ce compte" côté LECTEUR plutôt que
+    côté compte ciblé. Utilisée par GET /atom4love/profile pour le check
+    ami réciproque : un même viewer peut consulter plusieurs profils d'amis
+    dans la foulée (liste d'Amis de Cœur) sans re-signer un event à chaque
+    fois — la preuve reste valable tant que le challenge n'a pas expiré
+    (TTL 120s, cf. NIP42_CHALLENGE_TTL), contrairement à consume_nip42_challenge
+    (usage unique) employé pour les actions qui modifient un état (activate,
+    profile POST, follow)."""
+    email = (email or "").strip().lower()
+    auth_event_raw = (auth_event_raw or "").strip()
+    if not email or not auth_event_raw:
+        return False
+    try:
+        ev = json.loads(auth_event_raw)
+    except json.JSONDecodeError:
+        return False
+    if not verify_nostr_event(ev) or ev.get("kind") != 22242:
+        return False
+    hex_file = settings.GAME_PATH / "nostr" / email / "HEX"
+    account_hex = hex_file.read_text().strip() if hex_file.exists() else ""
+    if not account_hex or ev.get("pubkey", "").lower() != account_hex.lower():
+        return False
+    challenge = next((t[1] for t in ev.get("tags", []) if len(t) >= 2 and t[0] == "challenge"), None)
+    expected = get_nip42_challenge(account_hex)  # peek, PAS consumed
+    return bool(challenge) and bool(expected) and challenge == expected
+
+
 @as_form
 class RevealPassForm(BaseModel):
     email: str
@@ -650,9 +679,16 @@ async def atom4love_activate(
         data = {}
     if return_code != 0 or not data.get("activated"):
         logger.warning(f"ATOM4LOVE activation failed for {email}: {last_line}")
-        return JSONResponse(status_code=500, content={
-            "error": data.get("error", "ACTIVATION_FAILED"),
-            "message": "Échec de l'activation ATOM4LOVE."})
+        error_code = data.get("error", "ACTIVATION_FAILED")
+        # 409 (conflit d'état, cf. anti-écrasement d'une clé LOVE existante) plutôt
+        # que 500 (réservé aux vraies erreurs serveur) — message spécifique transmis
+        # tel quel au client s'il existe (voir atom4love_publish.py::LOVE_KEY_EXISTS_MISMATCH).
+        status_code = 409 if error_code == "LOVE_KEY_EXISTS_MISMATCH" else 500
+        return JSONResponse(status_code=status_code, content={
+            "error": error_code,
+            "message": data.get("message", "Échec de l'activation ATOM4LOVE."),
+            **({"existing_love_hex": data["existing_love_hex"]} if "existing_love_hex" in data else {}),
+        })
 
     logger.info(f"ATOM4LOVE activated for {email}")
     return JSONResponse(data)
@@ -808,6 +844,23 @@ def _read_love_profile(email: str) -> dict:
         return {}
 
 
+def _resolve_email_from_love_hex(love_hex: str) -> str:
+    """Retrouve l'email propriétaire d'une clé LOVE depuis son hex — même
+    logique que bro_resolve_email() (IA/bro/bro_common_lib.sh:305), limitée
+    à la branche HEX_LOVE (utilisée quand l'appelant ne connaît son
+    interlocuteur que par le tag "p" d'une liste Kind 3 Ami de Cœur)."""
+    love_hex = (love_hex or "").strip().lower()
+    if not love_hex:
+        return ""
+    for hex_file in (settings.GAME_PATH / "nostr").glob("*/HEX_LOVE"):
+        try:
+            if hex_file.read_text().strip().lower() == love_hex:
+                return hex_file.parent.name
+        except OSError:
+            continue
+    return ""
+
+
 def _love_tier(email: str, profile: dict) -> int:
     """Réplique _love_is_tier2/_love_is_tier3 (love_handler.sh) côté web."""
     tier = 1
@@ -829,22 +882,75 @@ def _love_tier(email: str, profile: dict) -> int:
 
 
 @router.get("/atom4love/profile")
-async def get_atom4love_profile(email: str):
+async def get_atom4love_profile(
+    email: str = "", hex: str = "", auth_event: str = "",
+    viewer_email: str = "", viewer_auth_event: str = "",
+):
     """Vue tableau de bord : profil déclaré + statut ATOM4LOVE agrégé
-    (même contenu que _handle_love_status en chat BRO, exposé pour le web)."""
+    (même contenu que _handle_love_status en chat BRO, exposé pour le web).
+
+    Cible par `email` (cas standard) ou par `hex` — la clé LOVE de la cible —
+    quand l'appelant ne la connaît que via un tag "p" d'une liste Kind 3 Ami
+    de Cœur (cf. atomic_dream.html::loadFriends). `hex` est résolu en email
+    via _resolve_email_from_love_hex().
+
+    bio/age/interests/photo(_cid/_enc_key) ne sont renvoyés que si :
+      1. le profil est public (profile.public=True), ou
+      2. l'appelant prouve qu'il est le titulaire du compte via `auth_event`
+         (kind 22242 NIP-42, challenge via GET /atom4love/challenge — même
+         mécanisme que POST /atom4love/activate), ou
+      3. l'appelant prouve sa PROPRE identité via `viewer_email`+`viewer_auth_event`
+         (même mécanisme, mais pour un compte DIFFÉRENT de la cible) ET que le
+         follow Kind 3 signé par les deux clés LOVE est RÉCIPROQUE (Ami de
+         Cœur mutuel — jamais un suivi unilatéral, cf. définition déjà en
+         place dans Astroport.ONE/tools/N2_Economics.py "N1 = contacts LOVE
+         réciproques").
+    a4l_active/has_profile/tier restent toujours publics : c'est tout ce dont
+    les badges (uplanet-header.js, atomic_board.html) ont besoin, jamais le
+    contenu du profil lui-même."""
     email = (email or "").strip().lower()
+    if not email and hex:
+        email = _resolve_email_from_love_hex(hex)
+    if not email:
+        raise HTTPException(status_code=400, detail="email ou hex requis.")
+
     hex_love_file = settings.GAME_PATH / "nostr" / email / "HEX_LOVE"
     profile = _read_love_profile(email)
     mem_status = await asyncio.to_thread(get_memory_status, email)
 
-    return JSONResponse({
-        "profile": {
+    is_public = bool(profile.get("public", False))
+    is_owner = False
+    if not is_public and auth_event:
+        is_owner = _check_atom4love_auth(email, "", auth_event) is None
+
+    is_friend = False
+    if not is_public and not is_owner and viewer_email and viewer_auth_event:
+        viewer_email = viewer_email.strip().lower()
+        if _verify_viewer_identity(viewer_email, viewer_auth_event):
+            viewer_hex_file = settings.GAME_PATH / "nostr" / viewer_email / "HEX_LOVE"
+            if viewer_hex_file.exists() and hex_love_file.exists():
+                viewer_love_hex = viewer_hex_file.read_text().strip()
+                target_love_hex = hex_love_file.read_text().strip()
+                viewer_follows, target_follows = await asyncio.gather(
+                    get_n1_follows(viewer_love_hex), get_n1_follows(target_love_hex))
+                is_friend = target_love_hex in viewer_follows and viewer_love_hex in target_follows
+
+    if is_public or is_owner or is_friend:
+        profile_out = {
             "age": profile.get("age", 0),
             "bio": profile.get("bio", ""),
             "interests": profile.get("interests", []),
-            "public": bool(profile.get("public", False)),
+            "public": is_public,
             "photo": profile.get("photo", ""),
-        },
+            "photo_cid": profile.get("photo_cid", ""),
+            "photo_enc_key": profile.get("photo_enc_key", ""),
+        }
+    else:
+        profile_out = {"age": 0, "bio": "", "interests": [], "public": is_public,
+                        "photo": "", "photo_cid": "", "photo_enc_key": ""}
+
+    return JSONResponse({
+        "profile": profile_out,
         "has_profile": bool(profile),
         "a4l_active": hex_love_file.exists(),
         "tier": _love_tier(email, profile),
@@ -859,7 +965,9 @@ class Atom4LoveProfileForm(BaseModel):
     bio: str = ""
     interests: str = ""   # tags séparés par des virgules, ex: "nature,musique,voyage"
     public: str = ""      # "true"/"false" — visibilité pour le matching
-    photo: str = ""       # URL IPFS (déjà uploadée via /api/upload/image)
+    photo: str = ""       # URL IPFS en clair (ancien mécanisme, déjà uploadée via /api/upload/image)
+    photo_cid: str = ""       # CID IPFS d'une photo chiffrée UENC (POST /api/fileupload/encrypted)
+    photo_enc_key: str = ""   # clé AES-256 hex — jamais republiée sur le relai, voir atom4love_profile_publish.py
     pass_code: str = ""
     auth_event: str = ""
 
@@ -886,7 +994,7 @@ async def atom4love_profile(
     return_code, last_line = await run_script(
         str(settings.TOOLS_PATH / "atom4love_profile.sh"),
         email, form_data.age, form_data.bio, form_data.interests, form_data.public,
-        form_data.photo,
+        form_data.photo, form_data.photo_cid, form_data.photo_enc_key,
     )
     try:
         data = json.loads(last_line.strip())

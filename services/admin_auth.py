@@ -93,3 +93,28 @@ async def check_admin_auth(request: Request, uplanetname: Optional[str]) -> None
         status_code=403,
         detail="UPLANETNAME invalide et aucune signature NIP-98 du Capitaine reconnue",
     )
+
+
+async def require_captain_signature(request: Request) -> str:
+    """NIP-98 capitaine EXCLUSIVEMENT — aucun repli UPLANETNAME. Retourne le
+    pubkey signataire (nécessaire à la piste d'audit). Réservé aux actions où
+    le secret coopératif partagé (~/.ipfs/swarm.key, connu de toutes les
+    stations de l'essaim) n'est pas une preuve d'autorité suffisante :
+    écriture d'une clé sensible (NODE), déclenchement d'un run ARBOR à
+    distance. Lève 403 si le header NIP-98 est absent, invalide, ou signé par
+    quelqu'un d'autre que le Capitaine reconnu de cette station."""
+    auth_header = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
+    if not auth_header.lower().startswith("nostr "):
+        raise HTTPException(
+            status_code=403,
+            detail="Signature NIP-98 du Capitaine requise (UPLANETNAME seul non accepté ici).",
+        )
+    try:
+        from services.nostr import verify_nip98_auth
+        pubkey = await verify_nip98_auth(request)
+    except HTTPException:
+        raise HTTPException(status_code=403, detail="Signature NIP-98 invalide.")
+    _, captain_hex = get_node_and_captain_hex()
+    if not captain_hex or pubkey.lower() != captain_hex.lower():
+        raise HTTPException(status_code=403, detail="Signature NIP-98 valide mais pubkey ≠ Capitaine.")
+    return pubkey

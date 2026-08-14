@@ -15,8 +15,18 @@
 <div id="roaming-block" class="alert alert-warn" style="display:none;">
   <strong>⚠️ Roaming détecté</strong><br>
   Votre MULTIPASS est géré par la station <strong id="roaming-station"></strong>.
-  Gérez vos préférences depuis cette station ou consultez votre profil :<br>
-  <a id="roaming-viewer" href="#" style="color:#e8d44d;">👤 Voir mon MULTIPASS →</a>
+  <span id="roaming-home-hint" style="display:none;">
+    Vos préférences et votre profil LifeOS vivent là-bas — rendez-vous sur votre
+    station pour les gérer :<br>
+    <a id="roaming-home-link" href="#" class="btn-main"
+       style="display:inline-block;margin-top:8px;background:rgba(0,255,136,0.12);color:#00ff88;border-color:rgba(0,255,136,0.3);">
+      🏠 Aller sur ma station →
+    </a><br>
+  </span>
+  <span id="roaming-viewer-hint">
+    En attendant, consultez votre profil :<br>
+    <a id="roaming-viewer" href="#" style="color:#e8d44d;">👤 Voir mon MULTIPASS →</a>
+  </span>
 </div>
 
 <!-- Option 1 : NOSTR NIP-42 -->
@@ -93,6 +103,11 @@ async function _doNip42Auth() {
       document.getElementById('roaming-block').style.display = '';
       document.getElementById('roaming-station').textContent = data.station || '(station inconnue)';
       document.getElementById('roaming-viewer').href = data.viewer || '#';
+      if (data.home_redirect) {
+        document.getElementById('roaming-home-hint').style.display = '';
+        document.getElementById('roaming-home-link').href = data.home_redirect;
+        document.getElementById('roaming-viewer-hint').style.display = 'none';
+      }
       return;
     }
     if (data.status === 'unknown') { window.location = data.viewer; return; }

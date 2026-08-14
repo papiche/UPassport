@@ -24,9 +24,21 @@ _MEMORY_MGR = _IA_PATH / "memory_manager.py"
 
 sys.path.insert(0, str(_IA_PATH))
 try:
-    from bro.identity import _IDENTITY_TEMPLATES  # template exact de .Preferences.md vide
+    from bro.identity import (
+        _IDENTITY_TEMPLATES,  # template exact de .Preferences.md vide
+        IDENTITY_FILENAMES,
+        read_identity_file as _read_identity_file,
+        write_identity_file as _write_identity_file,
+    )
 except Exception:
     _IDENTITY_TEMPLATES = {}
+    IDENTITY_FILENAMES = ()
+    _read_identity_file = _write_identity_file = None
+
+try:
+    from bro.nostr import send_dm_to_owner as _send_dm_to_owner
+except Exception:
+    _send_dm_to_owner = None
 
 # Registre des slots réservés — cf. Astroport.ONE/IA/bro/rag.py (13, 14) et
 # memory_manager.py (15). 0-12 : contexte géo/conversation (short_memory.py).
@@ -198,6 +210,69 @@ def get_memory_status(email: str) -> dict:
             "total_points": sum(qdrant_counts.values()) if qdrant_counts else 0,
         },
     }
+
+
+IDENTITY_LABELS = {
+    ".Core.md": "Qui je suis", ".Style.md": "Mon style", ".Rules.md": "Mes limites",
+    ".Preferences.md": "Mes préférences", ".Objectifs.md": "Mes objectifs",
+}
+
+# Constaté en test réel : un compte n'ayant jamais utilisé #rec/BRO a ces 5
+# fichiers vides après retrait du commentaire d'instructions (cf.
+# bro.identity.read_identity_file strip_comments=True) — sans indication,
+# l'utilisateur ne sait pas quoi écrire. Placeholders HTML courts, affichés
+# UNIQUEMENT quand le champ est vide (jamais mélangés au contenu réel).
+IDENTITY_PLACEHOLDERS = {
+    ".Core.md": "Ex : Développeur passionné de permaculture et de musique électronique, "
+                 "je travaille dans le logiciel libre.",
+    ".Style.md": "Ex : Tutoiement, réponses courtes et directes, j'aime les emojis "
+                 "mais sans excès.",
+    ".Rules.md": "Ex : Ne jamais donner mon avis politique en mon nom, ne jamais "
+                 "confirmer un rendez-vous à ma place.",
+    ".Preferences.md": "Ex : Allergique aux fruits de mer. Je me lève à 6h. J'adore le café.",
+    ".Objectifs.md": "Ex : - [ ] Apprendre Rust\n- [x] Finir le jardin (déjà fait, ignoré par BRO)",
+}
+
+
+def get_identity_content(email: str) -> dict[str, str]:
+    """Contenu texte (instructions par défaut retirées) des 5 fichiers
+    identity/*.md — façade UNIQUE utilisée par les 2 vues d'édition
+    (self-service /mailjet ET admin nostr_admin.html), aucune logique
+    dupliquée. Appel bloquant (I/O disque) — via asyncio.to_thread()."""
+    if not _read_identity_file:
+        return {}
+    return {fn: _read_identity_file(email, fn) for fn in IDENTITY_FILENAMES}
+
+
+def save_identity_file(email: str, filename: str, content: str) -> tuple[bool, str]:
+    """Écrit un seul fichier identity/*.md. Revalide filename ICI en plus de
+    bro.identity.write_identity_file (qui le refait aussi) — défense en
+    profondeur, l'appelant HTTP n'a pas besoin de connaître les 5 noms exacts
+    pour rejeter une requête malformée avant l'appel bloquant."""
+    if not _write_identity_file:
+        return False, "Module bro.identity indisponible."
+    if filename not in IDENTITY_FILENAMES:
+        return False, f"filename invalide (attendu : {', '.join(IDENTITY_FILENAMES)})."
+    return _write_identity_file(email, filename, content)
+
+
+def notify_identity_saved(email: str, filename: str) -> bool:
+    """DM self-to-self informant le membre qu'un fichier de son profil LifeOS
+    a été modifié par le capitaine — réutilise bro.nostr.send_dm_to_owner
+    (canal normal BRO→membre), PAS _notify_captain* qui va dans le sens
+    inverse (NODE/membre→capitaine). Best-effort : un échec d'envoi ne doit
+    jamais invalider une sauvegarde déjà actée sur disque."""
+    if not _send_dm_to_owner:
+        return False
+    label = IDENTITY_LABELS.get(filename, filename)
+    message = (
+        f"🧠 Ton profil LifeOS a été mis à jour par le capitaine — fichier « {label} ». "
+        "Va voir le résultat sur /mailjet (section 📝 Mon profil LifeOS)."
+    )
+    try:
+        return bool(_send_dm_to_owner(email, message))
+    except Exception:
+        return False
 
 
 def reset_memory(email: str, scope: str) -> dict:

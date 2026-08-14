@@ -22,7 +22,12 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from core.config import settings
-from services.memory_status import get_memory_status, reset_memory, RESET_SCOPES, regenerate_lifeos_from_mastodon
+from services.memory_status import (
+    get_memory_status, reset_memory, RESET_SCOPES, regenerate_lifeos_from_mastodon,
+    get_identity_content, save_identity_file, IDENTITY_FILENAMES, IDENTITY_LABELS,
+    IDENTITY_PLACEHOLDERS,
+)
+from services.roaming import resolve_home_http_url
 from utils.crypto import verify_nostr_event as _verify_nostr_event
 from utils.crypto import _pt_mul, _SECP256K1_G as _G  # ECDH auto-chiffrement NIP-04 ci-dessous
 
@@ -210,31 +215,52 @@ def _email_from_npub(npub: str) -> str | None:
     return None
 
 
-def _check_roaming(npub: str, hex_pk: str = "") -> str:
+def _read_marker(path: Path) -> Optional[str]:
+    try:
+        return path.read_text().strip() or None
+    except Exception:
+        return None
+
+
+def _check_roaming(npub: str, hex_pk: str = "") -> dict:
     """
-    Retourne 'local' | 'roaming' | 'unknown'.
-    local   : MULTIPASS géré sur cette station.
-    roaming : MULTIPASS présent dans le swarm mais pas localement.
-    unknown : inconnu dans la constellation.
+    Retourne {"state": "local"|"roaming"|"unknown", "email": str|None, "home_http_url": str|None}.
+
+    local   : MULTIPASS géré sur cette station (.secret.nostr présent).
+    roaming : profil connu — soit via un marqueur local créé lors d'une visite
+              précédente (SOURCE=swarm/.roaming, sans .secret.nostr), soit vu
+              uniquement dans le cache swarm d'une autre station — mais géré
+              par une AUTRE station. home_http_url résolu si possible, même
+              mécanisme que /api/myGPS et le bouton 🏠 de uplanet-header.js
+              (cf. services/roaming.py) — sans quoi éditer /mailjet viendrait
+              lire/écrire un dossier identity/ vide sur la mauvaise station.
+    unknown : inconnu de la constellation.
     """
     nostr_local = settings.GAME_PATH / "nostr"
     for f in nostr_local.glob("*/NPUB"):
-        try:
-            v = f.read_text().strip()
-            if v == npub or (hex_pk and v == hex_pk):
-                return "local"
-        except Exception:
+        v = _read_marker(f)
+        if not v or (v != npub and not (hex_pk and v == hex_pk)):
             continue
+        user_dir = f.parent
+        if (user_dir / ".secret.nostr").is_file():
+            return {"state": "local", "email": user_dir.name, "home_http_url": None}
+        home_ipfsnodeid = _read_marker(user_dir / "HOME_IPFSNODEID")
+        home_http_url = resolve_home_http_url(home_ipfsnodeid, user_dir.name)
+        return {"state": "roaming", "email": user_dir.name, "home_http_url": home_http_url}
+
     swarm = Path.home() / ".zen" / "tmp" / "swarm"
     if swarm.exists():
         for f in swarm.glob("**/NPUB"):
-            try:
-                v = f.read_text().strip()
-                if v == npub or (hex_pk and v == hex_pk):
-                    return "roaming"
-            except Exception:
+            v = _read_marker(f)
+            if not v or (v != npub and not (hex_pk and v == hex_pk)):
                 continue
-    return "unknown"
+            try:
+                home_ipfsnodeid = f.relative_to(swarm).parts[0]
+            except Exception:
+                home_ipfsnodeid = None
+            return {"state": "roaming", "email": None,
+                    "home_http_url": resolve_home_http_url(home_ipfsnodeid, None)}
+    return {"state": "unknown", "email": None, "home_http_url": None}
 
 
 def _npub_from_hex(hex_pk: str) -> str:
@@ -651,17 +677,20 @@ async def post_mailjet_auth(request: Request):
     npub = _npub_from_hex(hex_pk)
     ipfs_viewer = "https://ipfs.copylaradio.com/ipns/copylaradio.com/nostr_profile_viewer.html"
     viewer_url = f"{ipfs_viewer}?npub={npub}"
-    state = _check_roaming(npub, hex_pk)
-    logger.info("NIP-42 auth npub=%s… state=%s", npub[:16], state)
+    roaming = _check_roaming(npub, hex_pk)
+    state = roaming["state"]
+    logger.info("NIP-42 auth npub=%s… state=%s home_http_url=%s", npub[:16], state, roaming["home_http_url"])
 
     if state == "local":
-        email = _email_from_npub(npub) or _email_from_npub(hex_pk)
+        email = roaming["email"] or _email_from_npub(npub) or _email_from_npub(hex_pk)
         if email:
             return JSONResponse({"status": "ok", "redirect": f"/mailjet?email={email}&token={_token_for(email)}"})
         return JSONResponse({"status": "ok", "redirect": viewer_url})
     if state == "roaming":
+        home_redirect = f"{roaming['home_http_url']}/mailjet" if roaming["home_http_url"] else None
         return JSONResponse({"status": "roaming", "viewer": viewer_url,
                              "station": "un autre nœud UPlanet",
+                             "home_redirect": home_redirect,
                              "message": "Votre MULTIPASS est géré par une autre station."})
     return JSONResponse({"status": "unknown", "viewer": viewer_url})
 
@@ -834,6 +863,11 @@ async def get_mailjet(
         "scrapers": _list_scrapers_status(email),
         # État des mémoires (fichiers + Qdrant) — self-service, cf. services/memory_status.py
         "memory_status": await asyncio.to_thread(get_memory_status, email),
+        # Profil LifeOS — contenu texte éditable des 5 fichiers identity/*.md
+        "identity_content":      await asyncio.to_thread(get_identity_content, email),
+        "identity_filenames":    IDENTITY_FILENAMES,
+        "identity_labels":       IDENTITY_LABELS,
+        "identity_placeholders": IDENTITY_PLACEHOLDERS,
     })
 
 
@@ -1084,6 +1118,40 @@ async def post_memory_regenerate(
         "vibe_capture": False,
         "custom_message": f"🐘 Profil LifeOS régénéré depuis {found} post(s) Mastodon récent(s).",
     })
+
+
+@router.post("/mailjet/identity-save")
+async def post_identity_save(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+    filename: str = Form(...),
+    content: str = Form(default=""),
+):
+    """Édition self-service directe d'un fichier identity/*.md (profil LifeOS)
+    — même fonction Python que l'admin capitaine (services.memory_status.
+    save_identity_file → bro.identity.write_identity_file), jamais dupliquée."""
+    captain = settings.CAPTAINEMAIL or "support@qo-op.com"
+    err = _require_token(request, email, token, captain)
+    if err:
+        return err
+    if filename not in IDENTITY_FILENAMES:
+        return templates.TemplateResponse(
+            "mailjet_error.html",
+            {"request": request, "message": "Fichier identity invalide.", "captain": captain},
+            status_code=400,
+        )
+
+    ok, msg = await asyncio.to_thread(save_identity_file, email, filename, content)
+    logger.info("Identity %s sauvegardé pour %s (ok=%s)", filename, email, ok)
+    if not ok:
+        return templates.TemplateResponse(
+            "mailjet_error.html",
+            {"request": request, "message": f"Échec de la sauvegarde : {msg}", "captain": captain},
+            status_code=500,
+        )
+
+    return RedirectResponse(f"/mailjet?email={email}&token={token}#lifeos", status_code=303)
 
 
 @router.get("/mailjet/nostr-events")

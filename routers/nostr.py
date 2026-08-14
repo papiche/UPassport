@@ -673,6 +673,52 @@ async def admin_memory_regenerate(request: Request):
     return JSONResponse(result)
 
 
+@router.get("/api/nostr/admin/identity_content")
+async def admin_identity_content(request: Request, email: str, uplanetname: Optional[str] = None):
+    """Contenu texte des 5 fichiers identity/*.md (LifeOS) d'un MULTIPASS —
+    pré-remplissage des <textarea> d'édition admin (nostr_admin.html, section
+    Mémoire → bouton 'Éditer le LifeOS'). Auth UPLANETNAME ou signature NIP-98
+    du Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    from services.memory_status import get_identity_content, IDENTITY_FILENAMES, IDENTITY_PLACEHOLDERS
+    content = await asyncio.to_thread(get_identity_content, email)
+    return JSONResponse({
+        "email": email, "filenames": IDENTITY_FILENAMES, "content": content,
+        "placeholders": IDENTITY_PLACEHOLDERS,
+    })
+
+
+@router.post("/api/nostr/admin/identity_save")
+async def admin_identity_save(request: Request):
+    """Écrit un fichier identity/*.md (LifeOS) d'un MULTIPASS — action du
+    capitaine. Body JSON : {uplanetname, email, filename, content}. filename
+    validé contre la liste blanche des 5 noms exacts (400 sinon). Après succès,
+    notifie le membre par DM NOSTR self-to-self (best-effort, n'affecte jamais
+    le résultat HTTP). Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    body = await request.json()
+    uplanetname = body.get("uplanetname", "")
+    email = body.get("email", "")
+    filename = body.get("filename", "")
+    content = body.get("content", "")
+
+    await _check_admin_auth(request, uplanetname)
+    if not email:
+        raise HTTPException(status_code=400, detail="email requis")
+
+    from services.memory_status import save_identity_file, notify_identity_saved, IDENTITY_FILENAMES
+    if filename not in IDENTITY_FILENAMES:
+        raise HTTPException(status_code=400,
+                             detail=f"filename invalide (attendu : {', '.join(IDENTITY_FILENAMES)})")
+
+    ok, msg = await asyncio.to_thread(save_identity_file, email, filename, content)
+    if not ok:
+        raise HTTPException(status_code=500, detail=msg)
+
+    notified = await asyncio.to_thread(notify_identity_saved, email, filename)
+    logger.info(f"Admin identity_save: {filename} → {email} (notified={notified})")
+    return JSONResponse({"ok": True, "email": email, "filename": filename, "notified": notified})
+
+
 @router.post("/api/nostr/dm/delete_node_messages")
 async def delete_node_messages(request: Request):
     """Supprime des self-DM envoyés par NODE et destinés à l'appelant — réservé

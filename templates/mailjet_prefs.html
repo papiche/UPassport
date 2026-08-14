@@ -828,6 +828,36 @@
   </div>
 </div>
 
+{# ════════════════════════════════════════════
+   PROFIL LifeOS — édition directe des 5 fichiers identity/*.md
+   ════════════════════════════════════════════ #}
+<div class="sec-head" id="lifeos" style="margin-top:32px;">
+  <h3 style="color:#a78bfa;">📝 MON PROFIL LifeOS</h3>
+  <span class="sec-badge">{{ identity_filenames | length }} fichier(s)</span>
+</div>
+<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-bottom:14px;">
+  Édite directement ce que BRO sait de toi. Les instructions par défaut (entre
+  &lt;!-- --&gt;) sont retirées de l'affichage — ce que tu vois est ton contenu réel.
+</p>
+
+{% for fn in identity_filenames %}
+<div class="mem-card">
+  <form method="post" action="/mailjet/identity-save" style="margin:0;">
+    <input type="hidden" name="email" value="{{ email }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="filename" value="{{ fn }}">
+    <div class="mem-head">
+      <span class="mem-title">{{ identity_labels[fn] }}</span>
+      <button type="submit" class="scraper-save-btn">💾 Enregistrer</button>
+    </div>
+    <textarea name="content" rows="6" maxlength="4000" class="scraper-input"
+              placeholder="{{ identity_placeholders[fn] }}"
+              style="width:100%;display:block;resize:vertical;font-family:'Courier New',monospace;margin-top:8px;box-sizing:border-box;"
+              >{{ identity_content[fn] }}</textarea>
+  </form>
+</div>
+{% endfor %}
+
 <div style="margin-top:2rem;padding:.75rem 1rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;font-size:.8rem;color:#94a3b8;">
   🔐 <a href="/mailjet/nostr-events?email={{ email }}&token={{ token }}"
        target="_blank"
