@@ -706,12 +706,33 @@ import uplanet_crypto  # noqa: E402
 
 
 @router.get("/atom4love/dream")
-async def get_atom4love_dream(email: str):
+async def get_atom4love_dream(
+    email: str = "", hex: str = "", auth_event: str = "",
+    viewer_email: str = "", viewer_auth_event: str = "",
+):
+    """Même modèle de contrôle d'accès que GET /atom4love/profile :
+    `dream_tags`/`ratio`/`v`/`created_at` restent toujours visibles (déjà en
+    tags NOSTR en clair sur le relais — les cacher ici ne protégerait rien).
+    `cr`/`dr`/`notes` (texte libre, potentiellement très personnel — lieu de
+    vie, mode de vie, valeurs) ne sont renvoyés que si :
+      1. l'appelant prouve qu'il est le titulaire via `auth_event` (kind 22242
+         NIP-42, challenge via GET /atom4love/challenge), ou
+      2. l'appelant prouve sa PROPRE identité via `viewer_email`+`viewer_auth_event`
+         ET que le follow Kind 3 signé par les deux clés LOVE est RÉCIPROQUE
+         (Ami de Cœur mutuel — jamais un suivi unilatéral).
+    Il n'existe pas de bascule "public" équivalente à profile.public : sans
+    preuve de propriété ou de réciprocité, cr/dr/notes restent vides — un
+    dream_vector n'est jamais public par défaut."""
     email = (email or "").strip().lower()
-    hex_file = settings.GAME_PATH / "nostr" / email / "HEX_LOVE"
-    if not hex_file.exists():
+    if not email and hex:
+        email = _resolve_email_from_love_hex(hex)
+    if not email:
+        raise HTTPException(status_code=400, detail="email ou hex requis.")
+
+    hex_love_file = settings.GAME_PATH / "nostr" / email / "HEX_LOVE"
+    if not hex_love_file.exists():
         raise HTTPException(status_code=404, detail="ATOM4LOVE non activé pour cet email.")
-    love_hex = hex_file.read_text().strip()
+    love_hex = hex_love_file.read_text().strip()
 
     return_code, last_line = await run_script(
         str(settings.TOOLS_PATH / "nostr_get_events.sh"),
@@ -729,19 +750,37 @@ async def get_atom4love_dream(email: str):
     dream_tags = [t[1] for t in tags if len(t) >= 2 and t[0] == "t"]
     ratio = next((t[1] for t in tags if len(t) >= 2 and t[0] == "ratio"), "")
     v = next((t[1] for t in tags if len(t) >= 2 and t[0] == "v"), "")
-    try:
-        decrypted = uplanet_crypto.decrypt_or_passthrough(event.get("content", "{}"))
-        content = json.loads(decrypted or "{}")
-    except json.JSONDecodeError:
-        content = {}
+
+    is_owner = bool(auth_event) and _check_atom4love_auth(email, "", auth_event) is None
+
+    is_friend = False
+    if not is_owner and viewer_email and viewer_auth_event:
+        viewer_email = viewer_email.strip().lower()
+        if _verify_viewer_identity(viewer_email, viewer_auth_event):
+            viewer_hex_file = settings.GAME_PATH / "nostr" / viewer_email / "HEX_LOVE"
+            if viewer_hex_file.exists():
+                viewer_love_hex = viewer_hex_file.read_text().strip()
+                viewer_follows, target_follows = await asyncio.gather(
+                    get_n1_follows(viewer_love_hex), get_n1_follows(love_hex))
+                is_friend = love_hex in viewer_follows and viewer_love_hex in target_follows
+
+    if is_owner or is_friend:
+        try:
+            decrypted = uplanet_crypto.decrypt_or_passthrough(event.get("content", "{}"))
+            content = json.loads(decrypted or "{}")
+        except json.JSONDecodeError:
+            content = {}
+        cr, dr, notes = content.get("cr", ""), content.get("dr", ""), content.get("notes", "")
+    else:
+        cr, dr, notes = "", "", ""
 
     return JSONResponse({"dream_vector": {
         "dream_tags": dream_tags,
         "ratio": ratio,
         "v": v,
-        "cr": content.get("cr", ""),
-        "dr": content.get("dr", ""),
-        "notes": content.get("notes", ""),
+        "cr": cr,
+        "dr": dr,
+        "notes": notes,
         "created_at": event.get("created_at", 0),
         "love_hex": love_hex,
     }})
