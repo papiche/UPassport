@@ -34,6 +34,14 @@ templates/        ← Jinja2 HTML templates
 - `GET  /api/getN2` — Réseau N² (amis d'amis depuis relay)
 - `POST /sendmsg` — Envoi message NOSTR signé
 - `POST /api/test-nostr` — Test publication événement NOSTR
+- `GET  /api/nostr/admin/events` — Requête générique d'events (kind/author/tag_d/tag_p/tag_t/since/until), admin NIP-98/UPLANETNAME — utilisée par nostr_admin.html seulement pour les actions qui ne sont pas de simples lectures (le reste passe désormais en direct par le relay, cf. `UPlanet/earth/relay.js`)
+- `POST /api/nostr/admin/delete`, `POST /api/nostr/admin/constellation_delete` — Suppression d'events (locale / constellation via DM-BRO), admin NIP-98/UPLANETNAME
+
+### node_admin.py — config NODE, ARBOR, purge NOSTR (préfixe `/api/nostr/admin/*` partagé avec nostr.py par convention)
+- `GET/POST /api/nostr/admin/node_config`, `POST .../node_config/delete` — Config coopérative (whitelist stricte, cf. `services/coop_config.py`)
+- `GET  /api/nostr/admin/arbor_status`, `POST .../arbor_trigger`, `GET .../arbor_mined_preview` — Auto-amélioration ARBOR (déclenchement NIP-98 Capitaine EXCLUSIF)
+- `GET  /api/nostr/admin/purge_strangers` — Analyse des comptes NOSTR "étrangers" (délègue à `Astroport.ONE/admin/system/purge_nostr_strangers.sh --list-json`), admin NIP-98/UPLANETNAME
+- `POST /api/nostr/admin/purge_strangers/clean` — Lance la purge en arrière-plan (`--clean`, suppression irréversible), NIP-98 Capitaine EXCLUSIF — verrou PID (`~/.zen/tmp/purge_nostr_strangers.pid`) contre les lancements concurrents
 
 ### finance.py
 - `POST /zen_send` — Envoi ẐEN entre comptes (transaction G1)
@@ -45,6 +53,7 @@ templates/        ← Jinja2 HTML templates
 - `GET  /check_zencard` — État ZenCard
 - `GET  /check_impots` — Calcul fiscal coopératif
 - `POST /coinflip/start|flip|payout` — Jeu pile/face ẐEN
+- `GET  /api/parrains_ranking` — Classement PUBLIC des parrains sociétaires (tiers Satellite/Constellation), pseudonymisé (sans email), délègue à `oc2uplanet.sh --json --parrain-ranking`, cache 1h. Affiché sur `UPlanet/earth/parrains.html`
 - `GET  /api/oc_admin/contributions` — Contributions €→Ẑen (délègue à `oc2uplanet.sh --json --sync`), admin NIP-98/UPLANETNAME
 - `GET  /api/oc_admin/expenses` — Dépenses OpenCollective (lecture `OC2UPlanet/data/expenses.json`)
 - `GET  /api/oc_admin/dues` — Découverte stations sœurs + PAF/capacités (pas de calcul de montant dû)

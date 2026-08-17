@@ -45,6 +45,10 @@ app_state.balance_cache = TTLCache(maxsize=2000, ttl=30)
 # Cache vérification OC : TTL 1h, max 500 entrées
 _oc_member_cache: "TTLCache" = TTLCache(maxsize=500, ttl=3600)
 
+# Cache classement public des parrains : TTL 1h — évite de solliciter l'API
+# OpenCollective à chaque visite de UPlanet/earth/parrains.html
+_parrains_ranking_cache: "TTLCache" = TTLCache(maxsize=1, ttl=3600)
+
 # --- Coinflip server-authoritative state ---
 import base64
 import hmac
@@ -1656,6 +1660,36 @@ async def oc_admin_contributions(request: Request, uplanetname: Optional[str] = 
         return JSONResponse(json.loads(out.strip()))
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail=f"Sortie oc2uplanet.sh invalide: {out[:300]}")
+
+
+@router.get("/api/parrains_ranking")
+async def parrains_ranking():
+    """Classement PUBLIC des parrains sociétaires (tiers OC Satellite/Constellation,
+    cf. TIER_SLUG_SATELLITE/CONSTELLATION) — sans authentification, pour affichage
+    sur UPlanet/earth/parrains.html.
+
+    Contrairement à /api/oc_admin/contributions, jamais d'email en sortie : délègue
+    à `oc2uplanet.sh --json --parrain-ranking`, qui pseudonymise déjà (prénom +
+    initiale) côté bash — la route ne fait que relayer/cacher. Cache 1h pour éviter
+    de solliciter l'API OpenCollective à chaque visite d'une page publique."""
+    cache_key = "ranking"
+    if cache_key in _parrains_ranking_cache:
+        return JSONResponse(_parrains_ranking_cache[cache_key])
+
+    script = OC2UPLANET_PATH / "oc2uplanet.sh"
+    if not script.exists():
+        raise HTTPException(status_code=500, detail="oc2uplanet.sh introuvable")
+
+    out = await _run_subprocess_capture(
+        [str(script), "--json", "--parrain-ranking"], cwd=OC2UPLANET_PATH, timeout=60.0
+    )
+    try:
+        result = json.loads(out.strip())
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Sortie oc2uplanet.sh invalide: {out[:300]}")
+
+    _parrains_ranking_cache[cache_key] = result
+    return JSONResponse(result)
 
 
 @router.get("/api/oc_admin/expenses")

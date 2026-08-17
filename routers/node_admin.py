@@ -49,6 +49,11 @@ _ARBOR_SLUG_RE = re.compile(r"^[a-z0-9_-]{1,30}$")
 _ARBOR_DOMAIN_RE = re.compile(r"^[a-z0-9.-]{1,80}$")
 ARBOR_NEED_MAX_CHARS = 500
 
+# ── Purge NOSTR des comptes "étrangers" ─────────────────────────────────────
+PURGE_SCRIPT = REPO_ROOT / "admin" / "system" / "purge_nostr_strangers.sh"
+PURGE_LOCK_FILE = settings.ZEN_PATH / "tmp" / "purge_nostr_strangers.pid"
+PURGE_LOG_FILE = settings.ZEN_PATH / "tmp" / "purge_nostr_strangers.log"
+
 sys.path.insert(0, str(_IA_PATH))
 try:
     import arbor_config as _arbor_config  # stdlib seule — jamais bro.*/question.py (trop lourd pour ce process)
@@ -520,3 +525,102 @@ async def get_arbor_mined_preview(request: Request, uplanetname: Optional[str] =
     import arbor_self_improve
     reports = await asyncio.to_thread(arbor_self_improve.mine_tool_requests, False, True)
     return JSONResponse({"clusters": reports})
+
+
+# ── Purge NOSTR des comptes "étrangers" ─────────────────────────────────────
+def _purge_is_running() -> Optional[int]:
+    """PID du --clean en cours si le process est vivant, sinon None. Pas de
+    nettoyage explicite du fichier de verrou à la fin d'un run : la prochaine
+    vérification (os.kill(pid, 0) échoue sur un process mort) s'auto-corrige,
+    inutile de faire signaler sa propre fin par le script bash."""
+    try:
+        pid = int(PURGE_LOCK_FILE.read_text().strip())
+    except Exception:
+        return None
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return None
+    except PermissionError:
+        return pid
+    return pid
+
+
+def _purge_log_tail(limit: int = 40) -> str:
+    if not PURGE_LOG_FILE.is_file():
+        return ""
+    try:
+        lines = PURGE_LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception:
+        return ""
+    return "\n".join(lines[-limit:])
+
+
+@router.get("/api/nostr/admin/purge_strangers")
+async def get_purge_strangers(request: Request, uplanetname: Optional[str] = None):
+    """Analyse des comptes NOSTR "étrangers" (ni MULTIPASS connu, ni NODE
+    actif, ni DID+abonnement coopératif valide) — délègue à
+    purge_nostr_strangers.sh --list-json (lecture seule : quelques scans
+    strfry FIXES, jamais un par auteur). Si une purge --clean est en cours,
+    ne relance pas l'analyse (le relay est déjà occupé par les suppressions)
+    et renvoie juste l'état + le tail du log. Lecture seule : auth
+    UPLANETNAME ou NIP-98 Capitaine suffit."""
+    await _check_admin_auth(request, uplanetname)
+    running_pid = _purge_is_running()
+    log_tail = _purge_log_tail()
+    if running_pid:
+        return JSONResponse({"running": True, "pid": running_pid, "log_tail": log_tail, "authors": [], "candidate_count": None})
+
+    if not PURGE_SCRIPT.is_file():
+        raise HTTPException(status_code=500, detail="purge_nostr_strangers.sh introuvable")
+    try:
+        proc = subprocess.run(
+            [str(PURGE_SCRIPT), "--list-json"],
+            capture_output=True, text=True, timeout=60, cwd=str(PURGE_SCRIPT.parent),
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Timeout purge_nostr_strangers.sh --list-json")
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"Erreur analyse : {(proc.stderr or proc.stdout)[:500] or 'code ' + str(proc.returncode)}")
+    try:
+        data = json.loads(proc.stdout.strip())
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"Sortie invalide : {proc.stdout[:300]}")
+    return JSONResponse({"running": False, "log_tail": log_tail, **data})
+
+
+@router.post("/api/nostr/admin/purge_strangers/clean")
+async def post_purge_strangers_clean(request: Request):
+    """Lance purge_nostr_strangers.sh --clean en arrière-plan — suppression
+    IRRÉVERSIBLE des événements NOSTR des comptes candidats (cf. --list-json
+    purge_candidate=true : MULTIPASS inconnu ou NODE disparu depuis >48h).
+    NIP-98 Capitaine EXCLUSIF, jamais le repli UPLANETNAME : le secret
+    coopératif partagé du swarm n'est pas une preuve d'autorité individuelle
+    suffisante pour déclencher une purge destructive et non annulable (même
+    garde que arbor_trigger)."""
+    pubkey = await require_captain_signature(request)
+
+    if _purge_is_running():
+        raise HTTPException(status_code=409, detail="Une purge est déjà en cours.")
+    if not PURGE_SCRIPT.is_file():
+        raise HTTPException(status_code=500, detail="purge_nostr_strangers.sh introuvable")
+
+    PURGE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    header = f"=== Purge lancée par {pubkey[:16]}… — {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} ===\n"
+    log_fh = open(PURGE_LOG_FILE, "w", encoding="utf-8")
+    try:
+        log_fh.write(header)
+        log_fh.flush()
+        proc = subprocess.Popen(
+            [str(PURGE_SCRIPT), "--clean"],
+            stdin=subprocess.DEVNULL, stdout=log_fh, stderr=subprocess.STDOUT,
+            start_new_session=True, cwd=str(PURGE_SCRIPT.parent),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Échec du lancement : {e}")
+    finally:
+        log_fh.close()
+
+    PURGE_LOCK_FILE.write_text(str(proc.pid))
+    logger.info(f"Admin purge_strangers --clean lancé (pid={proc.pid}, captain={pubkey[:16]})")
+    return JSONResponse({"status": "started", "pid": proc.pid})
