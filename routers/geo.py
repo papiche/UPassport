@@ -20,7 +20,7 @@ from utils.helpers import get_myipfs_gateway, get_env_from_mysh
 from services.nostr import verify_nostr_auth, generate_nip42_challenge, NIP42_CHALLENGE_TTL
 from utils.crypto import hex_to_npub, npub_to_hex
 from utils.security import find_user_directory_by_hex
-from services.roaming import resolve_home_hostname as _resolve_home_hostname
+from services.roaming import resolve_home_station as _resolve_home_station
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -382,12 +382,15 @@ async def get_my_gps_coordinates(npub: str):
         if home_ipfsnodeid_file.exists():
             home_ipfsnodeid = home_ipfsnodeid_file.read_text().strip() or None
 
-        # Hostname HTTP réel de la home station (u.<hostname>) — distinct de
-        # home_station_url (adresse IPFS de contenu, cf. NOSTRNS ci-dessus)
-        home_hostname = _resolve_home_hostname(home_ipfsnodeid, user_email)
-        home_http_url = f"https://u.{home_hostname}" if home_hostname else None
+        # URLs HTTP fiables de la home station (uSPOT = API/earth mount, myIPFS =
+        # gateway IPFS) — lues directement depuis le 12345.json caché par le swarm,
+        # jamais reconstruites depuis le champ `hostname` (décoratif, invalide sur
+        # une station sans domainname configuré — cf. services/roaming.py)
+        _home_station = _resolve_home_station(home_ipfsnodeid, user_email)
+        home_http_url = _home_station["uSPOT"]
+        home_myipfs   = _home_station["myIPFS"]
 
-        logger.info(f"[myGPS] → source={source} home_station_url={home_station_url} home_hostname={home_hostname} home_node_hex={home_node_hex and home_node_hex[:12]+'…'} gps_file={gps_file_path}")
+        logger.info(f"[myGPS] → source={source} home_station_url={home_station_url} home_http_url={home_http_url} home_myipfs={home_myipfs} home_node_hex={home_node_hex and home_node_hex[:12]+'…'} gps_file={gps_file_path}")
 
         if not gps_file_path:
             # GPS absent localement — pour un utilisateur roaming, tenter IPFS home station
@@ -435,8 +438,8 @@ async def get_my_gps_coordinates(npub: str):
                 "udrive_url": _udrive_url,
                 "home_node_hex": home_node_hex,
                 "home_ipfsnodeid": home_ipfsnodeid,
-                "home_hostname": home_hostname,
                 "home_http_url": home_http_url,
+                "home_myipfs": home_myipfs,
                 "ipfsnodeid": ipfs_node_id,
                 "message": gps_message,
                 "timestamp": datetime.now().isoformat(),
@@ -488,8 +491,8 @@ async def get_my_gps_coordinates(npub: str):
                 "udrive_url": _udrive_url,
                 "home_node_hex": home_node_hex,
                 "home_ipfsnodeid": home_ipfsnodeid,
-                "home_hostname": home_hostname,
                 "home_http_url": home_http_url,
+                "home_myipfs": home_myipfs,
                 "ipfsnodeid": ipfs_node_id,
                 "message": "GPS coordinates retrieved successfully",
                 "timestamp": datetime.now().isoformat(),
