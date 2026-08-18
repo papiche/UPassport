@@ -714,18 +714,19 @@ async def get_questionnaire(
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
     if not email or not token:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Lien de questionnaire invalide.", "captain": captain},
+            {"message": "Lien de questionnaire invalide.", "captain": captain},
             status_code=400,
         )
     if _token_for(email) != token:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Token invalide.", "captain": captain},
+            {"message": "Token invalide.", "captain": captain},
             status_code=403,
         )
-    return templates.TemplateResponse("mailjet_questionnaire.html", {
-        "request":   request,
+    return templates.TemplateResponse(request, "mailjet_questionnaire.html", {
         "email":     email,
         "token":     token,
         "questions": _VIBE_QUESTIONS,
@@ -748,8 +749,9 @@ async def post_questionnaire(
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
     if not email or not token or _token_for(email) != token:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Token invalide.", "captain": captain},
+            {"message": "Token invalide.", "captain": captain},
             status_code=403,
         )
 
@@ -789,21 +791,22 @@ async def get_mailjet(
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
 
     if not email:
-        return templates.TemplateResponse("mailjet_landing.html", {"request": request})
+        return templates.TemplateResponse(request, "mailjet_landing.html")
 
     expected = _token_for(email)
     if token and token != expected:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Lien invalide ou expiré.", "captain": captain},
+            {"message": "Lien invalide ou expiré.", "captain": captain},
             status_code=403,
         )
 
     # ── Captation continue : mise à jour silencieuse d'une réponse de vibe ───
     if vibeq and vibea and token == expected:
         _update_vibe_answer(email, vibeq, vibea)
-        return templates.TemplateResponse("mailjet_success.html", {
-            "request": request, "email": email, "token": expected,
+        return templates.TemplateResponse(request, "mailjet_success.html", {
+            "email": email, "token": expected,
             "npub": "", "channels": [], "kin_prefs": None,
             "vibe_capture": True,
         })
@@ -836,8 +839,7 @@ async def get_mailjet(
     except Exception:
         pass
 
-    return templates.TemplateResponse("mailjet_prefs.html", {
-        "request":              request,
+    return templates.TemplateResponse(request, "mailjet_prefs.html", {
         "email":                email,
         "token":                expected,
         "saved_npub":           current.get("npub", ""),
@@ -912,14 +914,16 @@ async def post_mailjet(
 
     if not email or not token:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Paramètres manquants.", "captain": captain},
+            {"message": "Paramètres manquants.", "captain": captain},
             status_code=400,
         )
     if _token_for(email) != token:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Token invalide.", "captain": captain},
+            {"message": "Token invalide.", "captain": captain},
             status_code=403,
         )
 
@@ -966,8 +970,7 @@ async def post_mailjet(
     saved_prefs = json.loads((_mailjet_path(email)).read_text()) if _mailjet_path(email).exists() else {}
     asyncio.create_task(_publish_mailjet_prefs_nostr(user_dir_post, saved_prefs))
 
-    return templates.TemplateResponse("mailjet_success.html", {
-        "request":   request,
+    return templates.TemplateResponse(request, "mailjet_success.html", {
         "email":     email,
         "token":     token,
         "npub":      npub or "",
@@ -982,8 +985,9 @@ def _require_token(request: Request, email: str, token: str, captain: str):
     """Retourne une TemplateResponse d'erreur si le token est invalide, None sinon."""
     if _token_for(email) != token:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Token invalide.", "captain": captain},
+            {"message": "Token invalide.", "captain": captain},
             status_code=403,
         )
     return None
@@ -1074,8 +1078,9 @@ async def post_memory_reset(
         return err
     if scope not in RESET_SCOPES:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Périmètre de réinitialisation invalide.", "captain": captain},
+            {"message": "Périmètre de réinitialisation invalide.", "captain": captain},
             status_code=400,
         )
 
@@ -1106,14 +1111,15 @@ async def post_memory_regenerate(
 
     if not result.get("ok"):
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": result.get("error", "Régénération échouée."), "captain": captain},
+            {"message": result.get("error", "Régénération échouée."), "captain": captain},
             status_code=502,
         )
 
     found = result.get("own_posts_found", 0)
-    return templates.TemplateResponse("mailjet_success.html", {
-        "request": request, "email": email, "token": token,
+    return templates.TemplateResponse(request, "mailjet_success.html", {
+        "email": email, "token": token,
         "npub": "", "channels": [], "kin_prefs": None,
         "vibe_capture": False,
         "custom_message": f"🐘 Profil LifeOS régénéré depuis {found} post(s) Mastodon récent(s).",
@@ -1137,8 +1143,9 @@ async def post_identity_save(
         return err
     if filename not in IDENTITY_FILENAMES:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": "Fichier identity invalide.", "captain": captain},
+            {"message": "Fichier identity invalide.", "captain": captain},
             status_code=400,
         )
 
@@ -1146,8 +1153,9 @@ async def post_identity_save(
     logger.info("Identity %s sauvegardé pour %s (ok=%s)", filename, email, ok)
     if not ok:
         return templates.TemplateResponse(
+            request,
             "mailjet_error.html",
-            {"request": request, "message": f"Échec de la sauvegarde : {msg}", "captain": captain},
+            {"message": f"Échec de la sauvegarde : {msg}", "captain": captain},
             status_code=500,
         )
 
