@@ -553,6 +553,72 @@
 </form>
 
 {# ════════════════════════════════════════════
+   SÉCURITÉ — code PASS (récupération de compte via /g1nostr)
+   ════════════════════════════════════════════ #}
+<div class="sec-head" id="securite" style="margin-top:32px;">
+  <h3 style="color:#f87171;">🔒 SÉCURITÉ — CODE PASS</h3>
+  <span class="sec-badge" style="{{ 'background:rgba(220,38,38,0.15);color:#f87171;' if (not pass_active or pass_restore_disabled) else '' }}">
+    {% if not pass_active %}INDISPONIBLE{% elif pass_restore_disabled %}DÉSACTIVÉ{% else %}ACTIF{% endif %}
+  </span>
+</div>
+<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-bottom:14px;">
+  Le code PASS a été transmis par email à la création de ton MULTIPASS. Il permet
+  de récupérer ton compte (email + PASS) via /g1nostr si tu perds l'accès à tes
+  identifiants biométriques.
+</p>
+
+{% if pass_active %}
+<div class="mem-card">
+  <div class="mem-head">
+    <span class="mem-title">🔑 Code PASS</span>
+    <button type="button" class="scraper-save-btn" onclick="_togglePass(this)">👁 Afficher</button>
+  </div>
+  <div class="mem-stats">
+    <code id="pass-code-value" data-pass="{{ pass_code }}" data-shown="0"
+          style="font-size:0.95rem;letter-spacing:2px;">••••</code>
+  </div>
+</div>
+
+{% if pass_restore_disabled %}
+<div class="mem-card" style="border-color:rgba(220,38,38,0.25);background:rgba(220,38,38,0.03);margin-top:14px;">
+  <div class="mem-stats" style="margin-bottom:10px;">
+    🚫 La récupération de ce compte par email + code PASS est actuellement bloquée
+    (sur /g1nostr et /atom4love).
+  </div>
+  <form method="post" action="/mailjet/pass-toggle">
+    <input type="hidden" name="email" value="{{ email }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="disable" value="0">
+    <button type="submit" class="scraper-save-btn">✅ Réactiver le code PASS</button>
+  </form>
+</div>
+{% else %}
+<div class="danger-zone" style="margin-top:14px;">
+  <div class="danger-label">// BLOQUER LA RÉCUPÉRATION PAR PASS</div>
+  <p class="danger-desc">
+    Bloque la récupération de ce compte par email + code PASS sur /g1nostr et
+    /atom4love. Réversible à tout moment depuis cette page.
+  </p>
+  <form method="post" action="/mailjet/pass-toggle"
+        onsubmit="return confirm('Bloquer la récupération de compte par email + code PASS ?');">
+    <input type="hidden" name="email" value="{{ email }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="disable" value="1">
+    <button type="submit" class="mem-reset-btn">🚫 Désactiver le code PASS</button>
+  </form>
+</div>
+{% endif %}
+{% else %}
+<div class="mem-card">
+  <div class="mem-stats">
+    Code PASS non disponible sur ce nœud (verrouillé après tentatives échouées
+    ou compte legacy). Contacte <a href="mailto:{{ captain }}" style="color:#93c5fd;">{{ captain }}</a>
+    si tu as besoin d'une réinitialisation.
+  </div>
+</div>
+{% endif %}
+
+{# ════════════════════════════════════════════
    BRO OMNI-CHANNEL — Scrapers cookie (smart contracts)
    ════════════════════════════════════════════ #}
 {% set scrapers_active  = scrapers | selectattr("has_cookie") | list %}
@@ -871,6 +937,13 @@
 
 {% block scripts %}
 <script>
+function _togglePass(btn) {
+  var code = document.getElementById('pass-code-value');
+  var shown = code.getAttribute('data-shown') === '1';
+  code.textContent = shown ? '••••' : code.getAttribute('data-pass');
+  code.setAttribute('data-shown', shown ? '0' : '1');
+  btn.textContent = shown ? '👁 Afficher' : '🙈 Masquer';
+}
 var _npub = '';
 function _setNpub(npub) {
   _npub = npub;

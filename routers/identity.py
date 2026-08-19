@@ -164,6 +164,21 @@ def _invalidate_pass_files(email: str) -> bool:
     return invalidated
 
 
+def _pass_disabled_flag(email: str) -> Path:
+    """Flag self-service (page /mailjet) bloquant la restauration par PASS.
+
+    Convention "flag vide" déjà utilisée pour .roaming : présence = bloqué.
+    Contrairement à _invalidate_pass_files (unlink irréversible, déclenché
+    après 3 échecs), ce flag laisse .pass intact — réversible par
+    l'utilisateur lui-même, et le code reste consultable via /mailjet.
+    """
+    return settings.GAME_PATH / "nostr" / email / ".pass.disabled"
+
+
+def _is_pass_restore_disabled(email: str) -> bool:
+    return _pass_disabled_flag(email).is_file()
+
+
 # Double-soumission : un seul appel /g1nostr actif par email (partagé avec
 # /g1/onboard, même risque de double création concurrente pour un même email)
 _g1nostr_in_progress: set[str] = set()
@@ -351,6 +366,16 @@ async def _scan_qr_impl(
                             return JSONResponse(data)
                 except Exception as e:
                     logger.warning(f"Silent recovery check failed for {email}: {e}")
+
+        if _is_pass_restore_disabled(email):
+            logger.warning(f"PASS restore disabled by user for {email}")
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "error": "PASS_DISABLED",
+                    "message": "La récupération par code PASS a été désactivée pour ce compte. Contactez le support."
+                }
+            )
 
         if not pass_code:
             # Cas 2 — demander le PASS
@@ -542,6 +567,11 @@ def _check_atom4love_auth(email: str, pass_code: str, auth_event_raw: str) -> Op
         return None
 
     if pass_code:
+        if _is_pass_restore_disabled(email):
+            logger.warning(f"ATOM4LOVE: PASS restore disabled by user for {email}")
+            return JSONResponse(status_code=403, content={
+                "error": "PASS_DISABLED",
+                "message": "La récupération par code PASS a été désactivée pour ce compte. Contactez le support."})
         pass_file = _resolve_pass_file(email)
         if not pass_file:
             return JSONResponse(status_code=503, content={

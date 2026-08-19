@@ -105,6 +105,7 @@ templates/        ← Jinja2 HTML templates
 - `POST /mailjet` — Sauvegarde préférences → `~/.zen/game/nostr/EMAIL/.mailjet`
 - `GET  /mailjet/challenge` — Challenge NIP-42 (TTL 5 min, usage unique)
 - `POST /mailjet/auth` — Vérification Schnorr BIP-340, détection roaming, redirection
+- `POST /mailjet/pass-toggle` — Bloque/débloque la récupération de compte par email+PASS (`/g1nostr`, `/atom4love/activate`) via le flag réversible `~/.zen/game/nostr/EMAIL/.pass.disabled` (cf. `routers/identity.py::_pass_disabled_flag`) ; le code PASS lui-même n'est jamais détruit (contrairement au verrouillage anti-bruteforce de `POST /g1nostr/alert`)
 
 **Format `.mailjet` JSON** (géré par UPassport, lu par `tools/kin_prefs.sh`) :
 ```json

@@ -31,6 +31,9 @@ from services.roaming import resolve_home_http_url
 from utils.crypto import verify_nostr_event as _verify_nostr_event
 from utils.crypto import _pt_mul, _SECP256K1_G as _G  # ECDH auto-chiffrement NIP-04 ci-dessous
 from utils.security import safe_json_body
+# Code PASS (récupération de compte via /g1nostr) — mêmes helpers que l'admin,
+# jamais dupliqués (cf. routers/identity.py).
+from routers.identity import _resolve_pass_file, _pass_disabled_flag, _is_pass_restore_disabled
 
 templates = Jinja2Templates(directory="templates")
 
@@ -840,6 +843,8 @@ async def get_mailjet(
     except Exception:
         pass
 
+    _pass_file = _resolve_pass_file(email)
+
     return templates.TemplateResponse(request, "mailjet_prefs.html", {
         "email":                email,
         "token":                expected,
@@ -871,6 +876,10 @@ async def get_mailjet(
         "identity_filenames":    IDENTITY_FILENAMES,
         "identity_labels":       IDENTITY_LABELS,
         "identity_placeholders": IDENTITY_PLACEHOLDERS,
+        # Code PASS — récupération de compte par email+PASS sur /g1nostr
+        "pass_active":           _pass_file is not None,
+        "pass_code":             _pass_file.read_text().strip() if _pass_file else "",
+        "pass_restore_disabled": _is_pass_restore_disabled(email),
     })
 
 
@@ -992,6 +1001,36 @@ def _require_token(request: Request, email: str, token: str, captain: str):
             status_code=403,
         )
     return None
+
+
+# ─── Code PASS — désactivation self-service de la récupération par email+PASS ─
+
+@router.post("/mailjet/pass-toggle")
+async def post_pass_toggle(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+    disable: str = Form(...),  # "1" = bloquer la restauration, "0" = réactiver
+):
+    """Bascule le flag .pass.disabled (cf. routers/identity.py::_pass_disabled_flag) :
+    bloque/débloque la récupération de compte par email+PASS sur /g1nostr et
+    /atom4love/activate, sans détruire le code PASS lui-même (réversible par
+    l'utilisateur, contrairement au verrouillage anti-bruteforce à 3 échecs)."""
+    captain = settings.CAPTAINEMAIL or "support@qo-op.com"
+    err = _require_token(request, email, token, captain)
+    if err:
+        return err
+
+    flag = _pass_disabled_flag(email)
+    if disable == "1":
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.touch()
+        flag.chmod(0o600)
+    else:
+        flag.unlink(missing_ok=True)
+    logger.info("PASS restore %s pour %s", "désactivé" if disable == "1" else "réactivé", email)
+
+    return RedirectResponse(f"/mailjet?email={email}&token={token}#securite", status_code=303)
 
 
 @router.post("/mailjet/scraper-toggle")
