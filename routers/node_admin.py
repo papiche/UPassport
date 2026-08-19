@@ -31,6 +31,7 @@ from services.coop_config import (
     COOP_CONFIG_SCHEMA, ALL_KEYS, is_sensitive, validate_value, CoopConfigError,
     coop_load_raw, coop_set_many, coop_delete,
 )
+from utils.security import safe_json_body
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -53,6 +54,12 @@ ARBOR_NEED_MAX_CHARS = 500
 PURGE_SCRIPT = REPO_ROOT / "admin" / "system" / "purge_nostr_strangers.sh"
 PURGE_LOCK_FILE = settings.ZEN_PATH / "tmp" / "purge_nostr_strangers.pid"
 PURGE_LOG_FILE = settings.ZEN_PATH / "tmp" / "purge_nostr_strangers.log"
+
+# ── Destruction MULTIPASS (nostr_DESTROY_TW.sh) ─────────────────────────────
+DESTROY_TW_SCRIPT = REPO_ROOT / "tools" / "nostr_DESTROY_TW.sh"
+DESTROY_LOCK_FILE = settings.ZEN_PATH / "tmp" / "nostr_destroy_tw.pid"
+DESTROY_LOG_FILE = settings.ZEN_PATH / "tmp" / "nostr_destroy_tw.log"
+_DESTROY_REASONS = ("INSOLVENCY", "INTRUSION", "INCOMPATIBLE_KEY")
 
 sys.path.insert(0, str(_IA_PATH))
 try:
@@ -181,7 +188,7 @@ async def post_node_config(request: Request):
     (le singulier est normalisé vers entries — un seul chemin de code).
     Auth : require_captain_signature (NIP-98 exclusif) si le lot contient une
     clé sensible, sinon check_admin_auth standard (UPLANETNAME accepté)."""
-    body = await request.json()
+    body = await safe_json_body(request)
     uplanetname = body.get("uplanetname", "")
     entries = body.get("entries")
     if entries is None:
@@ -227,7 +234,7 @@ async def post_node_config_delete(request: Request):
     """Supprime une clé whitelistée — require_captain_signature UNIQUEMENT
     (jamais le repli UPLANETNAME) : une suppression est plus difficile à
     auditer qu'une écriture, réservée à une preuve de clé privée individuelle."""
-    body = await request.json()
+    body = await safe_json_body(request)
     key = body.get("key", "")
     if key not in ALL_KEYS:
         raise HTTPException(status_code=400, detail=f"Clé hors whitelist : {key}")
@@ -369,7 +376,7 @@ async def post_arbor_trigger(request: Request):
     JAMAIS de merge — voir arbor_run.sh et arbor_self_improve.py::
     _create_worktree / arbor_tool_forge.py::forge_tool (worktree + branche
     isolée uniquement)."""
-    body = await request.json()
+    body = await safe_json_body(request)
     mode = body.get("mode", "")
     model = (body.get("model") or "").strip() or None
     need = (body.get("need") or "").strip() or None
@@ -527,14 +534,16 @@ async def get_arbor_mined_preview(request: Request, uplanetname: Optional[str] =
     return JSONResponse({"clusters": reports})
 
 
-# ── Purge NOSTR des comptes "étrangers" ─────────────────────────────────────
-def _purge_is_running() -> Optional[int]:
-    """PID du --clean en cours si le process est vivant, sinon None. Pas de
+# ── Jobs bash destructifs en arrière-plan (purge NOSTR, destruction MULTIPASS) ──
+# Deux instances du même pattern : verrou PID + log fichier + Popen détaché,
+# cf. arbor_trigger plus haut pour le précédent qui a établi cette convention.
+def _bg_job_is_running(lock_file: Path) -> Optional[int]:
+    """PID du job en cours si le process est vivant, sinon None. Pas de
     nettoyage explicite du fichier de verrou à la fin d'un run : la prochaine
     vérification (os.kill(pid, 0) échoue sur un process mort) s'auto-corrige,
     inutile de faire signaler sa propre fin par le script bash."""
     try:
-        pid = int(PURGE_LOCK_FILE.read_text().strip())
+        pid = int(lock_file.read_text().strip())
     except Exception:
         return None
     try:
@@ -546,16 +555,39 @@ def _purge_is_running() -> Optional[int]:
     return pid
 
 
-def _purge_log_tail(limit: int = 40) -> str:
-    if not PURGE_LOG_FILE.is_file():
+def _bg_job_log_tail(log_file: Path, limit: int = 40) -> str:
+    if not log_file.is_file():
         return ""
     try:
-        lines = PURGE_LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = log_file.read_text(encoding="utf-8", errors="replace").splitlines()
     except Exception:
         return ""
     return "\n".join(lines[-limit:])
 
 
+def _bg_job_launch(script: Path, args: list, log_file: Path, lock_file: Path, header: str) -> int:
+    """Lance `script args...` en arrière-plan, stdout+stderr redirigés vers
+    log_file (écrasé, précédé de `header`), PID écrit dans lock_file. Retourne
+    le PID. Ne vérifie PAS lock_file/is_running — à l'appelant de le faire
+    avant (fenêtre de course négligeable : actions admin rares, jamais deux
+    clics simultanés en pratique)."""
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_fh = open(log_file, "w", encoding="utf-8")
+    try:
+        log_fh.write(header)
+        log_fh.flush()
+        proc = subprocess.Popen(
+            [str(script)] + args,
+            stdin=subprocess.DEVNULL, stdout=log_fh, stderr=subprocess.STDOUT,
+            start_new_session=True, cwd=str(script.parent),
+        )
+    finally:
+        log_fh.close()
+    lock_file.write_text(str(proc.pid))
+    return proc.pid
+
+
+# ── Purge NOSTR des comptes "étrangers" ─────────────────────────────────────
 @router.get("/api/nostr/admin/purge_strangers")
 async def get_purge_strangers(request: Request, uplanetname: Optional[str] = None):
     """Analyse des comptes NOSTR "étrangers" (ni MULTIPASS connu, ni NODE
@@ -566,8 +598,8 @@ async def get_purge_strangers(request: Request, uplanetname: Optional[str] = Non
     et renvoie juste l'état + le tail du log. Lecture seule : auth
     UPLANETNAME ou NIP-98 Capitaine suffit."""
     await _check_admin_auth(request, uplanetname)
-    running_pid = _purge_is_running()
-    log_tail = _purge_log_tail()
+    running_pid = _bg_job_is_running(PURGE_LOCK_FILE)
+    log_tail = _bg_job_log_tail(PURGE_LOG_FILE)
     if running_pid:
         return JSONResponse({"running": True, "pid": running_pid, "log_tail": log_tail, "authors": [], "candidate_count": None})
 
@@ -600,27 +632,71 @@ async def post_purge_strangers_clean(request: Request):
     garde que arbor_trigger)."""
     pubkey = await require_captain_signature(request)
 
-    if _purge_is_running():
+    if _bg_job_is_running(PURGE_LOCK_FILE):
         raise HTTPException(status_code=409, detail="Une purge est déjà en cours.")
     if not PURGE_SCRIPT.is_file():
         raise HTTPException(status_code=500, detail="purge_nostr_strangers.sh introuvable")
 
-    PURGE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     header = f"=== Purge lancée par {pubkey[:16]}… — {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} ===\n"
-    log_fh = open(PURGE_LOG_FILE, "w", encoding="utf-8")
     try:
-        log_fh.write(header)
-        log_fh.flush()
-        proc = subprocess.Popen(
-            [str(PURGE_SCRIPT), "--clean"],
-            stdin=subprocess.DEVNULL, stdout=log_fh, stderr=subprocess.STDOUT,
-            start_new_session=True, cwd=str(PURGE_SCRIPT.parent),
-        )
+        pid = _bg_job_launch(PURGE_SCRIPT, ["--clean"], PURGE_LOG_FILE, PURGE_LOCK_FILE, header)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Échec du lancement : {e}")
-    finally:
-        log_fh.close()
 
-    PURGE_LOCK_FILE.write_text(str(proc.pid))
-    logger.info(f"Admin purge_strangers --clean lancé (pid={proc.pid}, captain={pubkey[:16]})")
-    return JSONResponse({"status": "started", "pid": proc.pid})
+    logger.info(f"Admin purge_strangers --clean lancé (pid={pid}, captain={pubkey[:16]})")
+    return JSONResponse({"status": "started", "pid": pid})
+
+
+# ── Destruction MULTIPASS (nostr_DESTROY_TW.sh) ─────────────────────────────
+@router.get("/api/nostr/admin/destroy_multipass/status")
+async def get_destroy_multipass_status(request: Request, uplanetname: Optional[str] = None):
+    """Statut du dernier lancement de nostr_DESTROY_TW.sh (running + tail du
+    log) — permet à nostr_admin.html de suivre la progression (export backup
+    chiffré, cashback G1, envoi email) sans bloquer sur une requête synchrone
+    de plusieurs dizaines de secondes. Lecture seule : auth UPLANETNAME ou
+    NIP-98 Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    pid = _bg_job_is_running(DESTROY_LOCK_FILE)
+    return JSONResponse({"running": bool(pid), "pid": pid, "log_tail": _bg_job_log_tail(DESTROY_LOG_FILE)})
+
+
+@router.post("/api/nostr/admin/destroy_multipass")
+async def post_destroy_multipass(request: Request):
+    """Lance nostr_DESTROY_TW.sh en arrière-plan pour UN compte MULTIPASS —
+    désactivation IRRÉVERSIBLE (export chiffré + cashback G1 vers le wallet
+    primal + suppression de ~/.zen/game/nostr/<email>) permettant une
+    migration ultérieure de relay/capitaine via le backup. NIP-98 Capitaine
+    EXCLUSIF (même garde que purge_strangers/clean et arbor_trigger) : action
+    destructive ciblant un compte nommé, jamais déclenchable via le secret
+    coopératif partagé UPLANETNAME seul.
+
+    email doit être un MULTIPASS RÉEL de cette station (jamais une valeur
+    arbitraire fournie par le client — même principe de défense en profondeur
+    que arbor_trigger::forge-scraper) ; reason est une whitelist stricte (le
+    script en dérive le texte des emails envoyés au joueur et au Capitaine)."""
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    reason = (body.get("reason") or "INSOLVENCY").strip()
+
+    pubkey = await require_captain_signature(request)
+
+    from services.memory_status import list_multipass_emails
+    if not email or email not in list_multipass_emails():
+        raise HTTPException(status_code=400, detail="email invalide ou introuvable sur cette station.")
+    if reason not in _DESTROY_REASONS:
+        raise HTTPException(status_code=400, detail=f"reason invalide (attendu : {', '.join(_DESTROY_REASONS)})")
+
+    if _bg_job_is_running(DESTROY_LOCK_FILE):
+        raise HTTPException(status_code=409, detail="Une destruction est déjà en cours sur cette station.")
+    if not DESTROY_TW_SCRIPT.is_file():
+        raise HTTPException(status_code=500, detail="nostr_DESTROY_TW.sh introuvable")
+
+    header = (f"=== Destruction MULTIPASS {email} ({reason}) lancée par "
+              f"{pubkey[:16]}… — {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} ===\n")
+    try:
+        pid = _bg_job_launch(DESTROY_TW_SCRIPT, [email, reason], DESTROY_LOG_FILE, DESTROY_LOCK_FILE, header)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Échec du lancement : {e}")
+
+    logger.warning(f"Admin destroy_multipass lancé : email={email} reason={reason} pid={pid} captain={pubkey[:16]}")
+    return JSONResponse({"status": "started", "pid": pid, "email": email})

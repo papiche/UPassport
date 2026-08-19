@@ -12,6 +12,7 @@ from core.config import settings
 from services.nostr import require_nostr_auth
 from utils.crypto import npub_to_hex, hex_to_npub
 from utils.helpers import render_page
+from utils.security import safe_json_body
 
 router = APIRouter()
 
@@ -526,7 +527,7 @@ async def admin_get_nostr_events(
 async def admin_delete_nostr_events(request: Request):
     """Supprime des événements NOSTR par IDs via strfry delete — auth UPLANETNAME
     ou signature NIP-98 du Capitaine."""
-    body = await request.json()
+    body = await safe_json_body(request, max_bytes=262144)
     uplanetname = body.get("uplanetname", "")
     ids: list = body.get("ids", [])
 
@@ -635,7 +636,7 @@ async def admin_memory_reset(request: Request):
     """Réinitialise un périmètre de mémoire d'un MULTIPASS — action du capitaine
     depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email, scope}.
     Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
-    body = await request.json()
+    body = await safe_json_body(request)
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
     scope = body.get("scope", "")
@@ -659,7 +660,7 @@ async def admin_memory_regenerate(request: Request):
     Mastodon (si un cookie mastodon.social est déposé) — action du capitaine
     depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email}.
     Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
-    body = await request.json()
+    body = await safe_json_body(request)
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
 
@@ -695,7 +696,7 @@ async def admin_identity_save(request: Request):
     validé contre la liste blanche des 5 noms exacts (400 sinon). Après succès,
     notifie le membre par DM NOSTR self-to-self (best-effort, n'affecte jamais
     le résultat HTTP). Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
-    body = await request.json()
+    body = await safe_json_body(request, max_bytes=262144)
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
     filename = body.get("filename", "")
@@ -731,7 +732,7 @@ async def delete_node_messages(request: Request):
     kind 4, pubkey==NODE_HEX, #p==l'appelant authentifié sont supprimés — un ID
     arbitraire fourni par le client ne suffit jamais à lui seul.
     """
-    body = await request.json()
+    body = await safe_json_body(request, max_bytes=262144)
     ids = [str(i).strip() for i in body.get("ids", []) if str(i).strip()]
     if not ids:
         raise HTTPException(status_code=400, detail="Liste d'IDs requise")
@@ -809,7 +810,7 @@ async def delete_node_messages(request: Request):
 @router.post("/api/nostr/admin/constellation_delete")
 async def admin_constellation_delete(request: Request):
     """Supprime par auteur en local (strfry) + relaie aux NODEs constellation via DM BRO nostr_delete."""
-    body = await request.json()
+    body = await safe_json_body(request, max_bytes=262144)
     uplanetname = body.get("uplanetname", "")
     kind = body.get("kind", None)
 

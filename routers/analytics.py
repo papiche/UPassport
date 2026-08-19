@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException
 
 from utils.helpers import get_env_from_mysh
+from utils.security import safe_json_body
 
 router = APIRouter()
 
@@ -20,7 +21,7 @@ async def get_webhook(request: Request):
     """
     try:
         # Récupérer les données de la requête
-        data = await request.json()  # Récupérer le corps de la requête en JSON
+        data = await safe_json_body(request)  # Récupérer le corps de la requête en JSON
         referer = request.headers.get("referer")  # Récupérer l'en-tête Referer
 
         from core.config import settings

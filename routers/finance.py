@@ -25,7 +25,8 @@ from utils.security import (
     find_user_directory_by_hex,
     is_safe_email,
     is_safe_g1pub,
-    get_safe_user_path
+    get_safe_user_path,
+    safe_json_body,
 )
 from services.nostr import verify_nostr_auth
 from utils.crypto import npub_to_hex
@@ -761,7 +762,7 @@ async def oc_webhook(request: Request):
 async def _oc_webhook_impl(request: Request):
     """OpenCollective webhook endpoint for COLLECTIVE_TRANSACTION_CREATED events."""
     try:
-        payload = await request.json()
+        payload = await safe_json_body(request, max_bytes=262144, max_depth=15)
     except Exception:
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
@@ -1339,7 +1340,7 @@ async def constellation_register(request: Request):
     Découverte des pairs : ~/.zen/tmp/*/12345.json → champ myRELAY
     """
     try:
-        body = await request.json()
+        body = await safe_json_body(request)
     except Exception:
         raise HTTPException(status_code=400, detail="JSON invalide")
 
@@ -1918,7 +1919,7 @@ async def oc_admin_invoice_burn(request: Request):
     fournies — jamais automatique (bouton Capitaine explicite dans oc_admin.html).
     Body JSON : {uplanetname, invoice_id?, lines: [{role, node_id, amount_zen,
     description}, ...]}."""
-    body = await request.json()
+    body = await safe_json_body(request)
     uplanetname = body.get("uplanetname", "")
     invoice_id = body.get("invoice_id", "")
     lines = body.get("lines", [])

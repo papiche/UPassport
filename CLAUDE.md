@@ -42,6 +42,8 @@ templates/        ← Jinja2 HTML templates
 - `GET  /api/nostr/admin/arbor_status`, `POST .../arbor_trigger`, `GET .../arbor_mined_preview` — Auto-amélioration ARBOR (déclenchement NIP-98 Capitaine EXCLUSIF)
 - `GET  /api/nostr/admin/purge_strangers` — Analyse des comptes NOSTR "étrangers" (délègue à `Astroport.ONE/admin/system/purge_nostr_strangers.sh --list-json`), admin NIP-98/UPLANETNAME
 - `POST /api/nostr/admin/purge_strangers/clean` — Lance la purge en arrière-plan (`--clean`, suppression irréversible), NIP-98 Capitaine EXCLUSIF — verrou PID (`~/.zen/tmp/purge_nostr_strangers.pid`) contre les lancements concurrents
+- `GET  /api/nostr/admin/destroy_multipass/status` — Statut du dernier lancement de `nostr_DESTROY_TW.sh` (running + tail log), admin NIP-98/UPLANETNAME
+- `POST /api/nostr/admin/destroy_multipass` — Lance `Astroport.ONE/tools/nostr_DESTROY_TW.sh <email> <reason>` en arrière-plan (désactivation MULTIPASS + backup chiffré + cashback Ğ1, irréversible sur cette station), NIP-98 Capitaine EXCLUSIF — `email` validé contre `list_multipass_emails()`, `reason` en whitelist (`INSOLVENCY|INTRUSION|INCOMPATIBLE_KEY`), verrou PID (`~/.zen/tmp/nostr_destroy_tw.pid`)
 
 ### finance.py
 - `POST /zen_send` — Envoi ẐEN entre comptes (transaction G1)

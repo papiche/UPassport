@@ -30,6 +30,7 @@ from services.memory_status import (
 from services.roaming import resolve_home_http_url
 from utils.crypto import verify_nostr_event as _verify_nostr_event
 from utils.crypto import _pt_mul, _SECP256K1_G as _G  # ECDH auto-chiffrement NIP-04 ci-dessous
+from utils.security import safe_json_body
 
 templates = Jinja2Templates(directory="templates")
 
@@ -657,7 +658,7 @@ async def post_mailjet_auth(request: Request):
     Réponse JSON : {redirect, status, viewer, station, message}
     """
     try:
-        body = await request.json()
+        body = await safe_json_body(request)
     except Exception:
         return JSONResponse({"status": "error", "message": "JSON invalide."}, status_code=400)
 

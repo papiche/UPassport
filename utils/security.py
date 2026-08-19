@@ -1,12 +1,59 @@
 import os
 import re
+import json
 import magic
 import logging
 import threading
 import unicodedata
 from pathlib import Path
 from typing import Optional, Dict, Any
-from fastapi import UploadFile
+from fastapi import UploadFile, Request, HTTPException
+
+
+def _json_nesting_depth(raw: bytes) -> int:
+    """Profondeur max de {}/[] par balayage linéaire (pas de récursion, pas
+    d'appel à json.loads) — sûr même sur un payload conçu pour faire planter
+    le décodeur JSON C de CPython (qui ne borne pas sa récursion sur la
+    profondeur d'imbrication, contrairement au décodeur pur Python)."""
+    depth = 0
+    max_depth = 0
+    in_string = False
+    escaped = False
+    for b in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif b == 0x5C:  # \
+                escaped = True
+            elif b == 0x22:  # "
+                in_string = False
+            continue
+        if b == 0x22:
+            in_string = True
+        elif b in (0x7B, 0x5B):  # { [
+            depth += 1
+            max_depth = max(max_depth, depth)
+        elif b in (0x7D, 0x5D):  # } ]
+            depth -= 1
+    return max_depth
+
+
+async def safe_json_body(request: Request, max_bytes: int = 65536, max_depth: int = 8) -> dict:
+    """Remplacement de `await request.json()` pour tout endpoint qui parse un
+    corps de requête non authentifié au préalable : borne la taille (avant
+    tout parsing) et la profondeur d'imbrication (avant json.loads) pour
+    empêcher un payload JSON minuscule mais profondément imbriqué de
+    faire planter ou geler le process."""
+    raw = await request.body()
+    if len(raw) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"Corps de requête trop volumineux (max {max_bytes} octets).")
+    if _json_nesting_depth(raw) > max_depth:
+        raise HTTPException(status_code=400, detail=f"Structure JSON trop profonde (max {max_depth} niveaux).")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="JSON invalide.")
+
 
 def is_safe_email(email: str) -> bool:
     """Valider qu'un email est sûr et ne contient pas de caractères dangereux"""
