@@ -61,6 +61,11 @@ DESTROY_LOCK_FILE = settings.ZEN_PATH / "tmp" / "nostr_destroy_tw.pid"
 DESTROY_LOG_FILE = settings.ZEN_PATH / "tmp" / "nostr_destroy_tw.log"
 _DESTROY_REASONS = ("INSOLVENCY", "INTRUSION", "INCOMPATIBLE_KEY")
 
+# ── Synastrie planétaire (indépendante du Kin) — cf. RUNTIME/KIN.news.sh §8 ─
+SYNASTRY_TRIGGER_SCRIPT = REPO_ROOT / "RUNTIME" / "KIN.news.sh"
+SYNASTRY_LOCK_FILE = settings.ZEN_PATH / "tmp" / "kin_synastry_trigger.pid"
+SYNASTRY_LOG_FILE = settings.ZEN_PATH / "tmp" / "kin_synastry_trigger.log"
+
 sys.path.insert(0, str(_IA_PATH))
 try:
     import arbor_config as _arbor_config  # stdlib seule — jamais bro.*/question.py (trop lourd pour ce process)
@@ -700,3 +705,55 @@ async def post_destroy_multipass(request: Request):
 
     logger.warning(f"Admin destroy_multipass lancé : email={email} reason={reason} pid={pid} captain={pubkey[:16]}")
     return JSONResponse({"status": "started", "pid": pid, "email": email})
+
+
+# ── Synastrie planétaire (indépendante du Kin) ──────────────────────────────
+def _synastry_stats_file() -> Path:
+    from utils.observability import get_ipfsnodeid
+    return settings.ZEN_PATH / "tmp" / get_ipfsnodeid() / "kin_synastry_stats.json"
+
+
+@router.get("/api/nostr/admin/synastry_stats")
+async def get_synastry_stats(request: Request, uplanetname: Optional[str] = None):
+    """Stats du dernier run de la section 8 (Constellations Synastriques) de
+    KIN.news.sh — membres avec date de naissance, paires scannées, matches
+    trouvés. Lecture seule : auth UPLANETNAME ou NIP-98 Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    running_pid = _bg_job_is_running(SYNASTRY_LOCK_FILE)
+    log_tail = _bg_job_log_tail(SYNASTRY_LOG_FILE)
+    stats_file = _synastry_stats_file()
+    if not stats_file.is_file():
+        return JSONResponse({"never_run": True, "running": bool(running_pid), "log_tail": log_tail})
+    try:
+        data = json.loads(stats_file.read_text())
+    except Exception:
+        return JSONResponse({"never_run": True, "running": bool(running_pid), "log_tail": log_tail})
+    data["running"] = bool(running_pid)
+    data["log_tail"] = log_tail
+    return JSONResponse(data)
+
+
+@router.post("/api/nostr/admin/synastry_trigger")
+async def post_synastry_trigger(request: Request):
+    """Lance KIN.news.sh --synastry-only --force en arrière-plan — NIP-98
+    Capitaine EXCLUSIF (même garde que arbor_trigger/purge_strangers/clean) :
+    ce déclenchement envoie des emails à des membres, une action visible
+    plutôt qu'une simple lecture, pas déclenchable via le secret coopératif
+    partagé UPLANETNAME seul."""
+    pubkey = await require_captain_signature(request)
+
+    if _bg_job_is_running(SYNASTRY_LOCK_FILE):
+        raise HTTPException(status_code=409, detail="Un run Constellations Synastriques est déjà en cours.")
+    if not SYNASTRY_TRIGGER_SCRIPT.is_file():
+        raise HTTPException(status_code=500, detail="KIN.news.sh introuvable")
+
+    header = (f"=== Synastrie déclenchée par {pubkey[:16]}… — "
+              f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} ===\n")
+    try:
+        pid = _bg_job_launch(SYNASTRY_TRIGGER_SCRIPT, ["--synastry-only", "--force"],
+                              SYNASTRY_LOG_FILE, SYNASTRY_LOCK_FILE, header)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Échec du lancement : {e}")
+
+    logger.info(f"Admin synastry_trigger lancé (pid={pid}, captain={pubkey[:16]})")
+    return JSONResponse({"status": "started", "pid": pid})

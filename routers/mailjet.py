@@ -458,7 +458,7 @@ def _update_vibe_answer(email: str, q_id: str, answer: str) -> str:
     return langage
 
 
-_KIN_ALL_TYPES = ["quartet", "occult", "analog", "tone", "guide", "antipode"]
+_KIN_ALL_TYPES = ["quartet", "occult", "analog", "tone", "guide", "antipode", "synastry", "synastry_group"]
 _KIN_TYPE_LABELS = {
     "quartet":  ("💎", "Quatuors",     "4 personnes dont les profils se complètent entièrement"),
     "occult":   ("🌙", "Paires Occultes", "2 personnes dont les profils s'additionnent à 261"),
@@ -466,6 +466,8 @@ _KIN_TYPE_LABELS = {
     "tone":     ("🎵", "Conseils de Tonalité", "Groupe partageant le même rythme galactique"),
     "guide":    ("🧭", "Relations Guide", "Relation mentor / guidé dans la même famille"),
     "antipode": ("⚡", "Paires Antipode", "Défi créateur — opposition qui renforce"),
+    "synastry": ("🪐", "Éclairage Planétaire", "Ajoute Soleil/Lune/Vénus/Mars à vos correspondances Tzolkin existantes"),
+    "synastry_group": ("🌌", "Constellations Synastriques", "Nouvelles rencontres basées uniquement sur les planètes, indépendamment du Tzolkin"),
 }
 
 

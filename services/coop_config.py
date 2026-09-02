@@ -149,6 +149,13 @@ COOP_CONFIG_SCHEMA: tuple = (
         CoopKey("ARBOR_TRIGGER_COOLDOWN_MIN", "Cooldown entre deux déclenchements distants", kind="number", unit="min", lo=1, hi=1440,
                 placeholder="défaut : 30", help="Délai minimum entre deux runs déclenchés depuis le web (protection anti-abus)."),
     )),
+    CoopCategory("synastry", "🪐", "Synastrie Planétaire (indépendante du Tzolkin)",
+                 "Matching basé sur les positions réelles des planètes à la naissance (Soleil/Lune/Mercure/Vénus/Mars/Jupiter/Saturne), calculé par KIN.news.sh indépendamment du calendrier Maya.", (
+        CoopKey("SYNASTRY_ENABLED", "Activer les Constellations Synastriques", kind="bool",
+                help="Doit être 'true' (ou non défini) pour que la section 8 de KIN.news.sh s'exécute. 'false' désactive la fonctionnalité pour toute la station."),
+        CoopKey("SYNASTRY_MIN_SCORE", "Score minimum pour un match", kind="number", unit="%", lo=0, hi=100,
+                placeholder="défaut : 65", help="Seuil de score de synastrie (0-100) en-dessous duquel une paire n'est pas retenue comme match."),
+    )),
 )
 
 ALL_KEYS: dict = {k.key: k for cat in COOP_CONFIG_SCHEMA for k in cat.keys}
