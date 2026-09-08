@@ -59,6 +59,9 @@ class G1NostrForm(BaseModel):
     polarity: str = "0"  # 0=homme, 1=femme — encodé dans saltRaw côté client
     pre_stretched: bool = True  # True = salt/pepper déjà PBKDF2-étirés (atomic.html, Zelkova)
                                 # False = chaînes brutes → serveur applique PBKDF2 (Cabine-33)
+    recover_only: bool = False  # True = refuse de créer un nouveau MULTIPASS si l'email est
+                                 # inconnu de cette station (404 MULTIPASS_NOT_FOUND) — utilisé
+                                 # par Zelkova, qui ne propose plus que la récupération
 
     @field_validator('salt', 'pepper', mode='before')
     @classmethod
@@ -296,6 +299,7 @@ async def _scan_qr_impl(
     Cas 2 — Email existant, format=json, sans pass_code  : retourne 409 (need_pass).
     Cas 3 — Email existant, format=json, pass_code fourni : vérifie PASS et retourne JSON.
     Cas 4 — Email existant, format=html  : comportement inchangé (retourne HTML).
+    Cas 5 — Nouveau email, recover_only=True  : refuse la création (404 MULTIPASS_NOT_FOUND).
     """
     email = form_data.email
     lang = form_data.lang
@@ -444,6 +448,21 @@ async def _scan_qr_impl(
         except Exception as e:
             logger.error(f"Error reading .multipass.json for {email}: {e}")
             raise HTTPException(status_code=500, detail=f"Erreur lecture JSON : {e}")
+
+    # ── Garde-fou "récupération uniquement" ───────────────────────────────────
+    # email_exists est déjà False ici (le cas email_exists+json est traité et
+    # retourné plus haut). Un client qui promet de ne jamais créer de MULTIPASS
+    # (Zelkova) doit échouer proprement plutôt que créer silencieusement un
+    # compte vide si l'utilisateur a sélectionné la mauvaise station.
+    if form_data.recover_only:
+        logger.info(f"recover_only=True : aucun MULTIPASS pour {email} sur cette station, refus de création")
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": "MULTIPASS_NOT_FOUND",
+                "message": "Aucun MULTIPASS trouvé pour cet email sur cette station."
+            }
+        )
 
     # ── Anti double-soumission (création uniquement) ──────────────────────────
     if email in _g1nostr_in_progress:
