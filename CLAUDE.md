@@ -75,8 +75,48 @@ templates/        ← Jinja2 HTML templates
 ### media_library.py
 - Gestion bibliothèque médias IPFS liés au MULTIPASS
 
-### cloud.py
-- `POST /api/cloud/upload` — Upload cloud avec auth NIP-98
+### cloud.py — Cloud personnel chiffré (WebDAV)
+Enrôlement seul : le transfert de fichiers passe par le montage WebDAV `/dav/`
+(cf. `services/cloud_storage.py`), pas par un endpoint JSON.
+- `POST /api/cloud/enroll` — Délivre/renouvelle le token Basic Auth WebDAV (auth NIP-98, NIP-42 en repli). Retourne `{dav_url, email, token, instructions}` ; `dav_url` est dérivé dynamiquement de `uSPOT` (`my.sh`), jamais codé en dur
+- `GET  /api/cloud/status` — `{enrolled, dav_url, files, bytes, max_file_size}` — ne révèle jamais le token
+- `POST /api/cloud/revoke` — Supprime le token (déconnecte les clients montés) ; fichiers et clés intacts
+
+### Montage `/dav` — WebDAV chiffré (services/cloud_storage.py)
+`54321.py` monte une app WSGI wsgidav via **a2wsgi** (`WSGIMiddleware`, PAS
+`starlette.middleware.wsgi` qui est déprécié) : les I/O IPFS bloquantes et le CPU
+AES-GCM tournent dans un pool de threads, sans figer la boucle uvicorn.
+
+- **PUT** : flux DAV → buffer borné 20 MB → clé AES-256 **aléatoire par fichier** → `uenc_codec.encrypt_aes256gcm()` → `ipfs add` → index + keyring
+- **GET** : index → CID → `ipfs cat` → déchiffrement one-shot → fichier éphémère 0600 → flux HTTP → purge immédiate (+ purge TTL 60 s de secours)
+- **Auth** : `Authorization: Nostr …` (NIP-98 vérifiée par `services/nostr.py`, aucune duplication crypto) OU Basic `email:dav_token`
+- **Isolation** : la racine DAV est résolue depuis l'email authentifié, jamais depuis le chemin
+- `mount_path: "/dav"` est OBLIGATOIRE dans la config wsgidav — sans lui les href générés ignorent le préfixe de montage (PROPFIND cassé, COPY/MOVE en 409)
+- `/dav` est exclu du rate limiting (`core/middleware.py`) : un disque monté émet des rafales de PROPFIND bien au-delà de 60/min
+
+Stockage par utilisateur (tout en 0600, écritures atomiques sous `flock`) :
+```
+~/.zen/game/nostr/{EMAIL}/.ucloud/index.json    chemin DAV ↔ CID ↔ métadonnées
+~/.zen/game/nostr/{EMAIL}/.ucloud/keyring.json  clé AES-256 par CID (JAMAIS dans l'index)
+~/.zen/game/nostr/{EMAIL}/.ucloud/dav_token     token Basic Auth opaque (256 bits)
+~/.zen/tmp/ucloud_cache/                        clair éphémère (0700)
+```
+
+⚠️ **Système PARALLÈLE au uDRIVE public** : `generate_ipfs_structure.sh` /
+`manifest.json` / `APP/uDRIVE/` produisent un uDRIVE EN CLAIR publié sur IPNS et
+restent INCHANGÉS. Ici rien n'est publié sur IPNS, et ce qui part vers IPFS est
+déjà chiffré.
+
+Interface : `UPlanet/earth/cloud.html` — **FaceCloud**, page unique combinant
+activation + instructions de montage, envoi de photos (`POST /api/fileupload`)
+et catalogue de visages (`/mailjet/faces*`). Tout y passe par un seul
+mécanisme d'auth : NIP-98, un event frais par appel.
+Tests : `tests/test_cloud_storage.py` (37 tests — index/keyring, contrat UENC,
+pile DAV avec IPFS mocké et chiffrement réel).
+
+⚠️ L'ancienne route `GET /cloud` (template `templates/cloud.html`, drive NOSTR
+kind 1063/21/22) a été **supprimée** — elle n'avait rien à voir avec ce cloud
+chiffré. `SIMPLE_UI_ROUTES` dans `routers/system.py` ne la déclare plus.
 
 ### system.py
 - `GET  /` — Statut station UPlanet (avec lat/lon/deg pour grille UMAP)
@@ -121,6 +161,19 @@ templates/        ← Jinja2 HTML templates
 ```
 `scope` : `"n1"` (follows directs) | `"n2"` (follows + amisOfAmis.txt) | `"relay"` (tous)
 
+**FaceID — catalogue de visages** (Qdrant `faces_{hex}`, alimenté par
+`Astroport.ONE/IA/bro/satellite_face_matcher.py`) :
+- `GET  /mailjet/faces` — Liste `[{id, name, pubkey, timestamp}]`
+- `POST /mailjet/faces-edit` — Nomme un visage / l'associe à un pubkey (64 hex)
+- `POST /mailjet/faces-delete` — Oublie un visage (vecteur supprimé)
+
+Auth de ces 3 routes (`_faces_auth`) : **`Authorization: Nostr <event>` (NIP-98)**
+— même mécanisme que `/api/cloud/enroll` et `/api/fileupload`, EMAIL résolu via
+`services.cloud_storage.email_for_hex()` — **OU** le couple `email`+`token`
+historique (repli conservé pour `mailjet_prefs.html`). Un NIP-98 valide prime et
+rend `email`/`token` inutiles. Interface : `UPlanet/earth/cloud.html` (FaceCloud) —
+`mailjet_prefs.html` n'affiche plus les visages.
+
 **Templates** (Jinja2, dans `templates/`) :
 - `mailjet_base.html` — Base partagée (CSS + blocs)
 - `mailjet_landing.html` — Authentification NIP-42 ou token
@@ -156,7 +209,12 @@ fastapi==0.110.0    uvicorn[standard]   pydantic-settings
 aiofiles            python-multipart    python-magic
 websockets          httpx               cachetools
 bech32              jinja2
+wsgidav             a2wsgi              cryptography
 ```
+
+`wsgidav` + `a2wsgi` servent exclusivement le montage `/dav` ; `cryptography`
+fournit AES-256-GCM à `Astroport.ONE/tools/uenc_codec.py`. `cheroot` n'est PAS
+requis : le serveur autonome de wsgidav n'est jamais utilisé ici.
 
 ## Rate Limiting
 
@@ -169,6 +227,7 @@ bech32              jinja2
 
 - `/static/` — Assets internes
 - `/earth/` — Monté depuis `~/.zen/workspace/UPlanet/earth/` (si disponible)
+- `/dav/` — WebDAV chiffré (app WSGI wsgidav via a2wsgi, cf. `services/cloud_storage.py`)
 
 ## Intégrations externes
 

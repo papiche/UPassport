@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -1309,6 +1310,216 @@ async def get_mailjet_nostr_events(
         "event_count":        len(nostr_events),
         "published_new_event": published_new,
     })
+
+
+# ─── FaceID — catalogue de visages (Qdrant `faces_{hex}`) ───────────────────
+#
+# Collection alimentée par Astroport.ONE/IA/bro/satellite_face_matcher.py : un
+# point par visage vu dans le uDRIVE, payload {name, pubkey, timestamp}. Tant
+# qu'un visage n'a pas de `pubkey`, il est nommé `Inconnu_xxxxxxxx` et aucune
+# photo n'est partagée. C'est ICI que l'utilisateur lui donne un nom et le relie
+# à une clé NOSTR — après quoi le partage automatique n'a lieu que si les deux
+# comptes se suivent mutuellement (réciprocité N1 vérifiée côté matcher).
+#
+# Qdrant est interrogé via son API REST (httpx, déjà une dépendance UPassport)
+# plutôt que via qdrant-client, qui n'est pas installé dans cet environnement.
+
+_QDRANT_URL = "http://localhost:6333"
+
+
+def _qdrant_headers() -> dict:
+    """Clé d'API Qdrant — même source que IA/bro/rag.py::_qdrant_client()."""
+    try:
+        for line in (Path.home() / ".zen" / "ai-company" / ".env").read_text().splitlines():
+            if line.startswith("QDRANT_API_KEY="):
+                return {"api-key": line.split("=", 1)[1].strip()}
+    except Exception:
+        pass
+    return {}
+
+
+def _faces_collection(email: str) -> Optional[str]:
+    """`faces_{hex}` du MULTIPASS — la collection appartient à l'utilisateur,
+    pas à la station (cf. satellite_face_matcher.py)."""
+    try:
+        hex_pk = (settings.GAME_PATH / "nostr" / email / "HEX").read_text().strip()
+    except Exception:
+        return None
+    return f"faces_{hex_pk}" if len(hex_pk) == 64 else None
+
+
+def _faces_auth(
+    request: Request,
+    email: Optional[str],
+    token: Optional[str],
+) -> tuple[Optional[str], Optional[JSONResponse]]:
+    """Authentifie une requête FaceID et retourne (email_autorisé, erreur_JSON).
+
+    Deux credentials acceptés, dans cet ordre :
+
+    1. `Authorization: Nostr <event base64>` (NIP-98, kind 27235) — MÊME
+       mécanisme que /api/cloud/enroll et /api/fileupload, vérifié par
+       services.nostr._decode_and_verify_nip98_event (id NIP-01 + Schnorr
+       BIP-340 + fraîcheur). L'EMAIL est résolu depuis le pubkey vérifié via
+       services.cloud_storage.email_for_hex (même source de vérité que
+       routers/cloud.py::_email_for_authenticated_npub). Les paramètres
+       email/token de la requête sont alors ignorés : c'est la signature qui
+       désigne le MULTIPASS.
+    2. Repli historique `email` + `token` (sous-système mailjet), conservé pour
+       ne pas casser mailjet_prefs.html.
+
+    Variante JSON de _require_token (ces routes sont appelées en AJAX : une
+    TemplateResponse HTML y serait illisible côté client).
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.strip().lower().startswith("nostr "):
+        from services.nostr import _decode_and_verify_nip98_event
+        from services import cloud_storage
+        try:
+            auth_event = _decode_and_verify_nip98_event(auth_header)
+        except Exception as exc:
+            logger.warning("FaceID : NIP-98 refusée (%s)", exc)
+            return None, JSONResponse({"error": f"NIP-98 invalide : {exc}"}, status_code=403)
+        resolved = cloud_storage.email_for_hex(auth_event.get("pubkey", ""))
+        if not resolved:
+            return None, JSONResponse(
+                {"error": "Aucun MULTIPASS sur cette station pour cette clé NOSTR."},
+                status_code=404,
+            )
+        return resolved, None
+
+    if not email or not token:
+        return None, JSONResponse(
+            {"error": "Authentification requise (NIP-98, ou email+token)."},
+            status_code=403,
+        )
+    if _token_for(email) != token:
+        return None, JSONResponse({"error": "Token invalide."}, status_code=403)
+    return email, None
+
+
+@router.get("/mailjet/faces")
+async def get_mailjet_faces(
+    request: Request,
+    email: Optional[str] = Query(default=None),
+    token: Optional[str] = Query(default=None),
+):
+    """Liste les visages catalogués — [{id, name, pubkey, timestamp}]."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    collection = _faces_collection(email)
+    if not collection:
+        return JSONResponse({"faces": [], "reason": "no_hex"})
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points/scroll",
+                headers=_qdrant_headers(),
+                json={"limit": 500, "with_payload": True, "with_vector": False},
+            )
+    except Exception as exc:
+        logger.warning("Qdrant injoignable pour %s : %s", collection, exc)
+        return JSONResponse({"faces": [], "reason": "qdrant_unavailable"})
+
+    # 404 = aucun visage encore catalogué sur cette station : pas une erreur.
+    if resp.status_code == 404:
+        return JSONResponse({"faces": []})
+    if resp.status_code != 200:
+        logger.warning("Qdrant scroll %s → HTTP %s", collection, resp.status_code)
+        return JSONResponse({"faces": [], "reason": "qdrant_error"})
+
+    faces = []
+    for point in resp.json().get("result", {}).get("points", []):
+        payload = point.get("payload") or {}
+        faces.append({
+            "id":        point.get("id"),
+            "name":      payload.get("name") or "",
+            "pubkey":    payload.get("pubkey") or "",
+            "timestamp": payload.get("timestamp") or "",
+        })
+    faces.sort(key=lambda f: (not f["pubkey"], f["name"].lower()))
+    return JSONResponse({"faces": faces})
+
+
+@router.post("/mailjet/faces-edit")
+async def post_mailjet_faces_edit(
+    request: Request,
+    email: Optional[str] = Form(default=None),
+    token: Optional[str] = Form(default=None),
+    point_id: str = Form(...),
+    name: str = Form(...),
+    pubkey: str = Form(default=""),
+):
+    """Nomme un visage et l'associe à une clé NOSTR (payload merge, le vecteur
+    est inchangé)."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    collection = _faces_collection(email)
+    if not collection:
+        return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
+
+    pubkey = pubkey.strip().lower()
+    if pubkey and (len(pubkey) != 64 or not re.fullmatch(r"[0-9a-f]{64}", pubkey)):
+        return JSONResponse({"error": "La clé publique doit être 64 caractères hexadécimaux."},
+                            status_code=400)
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
+                headers=_qdrant_headers(),
+                json={"payload": {"name": name.strip(), "pubkey": pubkey or None},
+                      "points": [point_id]},
+            )
+    except Exception as exc:
+        logger.warning("Qdrant set_payload %s : %s", collection, exc)
+        return JSONResponse({"error": "Qdrant injoignable."}, status_code=503)
+
+    if resp.status_code != 200:
+        return JSONResponse({"error": f"Qdrant HTTP {resp.status_code}"}, status_code=502)
+
+    logger.info("FaceID %s : point %s → name=%r pubkey=%s", email, point_id, name, pubkey[:12])
+    return JSONResponse({"ok": True})
+
+
+@router.post("/mailjet/faces-delete")
+async def post_mailjet_faces_delete(
+    request: Request,
+    email: Optional[str] = Form(default=None),
+    token: Optional[str] = Form(default=None),
+    point_id: str = Form(...),
+):
+    """Oublie définitivement un visage (le vecteur est supprimé : il sera
+    re-catalogué comme inconnu s'il réapparaît sur une future photo)."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    collection = _faces_collection(email)
+    if not collection:
+        return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points/delete?wait=true",
+                headers=_qdrant_headers(),
+                json={"points": [point_id]},
+            )
+    except Exception as exc:
+        logger.warning("Qdrant delete %s : %s", collection, exc)
+        return JSONResponse({"error": "Qdrant injoignable."}, status_code=503)
+
+    if resp.status_code != 200:
+        return JSONResponse({"error": f"Qdrant HTTP {resp.status_code}"}, status_code=502)
+
+    logger.info("FaceID %s : point %s supprimé", email, point_id)
+    return JSONResponse({"ok": True})
 
 
 @router.get("/mailjet/scraper-log", response_class=HTMLResponse)

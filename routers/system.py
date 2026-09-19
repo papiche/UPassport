@@ -12,7 +12,9 @@ from utils.helpers import render_page, get_myipfs_gateway, get_env_from_mysh
 router = APIRouter()
 
 SIMPLE_UI_ROUTES = {
-    "/cloud": "cloud.html",
+    # "/cloud" retiré : l'ancien template cloud.html (drive NOSTR kind 1063/21/22)
+    # est supprimé. Le cloud chiffré vit désormais dans UPlanet/earth/cloud.html
+    # (FaceCloud), servi sous /earth/cloud.html, et s'appuie sur /api/cloud/*.
     "/dev": "dev.html",
     "/g1": "g1nostr.html",
     "/scan": "scan_new.html",

@@ -924,6 +924,11 @@
 </div>
 {% endfor %}
 
+{# FaceID — le catalogue de visages a déménagé dans FaceCloud
+   (UPlanet/earth/cloud.html), seule interface pour nommer les visages.
+   Les routes /mailjet/faces* restent en place, désormais aussi accessibles
+   en NIP-98 (cf. routers/mailjet.py::_faces_auth). #}
+
 <div style="margin-top:2rem;padding:.75rem 1rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;font-size:.8rem;color:#94a3b8;">
   🔐 <a href="/mailjet/nostr-events?email={{ email }}&token={{ token }}"
        target="_blank"
@@ -975,5 +980,6 @@ window.addEventListener('DOMContentLoaded', function() {
     if (btn) btn.style.display = 'none';
   }
 });
+
 </script>
 {% endblock %}

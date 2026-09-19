@@ -10,6 +10,12 @@ from core.logging import setup_logging
 from core.exceptions import setup_exception_handlers
 from core.middleware import RateLimitMiddleware
 
+# a2wsgi (PAS starlette.middleware.wsgi, déprécié depuis starlette 0.52) —
+# exécute l'application WSGI WebDAV dans un pool de threads, donc sans figer la
+# boucle d'événements uvicorn.
+from a2wsgi import WSGIMiddleware
+from services.cloud_storage import build_wsgi_dav_app
+
 from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin
 
 # Setup logging
@@ -38,6 +44,12 @@ zelkova_apk_path = settings.ZEN_PATH / "workspace" / "zelkova"
 if os.path.exists(zelkova_apk_path):
     # /zelkova-apk/zelkova.apk — APK Ẑelkova téléchargé par 20h12.process.sh
     app.mount("/zelkova-apk", StaticFiles(directory=zelkova_apk_path), name="zelkova_apk")
+
+# /dav — Cloud personnel chiffré du MULTIPASS (WebDAV RFC 4918).
+# Auth : Basic `email:dav_token` (token délivré par POST /api/cloud/enroll) ou
+# NIP-98 directe. Les fichiers sont chiffrés AES-256-GCM (format UENC) AVANT
+# d'atteindre IPFS — cf. services/cloud_storage.py.
+app.mount("/dav", WSGIMiddleware(build_wsgi_dav_app()), name="dav")
 
 # Add Rate Limiting Middleware
 app.add_middleware(RateLimitMiddleware)

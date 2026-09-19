@@ -116,7 +116,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         req_id = str(uuid.uuid4())[:8]
         token = request_id_var.set(req_id)
 
-        is_static = request.url.path.startswith("/static")
+        # /dav (WebDAV chiffré, services/cloud_storage.py) est exclu du quota au
+        # même titre que /static : un disque réseau monté émet légitimement des
+        # rafales de PROPFIND très au-dessus de RATE_LIMIT_REQUESTS (60/min) et
+        # serait déconnecté en permanence. La surface reste protégée : chaque
+        # requête /dav exige un token opaque de 256 bits (ou une signature
+        # NIP-98), non devinable par force brute.
+        is_static = request.url.path.startswith("/static") or request.url.path.startswith("/dav")
         start = time.perf_counter()
 
         try:

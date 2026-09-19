@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import uuid
@@ -1046,23 +1047,17 @@ def transform_youtube_metadata_to_structured(flat_metadata: Dict[str, Any]) -> D
     return structured
 
 # ── Chiffrement de fichiers (UENC format) ────────────────────────────────────
+# Codec partagé avec Astroport.ONE/IA/bro/bro_dm_daemon.sh (_handle_bro_image)
+# et services/cloud_storage.py — voir Astroport.ONE/tools/uenc_codec.py.
 
-_UENC_MAGIC = b"UENC"
-_UENC_VERSION = 0x01
-_UENC_TYPE_AES256GCM = 0x01
+sys.path.insert(0, str(settings.TOOLS_PATH))
+import uenc_codec  # noqa: E402
+
 _UENC_MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 def _encrypt_aes256gcm(data: bytes, key_hex: str) -> tuple[bytes, str]:
     """Chiffre `data` avec AES-256-GCM. Retourne (payload_uenc, iv_hex)."""
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    key = bytes.fromhex(key_hex)
-    if len(key) != 32:
-        raise ValueError("La clef doit faire 32 octets (64 hex chars)")
-    iv = os.urandom(12)
-    aesgcm = AESGCM(key)
-    ciphertext = aesgcm.encrypt(iv, data, None)  # ciphertext + 16 bytes tag
-    payload = _UENC_MAGIC + bytes([_UENC_VERSION, _UENC_TYPE_AES256GCM]) + iv + ciphertext
-    return payload, iv.hex()
+    return uenc_codec.encrypt_aes256gcm(data, key_hex)
 
 
 @router.post("/api/fileupload/encrypted")
