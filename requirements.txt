@@ -14,6 +14,6 @@ robohash         # Utilisé dans routers/robohash.py
 base58           # Utilisé par ipfs_to_g1.py et autres conversions de clés
 ecdsa            # Fallback cryptographique (pour nostr_nsec2npub2hex.py)
 nostr-sdk        # Librairie Rust (utilisée dans get_my_gps_coordinates geo.py)
-wsgidav          # Serveur WebDAV RFC 4918 monté sous /dav (services/cloud_storage.py)
-a2wsgi           # Pont WSGI→ASGI du montage /dav (remplace starlette.middleware.wsgi, déprécié)
+wsgidav==4.3.5   # Serveur WebDAV RFC 4918 monté sous /dav (services/cloud_storage.py) — épinglé (version testée)
+a2wsgi==1.10.10  # Pont WSGI→ASGI du montage /dav (remplace starlette.middleware.wsgi, déprécié) — épinglé (version testée)
 cryptography     # AES-256-GCM — utilisé par Astroport.ONE/tools/uenc_codec.py
