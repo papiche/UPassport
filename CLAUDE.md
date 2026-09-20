@@ -88,6 +88,8 @@ Enrôlement seul : le transfert de fichiers passe par le montage WebDAV `/dav/`
 AES-GCM tournent dans un pool de threads, sans figer la boucle uvicorn.
 
 - **PUT** : flux DAV → buffer borné 20 MB → clé AES-256 **aléatoire par fichier** → `uenc_codec.encrypt_aes256gcm()` → `ipfs add` → index + keyring
+  - Si image : GPS EXIF extrait ICI (clair encore en main, avant chiffrement — jamais via le Brain) → `entry.geo = {lat, lon, umap_key}` si présent (Pillow, best effort, silencieux sinon)
+  - Si image : déclenche `_trigger_faceid_analysis()` (voir plus bas) — asynchrone, ne bloque jamais la réponse DAV
 - **GET** : index → CID → `ipfs cat` → déchiffrement one-shot → fichier éphémère 0600 → flux HTTP → purge immédiate (+ purge TTL 60 s de secours)
 - **Auth** : `Authorization: Nostr …` (NIP-98 vérifiée par `services/nostr.py`, aucune duplication crypto) OU Basic `email:dav_token`
 - **Isolation** : la racine DAV est résolue depuis l'email authentifié, jamais depuis le chemin

@@ -12,6 +12,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
+from urllib.parse import urlencode
 
 import aiofiles
 import httpx
@@ -260,8 +261,16 @@ async def youtube_route(
     video: Optional[str] = None
 ):
     """YouTube video channels and search from NOSTR events"""
-    use_local_js = True
-    
+    # earth/youtube.html a remplacé templates/youtube.html : la page consomme
+    # désormais directement le JSON de GET /youtube (sans html=1) côté client.
+    # /youtube?html=1 ne fait donc plus que rediriger, params préservés.
+    if html is not None:
+        query_params = dict(request.query_params)
+        query_params.pop("html", None)
+        query_string = urlencode(query_params)
+        redirect_url = "/earth/youtube.html" + (f"?{query_string}" if query_string else "")
+        return RedirectResponse(url=redirect_url, status_code=302)
+
     try:
         import sys
         from core.config import settings
@@ -270,8 +279,6 @@ async def youtube_route(
             from create_video_channel import fetch_and_process_nostr_events, create_channel_playlist
         except ImportError:
             logger.error("Could not import create_video_channel")
-            if html is not None:
-                return HTMLResponse(content="<html><body><h1>Error</h1><p>Video channel module not found</p></body></html>", status_code=500)
             raise HTTPException(status_code=500, detail="Video channel module not found")
         
         try:
@@ -469,83 +476,6 @@ async def youtube_route(
             "timestamp": datetime.now().isoformat()
         }
         
-        if html is not None:
-            hostname = request.headers.get("host", "u.copylaradio.com")
-            if hostname.startswith("u."):
-                ipfs_gateway = f"https://ipfs.{hostname[2:]}"
-            elif hostname.startswith("127.0.0.1") or hostname.startswith("localhost"):
-                ipfs_gateway = "http://127.0.0.1:8080"
-            else:
-                ipfs_gateway = "https://ipfs.copylaradio.com"
-            
-            auto_open_video = None
-            if video:
-                for channel_name, channel_playlist in channel_playlists.items():
-                    playlist_videos = channel_playlist.get('videos', []) if isinstance(channel_playlist, dict) else getattr(channel_playlist, 'videos', [])
-                    for v in playlist_videos:
-                        if v.get('message_id') == video:
-                            auto_open_video = {
-                                'event_id': v.get('message_id', ''),
-                                'title': v.get('title', ''),
-                                'ipfs_url': v.get('ipfs_url', ''),
-                                'thumbnail_ipfs': v.get('thumbnail_ipfs', ''),
-                                'gifanim_ipfs': v.get('gifanim_ipfs', ''),
-                                'author_id': v.get('author_id', ''),
-                                'uploader': v.get('uploader', ''),
-                                'channel': v.get('channel_name', ''),
-                                'duration': v.get('duration', 0),
-                                'content': v.get('content', '')
-                            }
-                            break
-                    if auto_open_video:
-                        break
-                
-                if not auto_open_video:
-                    for v in video_messages:
-                        if v.get('message_id') == video:
-                            auto_open_video = {
-                                'event_id': v.get('message_id', ''),
-                                'title': v.get('title', ''),
-                                'ipfs_url': v.get('ipfs_url', ''),
-                                'thumbnail_ipfs': v.get('thumbnail_ipfs', ''),
-                                'gifanim_ipfs': v.get('gifanim_ipfs', ''),
-                                'author_id': v.get('author_id', ''),
-                                'uploader': v.get('uploader', ''),
-                                'channel': v.get('channel_name', ''),
-                                'duration': v.get('duration', 0),
-                                'content': v.get('content', '')
-                            }
-                            break
-            
-            user_pubkey = None
-            try:
-                auth_header = request.headers.get("Authorization", "")
-                if auth_header.startswith("Nostr "):
-                    token = auth_header.replace("Nostr ", "")
-                    decoded = base64.b64decode(token)
-                    auth_event = json.loads(decoded)
-                    if auth_event.get("kind") == 27235:
-                        user_pubkey = auth_event.get("pubkey")
-            except Exception:
-                pass
-            
-            analytics_data = {
-                "type": "youtube_page_view",
-                "video_event_id": video or "",
-                "total_videos": len(video_messages),
-                "total_channels": len(channels),
-                "has_javascript": True
-            }
-            await send_server_side_analytics(analytics_data, request)
-            
-            return templates.TemplateResponse(request, "youtube.html", {
-                "youtube_data": response_data,
-                "myIPFS": ipfs_gateway,
-                "auto_open_video": auto_open_video,
-                "user_pubkey": user_pubkey,
-                "use_local_js": use_local_js
-            })
-        
         analytics_data = {
             "type": "youtube_api_view",
             "video_event_id": video or "",
@@ -559,8 +489,6 @@ async def youtube_route(
         
     except Exception as e:
         logger.error(f"Error in youtube_route: {e}", exc_info=True)
-        if html is not None:
-            return HTMLResponse(content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", status_code=500)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/mp3")

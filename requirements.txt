@@ -17,3 +17,4 @@ nostr-sdk        # Librairie Rust (utilisée dans get_my_gps_coordinates geo.py)
 wsgidav==4.3.5   # Serveur WebDAV RFC 4918 monté sous /dav (services/cloud_storage.py) — épinglé (version testée)
 a2wsgi==1.10.10  # Pont WSGI→ASGI du montage /dav (remplace starlette.middleware.wsgi, déprécié) — épinglé (version testée)
 cryptography     # AES-256-GCM — utilisé par Astroport.ONE/tools/uenc_codec.py
+Pillow           # Extraction GPS EXIF au PUT /dav (services/cloud_storage.py) — était transitif via robohash, déclaré explicitement

@@ -53,10 +53,12 @@ import errno
 import fcntl
 import hashlib
 import hmac
+import io
 import json
 import logging
 import mimetypes
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -792,6 +794,86 @@ def verify_basic_credentials(user_name: str, password: str) -> Optional[str]:
     return None
 
 
+def _extract_gps_umap(plaintext: bytes) -> Optional[Dict[str, Any]]:
+    """EXIF GPS → {"lat", "lon", "umap_key"} ou None. Best effort : appelé au
+    moment du PUT, jamais via le Brain (aucune coordonnée ne doit transiter
+    par un job d'analyse — c'est une donnée locale, extraite localement).
+    """
+    try:
+        from PIL import Image, ExifTags
+        from PIL.ExifTags import GPSTAGS
+    except ImportError:
+        return None
+
+    def _to_degrees(value) -> float:
+        d, m, s = (float(x) for x in value)
+        return d + m / 60.0 + s / 3600.0
+
+    try:
+        with Image.open(io.BytesIO(plaintext)) as img:
+            exif = img.getexif()
+            if not exif:
+                return None
+            gps_ifd = exif.get_ifd(ExifTags.IFD.GPSInfo) if hasattr(ExifTags, "IFD") else None
+            if not gps_ifd:
+                return None
+            gps = {GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
+            lat_dms, lat_ref = gps.get("GPSLatitude"), gps.get("GPSLatitudeRef")
+            lon_dms, lon_ref = gps.get("GPSLongitude"), gps.get("GPSLongitudeRef")
+            if not (lat_dms and lon_dms and lat_ref and lon_ref):
+                return None
+            lat = _to_degrees(lat_dms)
+            if str(lat_ref).upper().startswith("S"):
+                lat = -lat
+            lon = _to_degrees(lon_dms)
+            if str(lon_ref).upper().startswith("W"):
+                lon = -lon
+    except Exception as exc:
+        logger.debug("ucloud: extraction EXIF GPS échouée : %s", exc)
+        return None
+
+    # Grille UMAP (0.01°) — même arrondi que geo.py::get_my_gps_coordinates,
+    # pour que ces photos se retrouvent dans la même cellule que le reste.
+    return {"lat": round(lat, 2), "lon": round(lon, 2),
+            "umap_key": f"{lat:.2f},{lon:.2f}"}
+
+
+def _trigger_faceid_analysis(email: str, path: str, cid: str, key_hex: str) -> None:
+    """Déclenche l'analyse FaceID sur une image tout juste PUT — en arrière-plan,
+    best effort (ne doit jamais ralentir ni faire échouer la réponse DAV).
+
+    `cid` référence le blob UENC CHIFFRÉ (jamais un lien en clair) : la clé
+    voyage avec le job dans le DM NIP-44 déjà chiffré entre le Satellite et le
+    Brain GPU — le Brain déchiffre en mémoire pour l'analyse, ne persiste
+    jamais le clair, et ne renvoie que les embeddings. Voir
+    tools/trigger_bro_vision_analysis.sh pour le détail du contrat.
+    """
+    hex_pubkey = hex_for_email(email)
+    if not hex_pubkey:
+        logger.warning("ucloud: FaceID non déclenché pour %s — HEX introuvable", email)
+        return
+    trigger_sh = settings.TOOLS_PATH / "trigger_bro_vision_analysis.sh"
+    if not trigger_sh.exists():
+        logger.warning("ucloud: FaceID non déclenché — %s introuvable", trigger_sh)
+        return
+    try:
+        proc = subprocess.Popen(
+            ["bash", str(trigger_sh), email, hex_pubkey, path, cid, key_hex],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        # Confirme le LANCEMENT (pas le succès de l'envoi DM lui-même — ça,
+        # seul ~/.zen/tmp/bro_vision_trigger.log le sait, cf. le script) :
+        # sans cette ligne, un déclenchement réussi et un déclenchement
+        # silencieusement absent sont indiscernables dans le journal UPassport.
+        logger.info("ucloud: FaceID déclenché pour %s %s (cid=%s…, pid=%s)",
+                     email, path, cid[:16], proc.pid)
+    except Exception as exc:
+        logger.warning("ucloud: déclenchement FaceID impossible pour %s: %s", email, exc)
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Couche DAV (wsgidav)
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1080,6 +1162,11 @@ class UCloudFileResource(DAVNonCollection):
         if not content_type:
             content_type = mimetypes.guess_type(self.name)[0] or "application/octet-stream"
 
+        # GPS EXIF — extrait ICI (clair déjà en main, avant chiffrement),
+        # jamais via le Brain : aucune coordonnée ne doit transiter par un job
+        # d'analyse déportable. Best effort, silencieux si absent/illisible.
+        geo = _extract_gps_umap(plaintext) if content_type.startswith("image/") else None
+
         now = int(time.time())
         with index_lock(self.email):
             idx = load_index(self.email)
@@ -1099,6 +1186,10 @@ class UCloudFileResource(DAVNonCollection):
                 "mtime": now,
                 "created_at": previous.get("created_at", now),
             }
+            if geo:
+                entry["geo"] = geo
+                logger.info("ucloud: GPS EXIF %s → %s (umap=%s)",
+                             self.path, (geo["lat"], geo["lon"]), geo["umap_key"])
             idx["entries"][self.path] = entry
             keyring[cid] = {"key_hex": key_hex}
             # Une clé devenue orpheline (ancien CID remplacé) est retirée.
@@ -1118,6 +1209,9 @@ class UCloudFileResource(DAVNonCollection):
             len(plaintext),
             len(payload),
         )
+
+        if content_type.startswith("image/"):
+            _trigger_faceid_analysis(self.email, self.path, cid, key_hex)
 
     def end_write(self, *, with_errors):
         """Notification post-PUT. En cas d'erreur, on annule l'entrée créée."""

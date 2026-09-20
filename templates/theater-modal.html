@@ -4636,11 +4636,37 @@
         window.mergeTMDBEnrichments = mergeTMDBEnrichments;
         
         /**
+         * Wait for common.js's async lib_0…lib_7 chain to finish loading (not for
+         * an authenticated connection — /theater must also work anonymously).
+         * common.js sets window.UPlanetModulesReady and dispatches 'UPlanetReady'
+         * once lib_2_api_connect.js (which defines ensureRelayConnection) is loaded.
+         */
+        function waitForUPlanetModules(timeoutMs) {
+            if (window.UPlanetModulesReady) return Promise.resolve();
+            return new Promise(function (resolve) {
+                var done = false;
+                function finish() {
+                    if (done) return;
+                    done = true;
+                    window.removeEventListener('UPlanetReady', finish);
+                    resolve();
+                }
+                window.addEventListener('UPlanetReady', finish);
+                setTimeout(finish, timeoutMs || 8000);
+            });
+        }
+
+        /**
          * Ensure relay is connected and valid (helper function)
          * Returns the relay if valid, null otherwise
          * Uses ensureRelayConnection from common.js for simplified logic
          */
         async function ensureRelayConnected() {
+            // On DOMContentLoaded, common.js's sequential script chain may not have
+            // finished yet (race) — wait for it before giving up on ensureRelayConnection.
+            if (typeof ensureRelayConnection === 'undefined') {
+                await waitForUPlanetModules();
+            }
             // Use ensureRelayConnection from common.js (simplified and robust)
             if (typeof ensureRelayConnection === 'function') {
                 const connected = await ensureRelayConnection({ silent: true, forceAuth: false });
