@@ -838,7 +838,9 @@ def _extract_gps_umap(plaintext: bytes) -> Optional[Dict[str, Any]]:
             "umap_key": f"{lat:.2f},{lon:.2f}"}
 
 
-def _trigger_faceid_analysis(email: str, path: str, cid: str, key_hex: str) -> None:
+def _trigger_faceid_analysis(email: str, path: str, cid: str, key_hex: str,
+                              target_pubkey: Optional[str] = None,
+                              target_name: Optional[str] = None) -> None:
     """Déclenche l'analyse FaceID sur une image tout juste PUT — en arrière-plan,
     best effort (ne doit jamais ralentir ni faire échouer la réponse DAV).
 
@@ -847,6 +849,11 @@ def _trigger_faceid_analysis(email: str, path: str, cid: str, key_hex: str) -> N
     Brain GPU — le Brain déchiffre en mémoire pour l'analyse, ne persiste
     jamais le clair, et ne renvoie que les embeddings. Voir
     tools/trigger_bro_vision_analysis.sh pour le détail du contrat.
+
+    `target_pubkey`/`target_name` (enrôlement supervisé, cf. begin_write) :
+    transmis tels quels au script, qui les inclut dans le job si présents —
+    satellite_face_matcher.py cataloguera alors directement sous cette
+    identité au lieu de lancer la recherche par similarité / Inconnu_xxx.
     """
     hex_pubkey = hex_for_email(email)
     if not hex_pubkey:
@@ -857,8 +864,11 @@ def _trigger_faceid_analysis(email: str, path: str, cid: str, key_hex: str) -> N
         logger.warning("ucloud: FaceID non déclenché — %s introuvable", trigger_sh)
         return
     try:
+        cmd = ["bash", str(trigger_sh), email, hex_pubkey, path, cid, key_hex]
+        if target_pubkey:
+            cmd += [target_pubkey, target_name or ""]
         proc = subprocess.Popen(
-            ["bash", str(trigger_sh), email, hex_pubkey, path, cid, key_hex],
+            cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
@@ -1211,7 +1221,17 @@ class UCloudFileResource(DAVNonCollection):
         )
 
         if content_type.startswith("image/"):
-            _trigger_faceid_analysis(self.email, self.path, cid, key_hex)
+            # Enrôlement supervisé (FaceCloud "Mon visage" / "Photos d'un
+            # ami") : le client peut cibler explicitement une identité via ces
+            # deux en-têtes, plutôt que de laisser l'auto-détection créer un
+            # Inconnu_xxx. Absents = comportement automatique inchangé.
+            target_pubkey = self.environ.get("HTTP_X_FACEID_TARGET_PUBKEY", "").strip().lower()
+            target_name = self.environ.get("HTTP_X_FACEID_TARGET_NAME", "").strip()
+            if len(target_pubkey) != 64 or not all(c in "0123456789abcdef" for c in target_pubkey):
+                target_pubkey = ""
+            _trigger_faceid_analysis(self.email, self.path, cid, key_hex,
+                                      target_pubkey=target_pubkey or None,
+                                      target_name=target_name or None)
 
     def end_write(self, *, with_errors):
         """Notification post-PUT. En cas d'erreur, on annule l'entrée créée."""

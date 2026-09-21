@@ -7,6 +7,7 @@ Vérifié par Astroport.ONE/tools/mailjet.sh avant tout envoi.
 import asyncio
 import base64
 import hashlib
+import io
 import json
 import logging
 import os
@@ -18,8 +19,8 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Form, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from core.config import settings
@@ -1439,9 +1440,100 @@ async def get_mailjet_faces(
             "name":      payload.get("name") or "",
             "pubkey":    payload.get("pubkey") or "",
             "timestamp": payload.get("timestamp") or "",
+            # Présent seulement pour les points catalogués après 2026-09-20 —
+            # sans lui, /mailjet/faces/thumbnail n'a rien à recadrer/déchiffrer.
+            "has_photo": bool(payload.get("source_path")),
         })
     faces.sort(key=lambda f: (not f["pubkey"], f["name"].lower()))
     return JSONResponse({"faces": faces})
+
+
+@router.get("/mailjet/faces/thumbnail")
+async def get_face_thumbnail(
+    request: Request,
+    point_id: str = Query(...),
+    email: Optional[str] = Query(default=None),
+    token: Optional[str] = Query(default=None),
+):
+    """Miniature RECADRÉE sur le visage `point_id`, déchiffrée à la volée.
+
+    Seule façon de reconnaître "Inconnu_xxx" avant de le nommer (cf. FaceCloud,
+    section "À nommer"). Jamais persistée en clair : déchiffrement en mémoire
+    depuis le blob UENC de la photo source, recadrage, réponse JPEG directe —
+    même discipline que le GET /dav/ (cloud_storage.py::get_content).
+    """
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    collection = _faces_collection(email)
+    if not collection:
+        raise HTTPException(status_code=404, detail="no_hex")
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points",
+                headers=_qdrant_headers(),
+                json={"ids": [point_id], "with_payload": True, "with_vector": False},
+            )
+        points = resp.json().get("result", []) if resp.status_code == 200 else []
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Qdrant injoignable: {exc}")
+    if not points:
+        raise HTTPException(status_code=404, detail="point introuvable")
+
+    payload = points[0].get("payload") or {}
+    source_path = payload.get("source_path")
+    bbox = payload.get("bbox") or {}
+    if not source_path:
+        raise HTTPException(status_code=404, detail="pas de photo source enregistrée pour ce visage")
+
+    from services import cloud_storage
+    idx = cloud_storage.load_index(email)
+    entry = cloud_storage.get_entry(idx, source_path)
+    if not entry or not entry.get("cid"):
+        raise HTTPException(status_code=404, detail="photo source introuvable (supprimée ?)")
+    key_hex = cloud_storage.get_key_hex(email, entry["cid"])
+    if not key_hex:
+        raise HTTPException(status_code=404, detail="clé de déchiffrement introuvable")
+
+    sys.path.insert(0, str(settings.TOOLS_PATH))
+    import uenc_codec  # noqa: E402
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            ipfs_resp = await client.post(f"http://127.0.0.1:5001/api/v0/cat?arg={entry['cid']}")
+            ipfs_resp.raise_for_status()
+        plaintext = uenc_codec.decrypt_aes256gcm(ipfs_resp.content, key_hex)
+    except Exception as exc:
+        logger.error("FaceID thumbnail : déchiffrement échoué pour %s: %s", source_path, exc)
+        raise HTTPException(status_code=502, detail=f"déchiffrement impossible: {type(exc).__name__}")
+
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
+        if bbox:
+            w, h = img.size
+            x1 = float(bbox.get("x1", 0)); y1 = float(bbox.get("y1", 0))
+            x2 = float(bbox.get("x2", w)); y2 = float(bbox.get("y2", h))
+            bw, bh = max(x2 - x1, 1.0), max(y2 - y1, 1.0)
+            pad = 0.5  # marge autour du visage : un peu de contexte pour reconnaître
+            cx1 = max(0, x1 - bw * pad); cy1 = max(0, y1 - bh * pad)
+            cx2 = min(w, x2 + bw * pad); cy2 = min(h, y2 + bh * pad)
+            if cx2 > cx1 and cy2 > cy1:
+                img = img.crop((int(cx1), int(cy1), int(cx2), int(cy2)))
+        img.thumbnail((300, 300))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"recadrage impossible: {type(exc).__name__}")
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=1800"},
+    )
 
 
 @router.post("/mailjet/faces-edit")
@@ -1520,6 +1612,105 @@ async def post_mailjet_faces_delete(
 
     logger.info("FaceID %s : point %s supprimé", email, point_id)
     return JSONResponse({"ok": True})
+
+
+# ─── Inventaire — objets/lieux/scènes détectés (.ucloud/index.json) ─────────
+#
+# Contrepartie du catalogue de visages ci-dessus, mais pour les photos où
+# AUCUN visage n'a été détecté : faceid.sh (§8.5) enchaîne alors sur
+# IA/inventory_recognition.py (Ollama vision), et
+# satellite_face_matcher.py::_tag_ucloud_scene() écrit le résultat dans le
+# champ `scene` de l'entrée correspondante de index.json — jamais dans
+# `tags` (réservé aux noms d'amis à qui une photo de visage a été partagée),
+# pour ne jamais mélanger les deux catégories ici.
+#
+# Contrairement au catalogue de visages (Qdrant), il n'y a pas de base
+# vectorielle : la liste est simplement les entrées de index.json qui portent
+# un champ `scene`.
+
+@router.get("/mailjet/inventory")
+async def get_mailjet_inventory(
+    request: Request,
+    email: Optional[str] = Query(default=None),
+    token: Optional[str] = Query(default=None),
+):
+    """Liste les photos où un objet/lieu/scène a été identifié —
+    [{path, type, category, name, description, confidence, tags, timestamp}]."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    from services import cloud_storage
+    idx = cloud_storage.load_index(email)
+    items = []
+    for path, entry in (idx.get("entries") or {}).items():
+        scene = entry.get("scene")
+        if not isinstance(scene, dict):
+            continue
+        items.append({
+            "path": path,
+            "type": scene.get("type") or "object",
+            "category": scene.get("category") or "",
+            "name": scene.get("name") or "",
+            "description": scene.get("description") or "",
+            "confidence": scene.get("confidence"),
+            "tags": scene.get("tags") or [],
+            "timestamp": scene.get("timestamp") or "",
+        })
+    items.sort(key=lambda it: it["timestamp"], reverse=True)
+    return JSONResponse({"items": items})
+
+
+@router.get("/mailjet/inventory/thumbnail")
+async def get_inventory_thumbnail(
+    request: Request,
+    path: str = Query(...),
+    email: Optional[str] = Query(default=None),
+    token: Optional[str] = Query(default=None),
+):
+    """Miniature de la photo entière (pas de recadrage — contrairement aux
+    visages, il n'y a pas de `bbox` unique à isoler), déchiffrée à la volée,
+    jamais persistée en clair (même discipline que GET /dav/ et
+    /mailjet/faces/thumbnail)."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    from services import cloud_storage
+    idx = cloud_storage.load_index(email)
+    entry = cloud_storage.get_entry(idx, path)
+    if not entry or not entry.get("cid") or not isinstance(entry.get("scene"), dict):
+        raise HTTPException(status_code=404, detail="photo introuvable (supprimée ?)")
+    key_hex = cloud_storage.get_key_hex(email, entry["cid"])
+    if not key_hex:
+        raise HTTPException(status_code=404, detail="clé de déchiffrement introuvable")
+
+    sys.path.insert(0, str(settings.TOOLS_PATH))
+    import uenc_codec  # noqa: E402
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            ipfs_resp = await client.post(f"http://127.0.0.1:5001/api/v0/cat?arg={entry['cid']}")
+            ipfs_resp.raise_for_status()
+        plaintext = uenc_codec.decrypt_aes256gcm(ipfs_resp.content, key_hex)
+    except Exception as exc:
+        logger.error("Inventory thumbnail : déchiffrement échoué pour %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail=f"déchiffrement impossible: {type(exc).__name__}")
+
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
+        img.thumbnail((300, 300))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"miniature impossible: {type(exc).__name__}")
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=1800"},
+    )
 
 
 @router.get("/mailjet/scraper-log", response_class=HTMLResponse)

@@ -90,6 +90,7 @@ AES-GCM tournent dans un pool de threads, sans figer la boucle uvicorn.
 - **PUT** : flux DAV → buffer borné 20 MB → clé AES-256 **aléatoire par fichier** → `uenc_codec.encrypt_aes256gcm()` → `ipfs add` → index + keyring
   - Si image : GPS EXIF extrait ICI (clair encore en main, avant chiffrement — jamais via le Brain) → `entry.geo = {lat, lon, umap_key}` si présent (Pillow, best effort, silencieux sinon)
   - Si image : déclenche `_trigger_faceid_analysis()` (voir plus bas) — asynchrone, ne bloque jamais la réponse DAV
+  - **Enrôlement supervisé** (depuis 2026-09-20) : en-têtes optionnels `X-FaceID-Target-Pubkey` (64 hex, sinon ignoré) / `X-FaceID-Target-Name` lus sur la requête PUT et transmis à `_trigger_faceid_analysis()` → `trigger_bro_vision_analysis.sh` → DM `vision_analysis_job` → `bro_dm_daemon.sh` → `satellite_face_matcher.py`, qui cataloguera alors CHAQUE visage détecté DIRECTEMENT sous cette identité (pas de recherche par similarité, pas de bootstrap `Inconnu_xxx`). Émis par `UPlanet/earth/cloud.html` pour les flux « Définir mon FaceID » et « Photos d'un ami » (voir plus bas)
 - **GET** : index → CID → `ipfs cat` → déchiffrement one-shot → fichier éphémère 0600 → flux HTTP → purge immédiate (+ purge TTL 60 s de secours)
 - **Auth** : `Authorization: Nostr …` (NIP-98 vérifiée par `services/nostr.py`, aucune duplication crypto) OU Basic `email:dav_token`
 - **Isolation** : la racine DAV est résolue depuis l'email authentifié, jamais depuis le chemin
@@ -110,9 +111,13 @@ restent INCHANGÉS. Ici rien n'est publié sur IPNS, et ce qui part vers IPFS es
 déjà chiffré.
 
 Interface : `UPlanet/earth/cloud.html` — **FaceCloud**, page unique combinant
-activation + instructions de montage, envoi de photos (`POST /api/fileupload`)
+activation + instructions de montage, envoi de photos (`PUT /dav/Photos/…`)
 et catalogue de visages (`/mailjet/faces*`). Tout y passe par un seul
-mécanisme d'auth : NIP-98, un event frais par appel.
+mécanisme d'auth : NIP-98, un event frais par appel. Trois flux d'envoi :
+« Ajouter des photos » (générique, détection auto), « Définir mon FaceID »
+et « Photos d'un ami » (enrôlement supervisé, cible choisie AVANT l'envoi —
+voir en-têtes `X-FaceID-Target-*` ci-dessus) — réduit les faux positifs par
+rapport à la détection auto seule.
 Tests : `tests/test_cloud_storage.py` (37 tests — index/keyring, contrat UENC,
 pile DAV avec IPFS mocké et chiffrement réel).
 
@@ -164,10 +169,19 @@ chiffré. `SIMPLE_UI_ROUTES` dans `routers/system.py` ne la déclare plus.
 `scope` : `"n1"` (follows directs) | `"n2"` (follows + amisOfAmis.txt) | `"relay"` (tous)
 
 **FaceID — catalogue de visages** (Qdrant `faces_{hex}`, alimenté par
-`Astroport.ONE/IA/bro/satellite_face_matcher.py`) :
-- `GET  /mailjet/faces` — Liste `[{id, name, pubkey, timestamp}]`
+`Astroport.ONE/IA/bro/satellite_face_matcher.py`, payload
+`{name, pubkey, timestamp, source_path, bbox}` — les deux derniers champs
+depuis 2026-09-20, absents sur les points catalogués avant) :
+- `GET  /mailjet/faces` — Liste `[{id, name, pubkey, timestamp, has_photo}]`
 - `POST /mailjet/faces-edit` — Nomme un visage / l'associe à un pubkey (64 hex)
 - `POST /mailjet/faces-delete` — Oublie un visage (vecteur supprimé)
+- `GET  /mailjet/faces/thumbnail?point_id=…` — Miniature JPEG recadrée sur
+  `bbox` (marge 50%) à partir de `source_path` : résout l'entrée
+  `.ucloud/index.json` du propriétaire → CID chiffré → clé `.ucloud/keyring.json`
+  → `ipfs cat` → `uenc_codec.decrypt_aes256gcm()` → recadrage Pillow →
+  réponse JPEG directe. Jamais persistée en clair (même discipline que le
+  GET `/dav/`). 404 si `source_path` absent (points pré-2026-09-20) ou si la
+  photo/clé a depuis été supprimée du cloud chiffré.
 
 Auth de ces 3 routes (`_faces_auth`) : **`Authorization: Nostr <event>` (NIP-98)**
 — même mécanisme que `/api/cloud/enroll` et `/api/fileupload`, EMAIL résolu via
@@ -175,6 +189,17 @@ Auth de ces 3 routes (`_faces_auth`) : **`Authorization: Nostr <event>` (NIP-98)
 historique (repli conservé pour `mailjet_prefs.html`). Un NIP-98 valide prime et
 rend `email`/`token` inutiles. Interface : `UPlanet/earth/cloud.html` (FaceCloud) —
 `mailjet_prefs.html` n'affiche plus les visages.
+
+**Inventaire — objets/lieux/scènes** (contrepartie du catalogue de visages
+pour les photos où AUCUN visage n'a été détecté ; pas de base vectorielle ici,
+juste les entrées de `.ucloud/index.json` portant un champ `scene`, écrit par
+`satellite_face_matcher.py::_tag_ucloud_scene()` — jamais mélangé avec `tags`,
+réservé aux noms d'amis à qui une photo de visage a été partagée) :
+- `GET /mailjet/inventory` — `{items:[{path, type, category, name, description, confidence, tags, timestamp}]}`
+- `GET /mailjet/inventory/thumbnail?path=…` — miniature JPEG de la photo entière
+  (pas de `bbox` à recadrer, contrairement aux visages), déchiffrée à la volée,
+  jamais persistée en clair
+Même auth (`_faces_auth`) que les routes `/mailjet/faces*`.
 
 **Templates** (Jinja2, dans `templates/`) :
 - `mailjet_base.html` — Base partagée (CSS + blocs)
