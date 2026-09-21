@@ -78,8 +78,9 @@ templates/        ← Jinja2 HTML templates
 ### cloud.py — Cloud personnel chiffré (WebDAV)
 Enrôlement seul : le transfert de fichiers passe par le montage WebDAV `/dav/`
 (cf. `services/cloud_storage.py`), pas par un endpoint JSON.
-- `POST /api/cloud/enroll` — Délivre/renouvelle le token Basic Auth WebDAV (auth NIP-98, NIP-42 en repli). Retourne `{dav_url, email, token, instructions}` ; `dav_url` est dérivé dynamiquement de `uSPOT` (`my.sh`), jamais codé en dur
+- `POST /api/cloud/enroll` — Délivre/**renouvelle** le token Basic Auth WebDAV (auth NIP-98, NIP-42 en repli). Retourne `{dav_url, email, token, instructions}` ; `dav_url` est dérivé dynamiquement de `uSPOT` (`my.sh`), jamais codé en dur. Génère un NOUVEAU token — déconnecte tout client DAV déjà monté avec l'ancien
 - `GET  /api/cloud/status` — `{enrolled, dav_url, files, bytes, max_file_size}` — ne révèle jamais le token
+- `POST /api/cloud/reveal` — Retourne le token **EXISTANT** (même réponse qu'`enroll`) sans le renouveler. Même garde NIP-98/NIP-42 que les autres routes : cette preuve de possession de la clé MULTIPASS donne de toute façon un accès complet à `/dav/` en direct (NIP-98 est un des deux mécanismes d'auth acceptés par le montage DAV lui-même), donc révéler le token Basic Auth à ce même appelant n'élargit aucun accès — ça évite juste à l'utilisateur de devoir régénérer (et donc déconnecter ses clients existants) s'il veut juste remonter le disque sur un nouvel appareil
 - `POST /api/cloud/revoke` — Supprime le token (déconnecte les clients montés) ; fichiers et clés intacts
 
 ### Montage `/dav` — WebDAV chiffré (services/cloud_storage.py)

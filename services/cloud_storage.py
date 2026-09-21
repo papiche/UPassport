@@ -1568,6 +1568,23 @@ def build_wsgi_dav_config() -> Dict[str, Any]:
 _dav_app: Optional[Callable] = None
 
 
+def _strip_duplicate_date_header(wsgi_app: Callable) -> Callable:
+    """Retire l'en-tête `Date` posé par wsgidav — uvicorn (via a2wsgi) en
+    ajoute systématiquement le sien à la réponse ASGI finale, SANS dédupliquer
+    si l'app WSGI en a déjà posé un. Résultat : deux en-têtes `Date` sur
+    chaque réponse, une violation RFC 7230 §3.2.2 (header singleton dupliqué)
+    que le client `neon` de davfs2 tolère mal — symptôme constaté : montage
+    OK mais tout accès au point de montage échoue en `Invalid argument`
+    (confirmé via http.client brut : httplib voit bien DEUX en-têtes `date`
+    distincts sur une même réponse PROPFIND)."""
+    def app(environ, start_response):
+        def filtered_start_response(status, headers, exc_info=None):
+            headers = [(k, v) for k, v in headers if k.lower() != "date"]
+            return start_response(status, headers, exc_info)
+        return wsgi_app(environ, filtered_start_response)
+    return app
+
+
 def build_wsgi_dav_app() -> Callable:
     """Construit (et mémoïse) l'application WSGI WebDAV à monter sous /dav.
 
@@ -1590,7 +1607,7 @@ def build_wsgi_dav_app() -> Callable:
     ensure_cache_dir()
     purge_stale_cache(ttl=0)  # nettoyage d'un éventuel crash précédent
     start_purge_thread()
-    _dav_app = WsgiDAVApp(build_wsgi_dav_config())
+    _dav_app = _strip_duplicate_date_header(WsgiDAVApp(build_wsgi_dav_config()))
     logger.info("ucloud: WebDAV chiffré monté sous %s/ (cache %s)", DAV_MOUNT_PREFIX, CACHE_DIR)
     return _dav_app
 

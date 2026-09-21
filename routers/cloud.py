@@ -11,6 +11,8 @@ gérés par `services.nostr.require_nostr_auth`).
 
     POST /api/cloud/enroll  → {"dav_url", "email", "token", "instructions"}
     GET  /api/cloud/status  → {"enrolled", "dav_url", ...}   (ne révèle pas le token)
+    POST /api/cloud/reveal  → {"dav_url", "email", "token", "instructions"}
+                               (récupère le token EXISTANT, sans le renouveler)
 
 Il n'y a PAS d'endpoint d'upload JSON ici : l'ancien placeholder
 `POST /api/cloud/upload` ne faisait rien de réel et est remplacé par le vrai
@@ -136,6 +138,39 @@ async def cloud_status(request: Request, npub: str = Depends(require_nostr_auth)
             "files": files,
             "bytes": bytes_plain,
             "max_file_size": cloud_storage.MAX_FILE_SIZE,
+        }
+    )
+
+
+@router.post(
+    "/api/cloud/reveal",
+    summary="Récupérer le mot de passe WebDAV déjà délivré",
+    description="Retourne le token Basic Auth EXISTANT, sans le renouveler "
+                "(contrairement à /api/cloud/enroll, qui en génère un nouveau "
+                "et déconnecte les clients déjà montés). Authentification "
+                "NIP-98 (ou NIP-42) : la même preuve de possession de la clé "
+                "MULTIPASS donne de toute façon un accès complet à /dav/ en "
+                "direct — révéler ce token n'élargit donc aucun accès pour "
+                "cet appelant, ça lui évite juste de devoir le régénérer.",
+)
+async def reveal_cloud_token(request: Request, npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    desc = cloud_storage.load_dav_token(email)
+    if not desc or not desc.get("token"):
+        raise HTTPException(
+            status_code=404,
+            detail="Aucun cloud activé pour ce MULTIPASS — utilisez d'abord /api/cloud/enroll.",
+        )
+
+    dav_url = await cloud_storage.dav_public_url()
+    logger.info("ucloud: mot de passe DAV récupéré (reveal) pour %s", email)
+    return JSONResponse(
+        {
+            "success": True,
+            "dav_url": dav_url,
+            "email": email,
+            "token": desc["token"],
+            "instructions": _mount_instructions(dav_url, email),
         }
     )
 
