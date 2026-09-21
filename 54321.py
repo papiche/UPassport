@@ -94,4 +94,14 @@ app.include_router(node_admin.router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("54321:app", host="0.0.0.0", port=54321, reload=False)
+    # proxy_headers + forwarded_allow_ips="*" : la station est TOUJOURS servie
+    # derrière Nginx Proxy Manager (SSL terminé côté NPM, HTTP en clair vers
+    # uvicorn). Sans ça, uvicorn ne fait confiance à X-Forwarded-Proto que
+    # depuis 127.0.0.1 (défaut) — en déploiement Docker, NPM parle à ce
+    # process via le bridge dragon-net, PAS 127.0.0.1, donc scope["scheme"]
+    # reste "http" ; toute redirection Starlette (ex. /dav → /dav/, trailing
+    # slash) construit alors un Location http:// même pour un client HTTPS —
+    # symptôme constaté : clients WebDAV (Nautilus/gvfs) qui refusent de
+    # suivre un downgrade de schéma et échouent avec "Temporary Redirect".
+    uvicorn.run("54321:app", host="0.0.0.0", port=54321, reload=False,
+                proxy_headers=True, forwarded_allow_ips="*")
