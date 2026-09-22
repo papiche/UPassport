@@ -74,7 +74,9 @@ import json
 import logging
 import tempfile
 import shutil
+import time
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -329,6 +331,7 @@ _BILLET_A4_PAGE = """<!doctype html>
 
   .cell .g1pub{font-family:monospace;font-size:5pt;color:#555;word-break:break-all;
               margin-top:auto}
+  .cell .expiry{font-family:sans-serif;font-size:4.6pt;color:#777}
   .cell .status{font-family:sans-serif;font-size:5.5pt;color:var(--green);font-weight:700}
   .cell .status.err{color:var(--red)}
 
@@ -373,6 +376,7 @@ _BILLET_A4_CELL = """<div class="cell">
       <div class="qr-col"><img src="__PUB_QR__" alt="QR"></div>
     </div>
     <div class="g1pub">__G1PUB__</div>
+    <div class="expiry">__EXPIRES__</div>
     <div class="status __STATUS_CLASS__">__STATUS__</div>
   </div>
 </div>"""
@@ -413,6 +417,8 @@ def _render_billet_a4_html(
             .replace("__UNIT_LABEL__", esc(unit_label))
             .replace("__PUB_QR__", c["pub_qr_url"])
             .replace("__G1PUB__", esc(c["g1pub"]))
+            .replace("__EXPIRES__", (f"Valide jusqu'au {esc(c['expires_str'])} · {esc(c['npub'][:16])}…"
+                                      if c.get("expires_str") else ""))
             .replace("__STATUS__", status)
             .replace("__STATUS_CLASS__", status_class)
         )
@@ -625,6 +631,62 @@ async def _resolve_auto_sender(npub: str) -> tuple[Path, str]:
     g1pub_file = user_dir / "G1PUBNOSTR"
     sender_g1pub = g1pub_file.read_text().strip() if g1pub_file.is_file() else ""
     return keyfile, sender_g1pub
+
+
+_BILLET_EXPIRY_DAYS = 90
+
+
+async def _publish_billet_emission(
+    nsec: str, npub: str, g1pub: str, amount: float, unit_label: str,
+) -> Optional[int]:
+    """Publie un profil NOSTR (kind 0) AU NOM DU BILLET LUI-MÊME — signé par
+    le compte NOSTR jumeau dérivé de la MÊME phrase mnémonique que le
+    portefeuille G1 (billet_gen.sh). Quiconque connaît la phrase peut
+    reproduire cette signature ; personne d'autre ne le peut — même garantie
+    que pour les fonds, sans tiers de confiance additionnel.
+
+    Attestation PUBLIQUE et INFORMATIVE uniquement : `["expiration", …]`
+    (NIP-40) donne une date de fin vérifiable par n'importe quel client
+    NOSTR/relay, mais ne verrouille aucune dépense — les fonds restent
+    entièrement sur la blockchain Ğ1. Best-effort : une panne du relay ne
+    doit jamais faire échouer la génération du billet.
+
+    Retourne le timestamp Unix d'expiration si la publication a réussi,
+    sinon None (le billet reste valide, juste sans attestation publique).
+    """
+    expires_ts = int(time.time()) + _BILLET_EXPIRY_DAYS * 86400
+    expires_str = datetime.fromtimestamp(expires_ts).strftime("%d/%m/%Y")
+    content = json.dumps({
+        "name": f"Ğ1Billet · {amount:g} {unit_label}",
+        "about": f"Ğ1Billet papier — G1PUB {g1pub} — valable jusqu'au {expires_str}",
+    })
+    tags = json.dumps([["expiration", str(expires_ts)], ["t", "g1billet"]])
+
+    shm = "/dev/shm" if os.path.isdir("/dev/shm") else None
+    fd, keyfile_path = tempfile.mkstemp(dir=shm)
+    try:
+        os.write(fd, f"NSEC={nsec}; NPUB={npub};".encode())
+        os.close(fd)
+        os.chmod(keyfile_path, 0o600)
+        proc = await asyncio.create_subprocess_exec(
+            "python3", str(settings.TOOLS_PATH / "nostr_send_note.py"),
+            "--keyfile", keyfile_path, "--content", content,
+            "--kind", "0", "--tags", tags, "--relays", settings.myRELAY,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+        if proc.returncode != 0:
+            logger.warning("billet emission NOSTR — échec pour %s: %s", npub[:16], stderr.decode()[:200])
+            return None
+        return expires_ts
+    except Exception as e:
+        logger.warning("billet emission NOSTR — erreur: %s", e)
+        return None
+    finally:
+        try:
+            os.remove(keyfile_path)
+        except OSError:
+            pass
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -911,7 +973,12 @@ async def generate_billet(
 
         g1pub = keydata["g1pub"]
         mnemonic = keydata["mnemonic"]
+        nsec, npub = keydata["nsec"], keydata["npub"]
         keydata = None
+
+        expires_ts = await _publish_billet_emission(nsec, npub, g1pub, amount, unit_label)
+        nsec = None
+        expires_str = datetime.fromtimestamp(expires_ts).strftime("%d/%m/%Y") if expires_ts else ""
 
         status, status_error = "", False
         if mode == "auto":
@@ -927,7 +994,7 @@ async def generate_billet(
         pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
 
         cells.append({
-            "g1pub": g1pub, "mnemonic": mnemonic,
+            "g1pub": g1pub, "mnemonic": mnemonic, "npub": npub, "expires_str": expires_str,
             "pub_qr_url": pub_qr_url, "status": status, "status_error": status_error,
         })
 

@@ -11,13 +11,21 @@
 # être restauré en tapant sa phrase dans keygen.html, sans dépendre de ce
 # script. Vérifié par test croisé (même mnemonic → même G1PUB des deux côtés).
 #
-# Tout se passe en RAM (/dev/shm) : ni le mnemonic, ni le fichier .dunikey ne
-# sont jamais écrits sur disque persistant. Le secret n'existe qu'une fois,
-# dans la sortie JSON de ce script — à imprimer/afficher une seule fois puis
-# oublier.
+# La MÊME phrase dérive aussi un "compte NOSTR jumeau" (nsec/npub, méthode
+# SHA-256(seed) → secp256k1, identique à keygen.html — vérifié par test
+# croisé également) : c'est cette identité qui signe l'événement kind 0
+# d'émission du billet (cf. _publish_billet_emission dans qr.py), sans
+# dépendre d'un tiers de confiance — seul qui connaît la phrase peut signer
+# au nom du billet.
+#
+# Tout se passe en RAM (/dev/shm) : ni le mnemonic, ni le nsec, ni le fichier
+# .dunikey ne sont jamais écrits sur disque persistant. Le secret n'existe
+# qu'une fois, dans la sortie JSON de ce script — à imprimer/afficher/publier
+# une seule fois puis oublier.
 #
 # Usage: ./billet_gen.sh
-# Sortie (une seule ligne JSON) : {"g1pub": "...", "mnemonic": "..."}
+# Sortie (une seule ligne JSON) :
+#   {"g1pub": "...", "mnemonic": "...", "nsec": "...", "npub": "..."}
 ###############################################################################
 MY_PATH="`dirname \"$0\"`"
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"
@@ -28,19 +36,29 @@ ASTRTOOLS="${HOME}/.zen/Astroport.ONE/tools"
 # Génère la phrase BIP39 (12 mots, 128 bits) + dérive le seed Ed25519 32 octets
 # selon le standard BIP39 (PBKDF2-HMAC-SHA512, "mnemonic"+passphrase, 2048
 # tours) — même algorithme que bip39-libs.js::mnemonicToSeedHex côté navigateur.
+# Dérive aussi, du MÊME seed, le compte NOSTR jumeau (SHA-256(seed) → clé
+# secp256k1 — même algorithme que keygen.html, résultat identique vérifié).
 _PY_OUT=$(python3 -c "
+import hashlib
 from mnemonic import Mnemonic
+from pynostr.key import PrivateKey
 m = Mnemonic('english')
 phrase = m.generate(strength=128)
-seed = Mnemonic.to_seed(phrase, passphrase='')
+seed = Mnemonic.to_seed(phrase, passphrase='')[:32]
+privhex = hashlib.sha256(seed).hexdigest()
+pk = PrivateKey(bytes.fromhex(privhex))
 print(phrase)
-print(seed[:32].hex())
+print(seed.hex())
+print(pk.bech32())
+print(pk.public_key.bech32())
 " 2>/dev/null)
 
 MNEMONIC=$(echo "$_PY_OUT" | sed -n '1p')
 SEEDHEX=$(echo "$_PY_OUT" | sed -n '2p')
+NOSTR_NSEC=$(echo "$_PY_OUT" | sed -n '3p')
+NOSTR_NPUB=$(echo "$_PY_OUT" | sed -n '4p')
 
-if [[ -z "$MNEMONIC" || -z "$SEEDHEX" ]]; then
+if [[ -z "$MNEMONIC" || -z "$SEEDHEX" || -z "$NOSTR_NSEC" ]]; then
     echo "{\"error\": \"mnemonic generation failed\"}"
     exit 1
 fi
@@ -69,4 +87,5 @@ if [[ -x "${ASTRTOOLS}/g1pub_to_ss58.py" ]]; then
     [[ -n "$_ss58" ]] && G1PUB="$_ss58"
 fi
 
-printf '{"g1pub": "%s", "mnemonic": "%s"}\n' "$G1PUB" "$MNEMONIC"
+printf '{"g1pub": "%s", "mnemonic": "%s", "nsec": "%s", "npub": "%s"}\n' \
+    "$G1PUB" "$MNEMONIC" "$NOSTR_NSEC" "$NOSTR_NPUB"
