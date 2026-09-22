@@ -325,9 +325,11 @@ _BILLET_A4_PAGE = """<!doctype html>
   .cell .amount-badge .num.blank{min-width:20mm;border-bottom:1.5px dashed var(--gold)}
   .cell .amount-badge .unit{font-size:7.5pt;font-weight:700;color:var(--ink);
               letter-spacing:1px;text-transform:uppercase;margin-top:.5mm}
-  .cell .qr-col{flex-shrink:0}
-  .cell .qr-col img{width:19mm;height:19mm;image-rendering:pixelated;
-              background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
+  .cell .qr-col{flex-shrink:0;display:flex;gap:1.5mm}
+  .cell .qr-col .qr-item{display:flex;flex-direction:column;align-items:center;gap:.3mm}
+  .cell .qr-col img{width:15mm;height:15mm;image-rendering:pixelated;
+              background:#fff;padding:.8mm;border-radius:1mm;border:1px solid var(--gold)}
+  .cell .qr-col span{font-size:3.6pt;color:#666;text-transform:uppercase;letter-spacing:.3px}
 
   .cell .g1pub{font-family:monospace;font-size:5pt;color:#555;word-break:break-all;
               margin-top:auto}
@@ -373,7 +375,10 @@ _BILLET_A4_CELL = """<div class="cell">
       <div class="amount-badge">
         <span class="num __AMOUNT_CLASS__">__AMOUNT_TEXT__</span><span class="unit">__UNIT_LABEL__</span>
       </div>
-      <div class="qr-col"><img src="__PUB_QR__" alt="QR"></div>
+      <div class="qr-col">
+        <div class="qr-item"><img src="__PUB_QR__" alt="QR solde"><span>Solde</span></div>
+        <div class="qr-item"><img src="__PROFILE_QR__" alt="QR profil"><span>Profil</span></div>
+      </div>
     </div>
     <div class="g1pub">__G1PUB__</div>
     <div class="expiry">__EXPIRES__</div>
@@ -416,6 +421,7 @@ def _render_billet_a4_html(
             .replace("__AMOUNT_TEXT__", amount_text)
             .replace("__UNIT_LABEL__", esc(unit_label))
             .replace("__PUB_QR__", c["pub_qr_url"])
+            .replace("__PROFILE_QR__", c.get("profile_qr_url", ""))
             .replace("__G1PUB__", esc(c["g1pub"]))
             .replace("__EXPIRES__", (f"Valide jusqu'au {esc(c['expires_str'])} · {esc(c['npub'][:16])}…"
                                       if c.get("expires_str") else ""))
@@ -993,9 +999,18 @@ async def generate_billet(
         pub_png, _ = await asyncio.to_thread(_generate_qr_png, g1pub, 3, "M")
         pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
 
+        # QR vers le profil NOSTR (kind 0) du compte jumeau — même page que
+        # partout ailleurs dans UPlanet/earth (nostr_profile_viewer.html?hex=),
+        # servie par UPassport lui-même sous /earth (54321.py).
+        profile_hex = npub_to_hex(npub) or ""
+        profile_url = f"{str(settings.uSPOT).rstrip('/')}/earth/nostr_profile_viewer.html?hex={profile_hex}"
+        profile_png, _ = await asyncio.to_thread(_generate_qr_png, profile_url, 4, "M")
+        profile_qr_url = ("data:image/png;base64," + base64.b64encode(profile_png).decode()) if profile_png else ""
+
         cells.append({
             "g1pub": g1pub, "mnemonic": mnemonic, "npub": npub, "expires_str": expires_str,
-            "pub_qr_url": pub_qr_url, "status": status, "status_error": status_error,
+            "pub_qr_url": pub_qr_url, "profile_qr_url": profile_qr_url,
+            "status": status, "status_error": status_error,
         })
 
     background_tasks.add_task(
