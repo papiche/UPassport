@@ -88,7 +88,6 @@ Le champ `source` est normalisé en minuscules et préfixé par `GIT_OWNER` :
 | `zelkova`   | `papiche/zelkova`   |
 | `troczen`   | `papiche/troczen`   |
 | `coracle`   | `papiche/coracle`   |
-| `G1BILLET`  | `papiche/g1billet`  |
 | *(absent)*  | `papiche/zelkova`   |
 
 ### Réponse

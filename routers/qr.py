@@ -32,12 +32,45 @@ POST /qr/postcard  (multipart, mêmes champs)
   message     str             Corps du message verso (les doubles retours à la
                                ligne \\n\\n séparent les paragraphes)
   footer      str             Signature / ligne de pied verso
+
+GET  /qr/billet?amount=5[&unit=zen|g1][&mode=manual|auto][&npub=][&fond_url=][&logo_url=]
+POST /qr/billet  (multipart, mêmes champs)
+    → Planche A4 paysage de 6 Ğ1Billets papier imprimables (2 colonnes ×
+      3 lignes) — remplace l'ancien moteur graphique G1BILLET (dépôt
+      externe fermé). Chaque billet a sa propre clé G1/duniter JETABLE
+      (phrase mnémonique BIP39, cf. `billet_gen.sh` — dérivation identique à
+      `keygen.html`), jamais persistée
+      sur disque : le secret n'existe que dans la réponse HTTP, à imprimer
+      puis oublier. RECTO SEUL : le secret est imprimé en bande verticale
+      sur le bord gauche de chaque billet — à replier vers l'arrière et
+      scotcher avant distribution (pas de verso séparé).
+  amount    float  requis   Montant annoncé par billet, dans l'unité `unit`
+                              (× 6 au total). 0 → billets "vierges" : la
+                              zone montant reste blanche à l'impression,
+                              inscrite à la main lors du remplissage
+                              (mode auto refusé avec amount=0)
+  unit      str    zen|g1 (défaut zen) — unité de `amount`. 1 Ẑen = 0.1 Ğ1
+                              (convention UPlanet ORIGIN)
+  mode      str    manual|auto (défaut manual)
+                            manual : aucun transfert — l'utilisateur envoie
+                              lui-même les fonds vers les G1PUB imprimés
+                            auto   : débite immédiatement `amount` (unité
+                              `unit`) vers CHACUN des 6 billets, depuis le
+                              MULTIPASS authentifié (NIP-42 via `npub`)
+  npub      str    requis en mode auto (npub/hex authentifié NIP-42)
+  fond_url  str    optionnel  Image de fond des billets (sinon fond neutre).
+                              Par défaut coté client : bannière du profil
+                              NOSTR connecté (kind 0 `banner`)
+  logo_url  str    optionnel  Petit logo rond en coin. Par défaut coté
+                              client : avatar du profil NOSTR connecté
+                              (kind 0 `picture`)
 """
 
 import base64
 import html as html_lib
 import os
 import asyncio
+import json
 import logging
 import tempfile
 import shutil
@@ -47,16 +80,21 @@ from typing import Optional
 
 import httpx
 
-from fastapi import APIRouter, Request, BackgroundTasks, Query
+from fastapi import APIRouter, Request, BackgroundTasks, Query, HTTPException
 from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
 
 from core.config import settings
+from utils.security import find_user_directory_by_hex
+from services.nostr import verify_nostr_auth
+from services.g1_squid import get_g1_balance_native
+from utils.crypto import npub_to_hex
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _TEMPLATE = Path(__file__).parent.parent / "templates" / "qr.html"
 _TEMPLATE_POSTCARD = Path(__file__).parent.parent / "templates" / "qr_postcard.html"
+_BILLET_SCRIPT = Path(__file__).parent.parent / "billet_gen.sh"
 
 
 def _qr_html() -> str:
@@ -176,6 +214,18 @@ _POSTCARD_PAGE = """<!doctype html>
 """
 
 
+def _sanitize_image_url(url: Optional[str]) -> Optional[str]:
+    """N'autorise que http(s)/data:image — jamais javascript:/vbscript: etc.
+    dans un attribut src/background-image construit par concaténation."""
+    if not url:
+        return None
+    u = url.strip()
+    low = u.lower()
+    if low.startswith("http://") or low.startswith("https://") or low.startswith("data:image/"):
+        return u
+    return None
+
+
 def _render_postcard_html(
     data: str,
     qr_data_url: str,
@@ -208,6 +258,169 @@ def _render_postcard_html(
         .replace("__BACK_TITLE_BLOCK__", back_title_block)
         .replace("__MESSAGE_PARAGRAPHS__", paragraphs)
         .replace("__FOOTER_BLOCK__", footer_block)
+    )
+
+
+_BILLET_A4_PAGE = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ğ1Billet — planche A4 (__COUNT__ billets)</title>
+<style>
+  :root{--ink:#222;--gold:#c8a83c;--green:#2d5a1b;--paper:#f5f0e8;--red:#8b1a1a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#ccc;font-family:Georgia,serif;color:var(--ink);
+       display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 0}
+  .bar{display:flex;gap:10px}
+  .bar button{padding:9px 18px;border:none;border-radius:6px;background:var(--gold);
+              color:#1a1209;font-weight:700;cursor:pointer;font-size:.9rem}
+  .bar button:hover{box-shadow:0 0 10px var(--gold)}
+  .warn{max-width:277mm;background:#fff3f3;border:1px solid var(--red);color:var(--red);
+        padding:8px 12px;font-family:sans-serif;font-size:.8rem;border-radius:6px}
+
+  .sheet{width:277mm;display:grid;grid-template-columns:repeat(2,136mm);
+         grid-auto-rows:60mm;gap:3mm;background:#fff;padding:2mm;
+         box-shadow:0 0 16px rgba(0,0,0,.35)}
+  .cell{display:flex;height:60mm;border:1px dashed #999;overflow:hidden;
+        position:relative;background:#fff}
+
+  /* Bande secrète : bloc horizontal qui wrap normalement (largeur = hauteur
+     de la cellule) puis pivoté à -90deg — plus fiable qu'un writing-mode
+     vertical (dont le dimensionnement intrinsèque échappe à la grille/flex
+     et déborde de la cellule). position:absolute retire le texte du flux :
+     sa longueur ne peut plus influencer la taille de .fold ni de la ligne. */
+  .cell .fold{width:15mm;flex:0 0 15mm;height:100%;position:relative;overflow:hidden;
+              border-right:1px dashed var(--red);background:#fffaf0}
+  .cell .fold .secret{position:absolute;top:50%;left:50%;width:56mm;
+              transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center center;
+              font-family:monospace;font-size:6pt;line-height:1.3;letter-spacing:.1px;
+              text-align:center;color:#333;word-break:break-word}
+  .cell .fold .secret b{color:var(--red);font-weight:700}
+
+  .cell .body{flex:1;min-width:0;position:relative;padding:3mm;display:flex;
+              flex-direction:column;gap:1.5mm;background:var(--paper) center/cover no-repeat}
+  .cell .body.has-fond::before{content:'';position:absolute;inset:0;
+              background:rgba(245,240,232,.74)}
+  .cell .body>*{position:relative}
+  .cell .logo-mark{position:absolute;bottom:2mm;right:2mm;width:11mm;height:11mm;
+              border-radius:50%;object-fit:cover;border:1px solid var(--gold);
+              box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .cell .brand{font-size:7.5pt;letter-spacing:1.5px;color:var(--green);
+              text-transform:uppercase;font-weight:700}
+
+  /* Rangée principale : montant à gauche (façon billet de banque — gros
+     chiffre sur fond blanc, unité en petites capitales dessous), QR clé
+     publique à droite. */
+  .cell .main-row{display:flex;align-items:center;justify-content:space-between;
+              gap:2.5mm;margin-top:1mm}
+  .cell .amount-badge{display:inline-flex;flex-direction:column;align-items:center;
+              line-height:1;background:#fff;color:var(--red);font-weight:800;
+              padding:2mm 4mm;border-radius:2mm;border:1.5px solid var(--gold);
+              box-shadow:0 1px 3px rgba(0,0,0,.35);flex-shrink:0}
+  .cell .amount-badge .num{font-size:26pt;min-width:14mm;min-height:1em;
+              display:inline-block;text-align:center}
+  .cell .amount-badge .num.blank{min-width:20mm;border-bottom:1.5px dashed var(--gold)}
+  .cell .amount-badge .unit{font-size:7.5pt;font-weight:700;color:var(--ink);
+              letter-spacing:1px;text-transform:uppercase;margin-top:.5mm}
+  .cell .qr-col{flex-shrink:0}
+  .cell .qr-col img{width:19mm;height:19mm;image-rendering:pixelated;
+              background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
+
+  .cell .g1pub{font-family:monospace;font-size:5pt;color:#555;word-break:break-all;
+              margin-top:auto}
+  .cell .status{font-family:sans-serif;font-size:5.5pt;color:var(--green);font-weight:700}
+  .cell .status.err{color:var(--red)}
+
+  @media print{
+    .no-print{display:none!important}
+    html,body{background:#fff!important;margin:0!important;padding:0!important}
+    .sheet{box-shadow:none!important}
+    @page{size:A4 landscape;margin:8mm}
+  }
+</style>
+</head>
+<body>
+
+<div class="warn no-print">
+  🔒 Chaque billet n'a qu'un recto. Le secret (phrase mnémonique) est imprimé en <b>vertical sur le
+  bord gauche</b> de chaque billet : repliez cette bande vers l'arrière le long du trait pointillé
+  et scotchez-la avant de distribuer les billets. Cette page ne pourra pas être régénérée à
+  l'identique : imprimez avant de fermer cet onglet.
+</div>
+
+<div class="bar no-print">
+  <button onclick="window.print()">🖨️ Imprimer la planche (__COUNT__ billets)</button>
+</div>
+
+<div class="sheet">
+__CELLS__
+</div>
+
+</body>
+</html>
+"""
+
+_BILLET_A4_CELL = """<div class="cell">
+  <div class="fold"><div class="secret">__SECRET__</div></div>
+  <div class="body __FOND_CLASS__" style="background-image:__FOND_CSS__">
+    __LOGO_IMG__
+    <div class="brand">Ğ1BILLET</div>
+    <div class="main-row">
+      <div class="amount-badge">
+        <span class="num __AMOUNT_CLASS__">__AMOUNT_TEXT__</span><span class="unit">__UNIT_LABEL__</span>
+      </div>
+      <div class="qr-col"><img src="__PUB_QR__" alt="QR"></div>
+    </div>
+    <div class="g1pub">__G1PUB__</div>
+    <div class="status __STATUS_CLASS__">__STATUS__</div>
+  </div>
+</div>"""
+
+
+def _render_billet_a4_html(
+    amount: float,
+    cells: list[dict],
+    unit_label: str = "Ẑen",
+    fond_url: Optional[str] = None,
+    logo_url: Optional[str] = None,
+) -> str:
+    """Compose la planche A4 paysage — 6 billets recto seul (2 colonnes × 3
+    lignes), secret en vertical sur le bord gauche (à replier/scotcher)."""
+    esc = html_lib.escape
+    fond = _sanitize_image_url(fond_url)
+    logo = _sanitize_image_url(logo_url)
+    fond_css = f"url('{esc(fond)}')" if fond else "none"
+    fond_class = "has-fond" if fond else ""
+    logo_img = f'<img class="logo-mark" src="{esc(logo)}" alt="">' if logo else ""
+
+    is_blank = amount <= 0
+    amount_class = "blank" if is_blank else ""
+    amount_text = "&nbsp;" if is_blank else esc(f"{amount:g}")
+
+    cell_blocks = []
+    for c in cells:
+        status = esc(c.get("status", "")) or ("Portefeuille vierge — montant à inscrire à la main" if is_blank else "")
+        status_class = "err" if c.get("status_error") else ""
+        cell_blocks.append(
+            _BILLET_A4_CELL
+            .replace("__SECRET__", f"<b>MNEMONIC</b><br>{esc(c['mnemonic'])}")
+            .replace("__FOND_CSS__", fond_css)
+            .replace("__FOND_CLASS__", fond_class)
+            .replace("__LOGO_IMG__", logo_img)
+            .replace("__AMOUNT_CLASS__", amount_class)
+            .replace("__AMOUNT_TEXT__", amount_text)
+            .replace("__UNIT_LABEL__", esc(unit_label))
+            .replace("__PUB_QR__", c["pub_qr_url"])
+            .replace("__G1PUB__", esc(c["g1pub"]))
+            .replace("__STATUS__", status)
+            .replace("__STATUS_CLASS__", status_class)
+        )
+
+    return (
+        _BILLET_A4_PAGE
+        .replace("__COUNT__", str(len(cells)))
+        .replace("__CELLS__", "\n".join(cell_blocks))
     )
 
 
@@ -348,6 +561,70 @@ async def _download_picture_url(url: str) -> Optional[str]:
     except Exception as e:
         logger.warning("Échec téléchargement image %s : %s", url[:60], e)
         return None
+
+
+# ── Ğ1Billet — clé jetable + paiement ────────────────────────────────────────
+
+async def _gen_billet_key() -> dict:
+    """Génère une clé G1 jetable via billet_gen.sh (tout en /dev/shm, jamais
+    journalisé — cf. billet_gen.sh). Retourne {"g1pub","mnemonic"} — mnemonic
+    est une phrase BIP39 standard (12 mots), dérivation identique à
+    UPlanet/earth/keygen.html (onglet "Mnemonic (v2)")."""
+    proc = await asyncio.create_subprocess_exec(
+        str(_BILLET_SCRIPT),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    lines = [l for l in stdout.decode().splitlines() if l.strip()]
+    try:
+        keydata = json.loads(lines[-1]) if lines else {}
+    except Exception:
+        raise RuntimeError(f"sortie JSON invalide (stderr={stderr.decode()[:200]})")
+    if not keydata or "error" in keydata or not keydata.get("g1pub"):
+        raise RuntimeError(keydata.get("error") if keydata else "sortie vide")
+    return keydata
+
+
+async def _pay_billet(keyfile: Path, g1_amount: float, g1pub: str, note: str) -> tuple[bool, str]:
+    """Transfère `g1_amount` Ğ1 (déjà converti) vers g1pub via nostr_PAY.sh.
+    Retourne (succès, détail)."""
+    try:
+        pay_proc = await asyncio.create_subprocess_exec(
+            str(settings.TOOLS_PATH / "nostr_PAY.sh"), str(keyfile), f"{g1_amount:.2f}", g1pub,
+            note,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        )
+        pay_out, _ = await pay_proc.communicate()
+    except Exception as e:
+        return False, str(e)
+    if pay_proc.returncode != 0:
+        return False, pay_out.decode()[-300:]
+    return True, ""
+
+
+async def _resolve_auto_sender(npub: str) -> tuple[Path, str]:
+    """Vérifie NIP-42 + résout le fichier .secret.dunikey du MULTIPASS connecté.
+    Lève HTTPException(status_code, detail) en cas d'échec — à traduire en
+    JSONResponse par l'appelant. Retourne (keyfile, g1pub_émetteur — "" si
+    introuvable, auquel cas le contrôle de solde en amont est simplement
+    sauté, pas bloquant)."""
+    is_hex = len(npub) == 64 and all(c in "0123456789abcdefABCDEF" for c in npub)
+    sender_hex = npub.lower() if is_hex else npub_to_hex(npub)
+    if not sender_hex or len(sender_hex) != 64:
+        raise HTTPException(status_code=400, detail="Clé Nostr invalide")
+
+    auth_ok = await verify_nostr_auth(sender_hex)
+    if not auth_ok:
+        raise HTTPException(status_code=401, detail="Authentification NIP-42 requise")
+
+    user_dir = find_user_directory_by_hex(sender_hex)  # lève déjà HTTPException 404
+    keyfile = user_dir / ".secret.dunikey"
+    if not keyfile.is_file():
+        raise HTTPException(status_code=404, detail="Clé du MULTIPASS introuvable")
+
+    g1pub_file = user_dir / "G1PUBNOSTR"
+    sender_g1pub = g1pub_file.read_text().strip() if g1pub_file.is_file() else ""
+    return keyfile, sender_g1pub
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -530,4 +807,138 @@ async def generate_postcard(
         message=message,
         footer=footer,
     )
+    return HTMLResponse(page)
+
+
+_BILLET_A4_COUNT = 6  # 2 colonnes × 3 lignes — grille validée sur planche de référence
+
+
+@router.get("/qr/billet")
+@router.post("/qr/billet")
+async def generate_billet(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    amount: Optional[float] = Query(None),
+    unit: Optional[str] = Query(None),
+    mode: Optional[str] = Query(None),
+    npub: Optional[str] = Query(None),
+    fond_url: Optional[str] = Query(None),
+    logo_url: Optional[str] = Query(None),
+):
+    """Planche A4 paysage de 6 Ğ1Billets papier imprimables — remplace le
+    moteur graphique G1BILLET. RECTO SEUL : 6 clés jetables indépendantes,
+    secret en vertical sur le bord gauche de chaque billet (à replier vers
+    l'arrière et scotcher). En mode `auto`, débite immédiatement `amount`
+    (dans l'unité choisie) vers CHACUN des 6 billets, depuis le MULTIPASS
+    authentifié — la ressource (clés + page) est toujours prête AVANT ce
+    transfert irréversible.
+
+    unit : zen|g1 (défaut zen) — unité du montant annoncé/transféré.
+    1 Ẑen = 0.1 Ğ1 (convention UPlanet ORIGIN, cf. `nostr_PAY.sh`/`zen_send.sh`).
+    """
+    if request.method == "POST":
+        form = await request.form()
+
+        def _f(k: str, default: str = "") -> str:
+            return str(form.get(k) or default)
+
+        amount   = amount   if amount is not None else float(_f("amount", "0") or "0")
+        unit     = unit     or _f("unit", "zen")
+        mode     = mode     or _f("mode", "manual")
+        npub     = npub     or (_f("npub") or None)
+        fond_url = fond_url or (_f("fond_url") or None)
+        logo_url = logo_url or (_f("logo_url") or None)
+
+    mode = (mode or "manual").strip().lower()
+    if mode not in ("manual", "auto"):
+        mode = "manual"
+    unit = (unit or "zen").strip().lower()
+    if unit not in ("zen", "g1"):
+        unit = "zen"
+    unit_label = "Ğ1" if unit == "g1" else "Ẑen"
+
+    try:
+        amount = float(amount or 0)
+    except (TypeError, ValueError):
+        amount = 0.0
+    if amount < 0:
+        return JSONResponse({"error": "Montant invalide"}, status_code=400)
+    if mode == "auto" and amount <= 0:
+        return JSONResponse({"error": "Montant requis pour le mode automatique (ou choisissez un portefeuille vierge en mode manuel)"}, status_code=400)
+
+    # amount == 0 → billets "vierges" : la zone montant reste blanche à
+    # l'impression, à remplir à la main lors de l'activation.
+    g1_amount = amount if unit == "g1" else amount / 10
+
+    # ── Mode automatique : résoudre le MULTIPASS authentifié UNE SEULE FOIS ──
+    keyfile: Optional[Path] = None
+    if mode == "auto":
+        if not npub:
+            return JSONResponse({"error": "npub requis pour le mode automatique"}, status_code=400)
+        try:
+            keyfile, sender_g1pub = await _resolve_auto_sender(npub)
+        except HTTPException as e:
+            return JSONResponse({"error": e.detail}, status_code=e.status_code)
+
+        # Contrôle de solde AVANT de générer la moindre clé : évite de créer
+        # 6 portefeuilles jetables puis d'échouer 6 fois de suite si le
+        # MULTIPASS ne peut de toute façon pas couvrir le total.
+        total_required_g1 = g1_amount * _BILLET_A4_COUNT
+        try:
+            bal = await get_g1_balance_native(sender_g1pub) if sender_g1pub else None
+            available_g1 = (bal.get("balances", {}).get("total", 0) / 100) if bal else None
+        except Exception as e:
+            logger.warning("billet auto — vérification de solde impossible: %s", e)
+            available_g1 = None
+        if available_g1 is not None and available_g1 < total_required_g1:
+            return JSONResponse({
+                "error": (
+                    f"Solde insuffisant : {available_g1:.2f} Ğ1 disponibles, "
+                    f"{total_required_g1:.2f} Ğ1 nécessaires pour financer les "
+                    f"{_BILLET_A4_COUNT} billets ({amount:g} {unit_label} × {_BILLET_A4_COUNT})"
+                ),
+            }, status_code=402)
+
+    visitor_ip = request.client.host if request.client else "?"
+
+    cells: list[dict] = []
+    for _ in range(_BILLET_A4_COUNT):
+        try:
+            keydata = await _gen_billet_key()
+        except RuntimeError as e:
+            logger.error("billet_gen.sh (a4x6): %s", e)
+            return JSONResponse({"error": "génération de clé impossible"}, status_code=500)
+
+        g1pub = keydata["g1pub"]
+        mnemonic = keydata["mnemonic"]
+        keydata = None
+
+        status, status_error = "", False
+        if mode == "auto":
+            ok, detail = await _pay_billet(
+                keyfile, g1_amount, g1pub, f"UPLANET:BILLET {amount:g} {unit_label}",
+            )
+            status = f"{amount:g} {unit_label} transférés" if ok else "⚠️ transfert échoué"
+            status_error = not ok
+            if not ok:
+                logger.error("billet a4x6 — paiement échoué pour %s: %s", g1pub[:12], detail)
+
+        pub_png, _ = await asyncio.to_thread(_generate_qr_png, g1pub, 3, "M")
+        pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
+
+        cells.append({
+            "g1pub": g1pub, "mnemonic": mnemonic,
+            "pub_qr_url": pub_qr_url, "status": status, "status_error": status_error,
+        })
+
+    background_tasks.add_task(
+        _notify_captain,
+        f"Planche Ğ1Billet générée — {len(cells)}×{amount:g} {unit_label} (mode {mode})",
+        visitor_ip,
+    )
+
+    page = _render_billet_a4_html(
+        amount=amount, cells=cells, unit_label=unit_label, fond_url=fond_url, logo_url=logo_url,
+    )
+    cells = None
     return HTMLResponse(page)
