@@ -76,6 +76,8 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
 from fastapi import APIRouter, Request, BackgroundTasks, Query, HTTPException
 from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
@@ -357,6 +359,11 @@ _BILLET_A4_PAGE = """<!doctype html>
     html,body{background:#fff!important;margin:0!important;padding:0!important}
     .sheet,.verso-sheet{box-shadow:none!important}
     .verso-sheet{page-break-before:always}
+    /* Impression d'un seul côté à la fois (duplex manuel : imprimer le recto,
+       retourner la pile de papier, réimprimer le verso par-dessus) — même
+       principe que printSide() sur /qr/postcard. */
+    body.p-recto .verso-sheet{display:none!important}
+    body.p-verso .sheet:not(.verso-sheet){display:none!important}
     @page{size:A4 landscape;margin:8mm}
   }
 </style>
@@ -371,7 +378,8 @@ _BILLET_A4_PAGE = """<!doctype html>
 </div>
 
 <div class="bar no-print">
-  <button onclick="window.print()">🖨️ Imprimer la planche (__COUNT__ billets)</button>
+  <button onclick="printSide('recto')">🖨️ Imprimer le Recto (__COUNT__ billets)</button>
+  __VERSO_BUTTON__
 </div>
 
 <div class="sheet">
@@ -380,6 +388,13 @@ __CELLS__
 
 __VERSO__
 
+<script>
+  function printSide(side){
+    document.body.classList.remove('p-recto','p-verso');
+    document.body.classList.add(side === 'recto' ? 'p-recto' : 'p-verso');
+    setTimeout(function(){ window.print(); }, 50);
+  }
+</script>
 </body>
 </html>
 """
@@ -473,6 +488,54 @@ def _billet_tint_vars(amount: float) -> tuple[str, str]:
     return hexcolor, f"rgba({r},{g},{b},.62)"
 
 
+_BILLET_FONT_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+
+
+def _billet_kind0_images(amount: float, unit_label: str) -> tuple[str, str]:
+    """Génère l'icône (picture) et la bannière (banner) du profil NOSTR kind 0
+    du billet — même teinte par coupure que la planche recto (_BILLET_TINTS),
+    montant mis en évidence. Deux data: URI PNG, rien n'est jamais écrit sur
+    disque (même discipline que le reste de la génération du billet)."""
+    hexcolor = _BILLET_TINTS.get(amount, "#c8a83c")
+    bg = tuple(int(hexcolor[i:i + 2], 16) for i in (1, 3, 5))
+    is_blank = amount <= 0
+    amount_text = "VIERGE" if is_blank else f"{amount:g}"
+
+    def _font(size: int) -> ImageFont.FreeTypeFont:
+        try:
+            return ImageFont.truetype(_BILLET_FONT_BOLD, size)
+        except Exception:
+            return ImageFont.load_default()
+
+    def _centered(draw: ImageDraw.ImageDraw, text: str, font, width: int, y: int, fill: str) -> None:
+        bbox = draw.textbbox((0, 0), text, font=font)
+        x = (width - (bbox[2] - bbox[0])) / 2 - bbox[0]
+        draw.text((x, y), text, fill=fill, font=font)
+
+    def _png_data_uri(img: Image.Image) -> str:
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    # Icône (picture) — carrée, montant en gros, façon badge du recto.
+    icon = Image.new("RGB", (256, 256), bg)
+    idraw = ImageDraw.Draw(icon)
+    _centered(idraw, amount_text, _font(30 if is_blank else 90), 256, 84, "#8b1a1a")
+    if not is_blank:
+        _centered(idraw, unit_label, _font(24), 256, 168, "#1a1a1a")
+
+    # Bannière (banner) — large, brand + montant.
+    banner = Image.new("RGB", (600, 200), bg)
+    bdraw = ImageDraw.Draw(banner)
+    bdraw.text((24, 24), "Ğ1BILLET", fill="#2d5a1b", font=_font(34))
+    amount_banner = amount_text if is_blank else f"{amount_text} {unit_label}"
+    bbox = bdraw.textbbox((0, 0), amount_banner, font=_font(58))
+    bdraw.text((600 - (bbox[2] - bbox[0]) - 24 - bbox[0], 200 - (bbox[3] - bbox[1]) - 30 - bbox[1]),
+               amount_banner, fill="#8b1a1a", font=_font(58))
+
+    return _png_data_uri(icon), _png_data_uri(banner)
+
+
 def _render_billet_a4_html(
     amount: float,
     cells: list[dict],
@@ -519,11 +582,13 @@ def _render_billet_a4_html(
             .replace("__STATUS_CLASS__", status_class)
         )
 
+    verso_button = '<button onclick="printSide(\'verso\')">🖨️ Imprimer le Verso</button>' if verso_html else ""
     return (
         _BILLET_A4_PAGE
         .replace("__COUNT__", str(len(cells)))
         .replace("__CELLS__", "\n".join(cell_blocks))
         .replace("__VERSO__", verso_html)
+        .replace("__VERSO_BUTTON__", verso_button)
     )
 
 
@@ -701,6 +766,11 @@ async def _publish_billet_emission(
     reproduire cette signature ; personne d'autre ne le peut — même garantie
     que pour les fonds, sans tiers de confiance additionnel.
 
+    `picture` (icône) et `banner` sont générées à la volée (_billet_kind0_images,
+    Pillow, même teinte par coupure que le recto — _BILLET_TINTS) et embarquées
+    en `data:image/png;base64,...` directement dans le contenu de l'event —
+    jamais écrites sur disque ni hébergées ailleurs.
+
     Attestation PUBLIQUE et INFORMATIVE uniquement : `["expiration", …]`
     (NIP-40) donne une date de fin vérifiable par n'importe quel client
     NOSTR/relay, mais ne verrouille aucune dépense — les fonds restent
@@ -712,9 +782,12 @@ async def _publish_billet_emission(
     """
     expires_ts = int(time.time()) + _BILLET_EXPIRY_DAYS * 86400
     expires_str = datetime.fromtimestamp(expires_ts).strftime("%d/%m/%Y")
+    picture_uri, banner_uri = _billet_kind0_images(amount, unit_label)
     content = json.dumps({
         "name": f"Ğ1Billet · {amount:g} {unit_label}",
         "about": f"Ğ1Billet papier — G1PUB {g1pub} — valable jusqu'au {expires_str}",
+        "picture": picture_uri,
+        "banner": banner_uri,
     })
     tags = json.dumps([["expiration", str(expires_ts)], ["t", "g1billet"]])
 

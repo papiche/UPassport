@@ -20,10 +20,12 @@ Il n'y a PAS d'endpoint d'upload JSON ici : l'ancien placeholder
 chiffrement AES-256-GCM est appliqué.
 """
 
+import asyncio
+import io
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, Response
 
 from services.nostr import require_nostr_auth
 from services import cloud_storage
@@ -172,6 +174,84 @@ async def reveal_cloud_token(request: Request, npub: str = Depends(require_nostr
             "token": desc["token"],
             "instructions": _mount_instructions(dav_url, email),
         }
+    )
+
+
+@router.get(
+    "/api/cloud/files",
+    summary="Lister les fichiers du cloud chiffré",
+    description="TOUS les fichiers présents sur /dav/ — pas seulement ceux "
+                "catalogués par FaceID (visages) ou l'inventaire (objets/lieux). "
+                "Sert de navigateur générique dans FaceCloud, section « Mes fichiers ».",
+)
+async def list_cloud_files(request: Request, npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    index = cloud_storage.load_index(email)
+    files = []
+    for path, entry in index.get("entries", {}).items():
+        if not isinstance(entry, dict) or entry.get("type") != "file":
+            continue
+        files.append({
+            "path": path,
+            "mime": entry.get("mime") or "",
+            "size": entry.get("size_plain") or 0,
+            "mtime": entry.get("mtime") or 0,
+            "tags": entry.get("tags") or [],
+            "has_scene": isinstance(entry.get("scene"), dict),
+            "readonly": bool(entry.get("readonly")),
+        })
+    files.sort(key=lambda f: f["mtime"], reverse=True)
+    return JSONResponse({"files": files})
+
+
+@router.get(
+    "/api/cloud/thumbnail",
+    summary="Miniature d'un fichier du cloud chiffré",
+    description="Miniature JPEG (300×300 max) de N'IMPORTE QUEL fichier image "
+                "présent sur /dav/, déchiffrée à la volée et jamais persistée "
+                "en clair — même discipline que le GET /dav/ lui-même. "
+                "Contrairement à /mailjet/faces|inventory/thumbnail, ne requiert "
+                "aucun catalogage FaceID/inventaire préalable.",
+)
+async def cloud_file_thumbnail(
+    request: Request,
+    path: str = Query(...),
+    npub: str = Depends(require_nostr_auth),
+):
+    email = _email_for_authenticated_npub(npub)
+    index = cloud_storage.load_index(email)
+    entry = cloud_storage.get_entry(index, path)
+    if not entry or not entry.get("cid"):
+        raise HTTPException(status_code=404, detail="fichier introuvable")
+    if not (entry.get("mime") or "").startswith("image/"):
+        raise HTTPException(status_code=415, detail="pas une image")
+
+    key_hex = cloud_storage.get_key_hex(email, entry["cid"])
+    if not key_hex:
+        raise HTTPException(status_code=404, detail="clé de déchiffrement introuvable")
+
+    try:
+        # ipfs_cat() est synchrone (streaming httpx borné) : hors thread, elle
+        # gèlerait la boucle uvicorn le temps du téléchargement.
+        payload = await asyncio.to_thread(cloud_storage.ipfs_cat, entry["cid"])
+        plaintext = cloud_storage.uenc_codec.decrypt_aes256gcm(payload, key_hex)
+    except Exception as exc:
+        logger.error("ucloud: miniature — déchiffrement échoué pour %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail=f"déchiffrement impossible: {type(exc).__name__}")
+
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
+        img.thumbnail((300, 300))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"miniature impossible: {type(exc).__name__}")
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=1800"},
     )
 
 

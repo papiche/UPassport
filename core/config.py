@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     USE_LOCAL_JS: bool = False
     UPASSPORT_URL: str = ""
     OCAPIKEY: str = ""
-    uSPOT: str = "http://127.0.0.1:54321"
+    uSPOT: str = "https://u.copylaradio.com"
     myRELAY: str = "ws://127.0.0.1:7777"
     NOSTR_RELAYS: str = "ws://127.0.0.1:7777 wss://relay.copylaradio.com"
     myIPFS: str = "https://ipfs.copylaradio.com"

@@ -82,6 +82,8 @@ Enrôlement seul : le transfert de fichiers passe par le montage WebDAV `/dav/`
 - `GET  /api/cloud/status` — `{enrolled, dav_url, files, bytes, max_file_size}` — ne révèle jamais le token
 - `POST /api/cloud/reveal` — Retourne le token **EXISTANT** (même réponse qu'`enroll`) sans le renouveler. Même garde NIP-98/NIP-42 que les autres routes : cette preuve de possession de la clé MULTIPASS donne de toute façon un accès complet à `/dav/` en direct (NIP-98 est un des deux mécanismes d'auth acceptés par le montage DAV lui-même), donc révéler le token Basic Auth à ce même appelant n'élargit aucun accès — ça évite juste à l'utilisateur de devoir régénérer (et donc déconnecter ses clients existants) s'il veut juste remonter le disque sur un nouvel appareil
 - `POST /api/cloud/revoke` — Supprime le token (déconnecte les clients montés) ; fichiers et clés intacts
+- `GET  /api/cloud/files` — Liste TOUS les fichiers de `.ucloud/index.json` (pas de filtrage FaceID/inventaire) : `{files:[{path, mime, size, mtime, tags, has_scene, readonly}]}`, triés par date décroissante. Alimente la section « Mes fichiers » de FaceCloud (galerie brute du disque, indépendante de ce qui a été catalogué)
+- `GET  /api/cloud/thumbnail?path=…` — Miniature JPEG (300×300 max) de N'IMPORTE QUEL fichier image de l'index, déchiffrée à la volée (`ipfs_cat` + `uenc_codec.decrypt_aes256gcm`, jamais persistée en clair). Contrairement à `/mailjet/faces|inventory/thumbnail`, ne requiert aucun catalogage préalable — fonctionne sur toute image présente sur `/dav/`
 
 ### Montage `/dav` — WebDAV chiffré (services/cloud_storage.py)
 `54321.py` monte une app WSGI wsgidav via **a2wsgi** (`WSGIMiddleware`, PAS
