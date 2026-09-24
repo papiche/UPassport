@@ -293,43 +293,47 @@ _BILLET_A4_PAGE = """<!doctype html>
      et déborde de la cellule). position:absolute retire le texte du flux :
      sa longueur ne peut plus influencer la taille de .fold ni de la ligne. */
   .cell .fold{width:15mm;flex:0 0 15mm;height:100%;position:relative;overflow:hidden;
-              border-right:1px dashed var(--red);background:#fffaf0}
+              border-right:1px dashed var(--red);
+              background:repeating-linear-gradient(45deg,#fffaf0,#fffaf0 2mm,#f2dcdc 2mm,#f2dcdc 4mm)}
   .cell .fold .secret{position:absolute;top:50%;left:50%;width:56mm;
               transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center center;
               font-family:monospace;font-size:6pt;line-height:1.3;letter-spacing:.1px;
-              text-align:center;color:#333;word-break:break-word}
+              text-align:center;color:#333;word-break:break-word;
+              background:#fffaf0;padding:1.5mm 2mm;border-radius:1mm}
   .cell .fold .secret b{color:var(--red);font-weight:700}
 
   .cell .body{flex:1;min-width:0;position:relative;padding:3mm;display:flex;
-              flex-direction:column;gap:1.5mm;background:var(--paper) center/cover no-repeat}
+              flex-direction:column;gap:1.5mm;background-color:var(--tint,var(--paper));
+              background-position:center;background-size:cover;background-repeat:no-repeat}
   .cell .body.has-fond::before{content:'';position:absolute;inset:0;
-              background:rgba(245,240,232,.74)}
+              background:var(--tint-overlay,rgba(245,240,232,.74))}
   .cell .body>*{position:relative}
-  .cell .logo-mark{position:absolute;bottom:2mm;right:2mm;width:11mm;height:11mm;
+  .cell .logo-mark{position:absolute;bottom:2mm;right:2mm;width:16mm;height:16mm;
               border-radius:50%;object-fit:cover;border:1px solid var(--gold);
               box-shadow:0 1px 3px rgba(0,0,0,.35)}
   .cell .brand{font-size:7.5pt;letter-spacing:1.5px;color:var(--green);
               text-transform:uppercase;font-weight:700}
 
-  /* Rangée principale : montant à gauche (façon billet de banque — gros
-     chiffre sur fond blanc, unité en petites capitales dessous), QR clé
-     publique à droite. */
-  .cell .main-row{display:flex;align-items:center;justify-content:space-between;
+  /* Rangée principale : montant + QR solde à gauche (façon billet de
+     banque — gros chiffre sur fond blanc, unité en petites capitales
+     dessous, QR de vérification du solde juste en dessous), QR profil
+     NOSTR à droite. */
+  .cell .main-row{display:flex;align-items:flex-start;justify-content:space-between;
               gap:2.5mm;margin-top:1mm}
+  .cell .amount-col{display:flex;flex-direction:column;align-items:center;
+              gap:1.5mm;flex-shrink:0}
   .cell .amount-badge{display:inline-flex;flex-direction:column;align-items:center;
               line-height:1;background:#fff;color:var(--red);font-weight:800;
               padding:2mm 4mm;border-radius:2mm;border:1.5px solid var(--gold);
-              box-shadow:0 1px 3px rgba(0,0,0,.35);flex-shrink:0}
+              box-shadow:0 1px 3px rgba(0,0,0,.35)}
   .cell .amount-badge .num{font-size:26pt;min-width:14mm;min-height:1em;
               display:inline-block;text-align:center}
   .cell .amount-badge .num.blank{min-width:20mm;border-bottom:1.5px dashed var(--gold)}
   .cell .amount-badge .unit{font-size:7.5pt;font-weight:700;color:var(--ink);
               letter-spacing:1px;text-transform:uppercase;margin-top:.5mm}
-  .cell .qr-col{flex-shrink:0;display:flex;gap:1.5mm}
-  .cell .qr-col .qr-item{display:flex;flex-direction:column;align-items:center;gap:.3mm}
-  .cell .qr-col img{width:15mm;height:15mm;image-rendering:pixelated;
-              background:#fff;padding:.8mm;border-radius:1mm;border:1px solid var(--gold)}
-  .cell .qr-col span{font-size:3.6pt;color:#666;text-transform:uppercase;letter-spacing:.3px}
+  .cell .qr-col{flex-shrink:0;display:flex}
+  .cell .qr-col img,.cell .amount-col img{width:24mm;height:24mm;image-rendering:pixelated;
+              background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
 
   .cell .g1pub{font-family:monospace;font-size:5pt;color:#555;word-break:break-all;
               margin-top:auto}
@@ -337,10 +341,30 @@ _BILLET_A4_PAGE = """<!doctype html>
   .cell .status{font-family:sans-serif;font-size:5.5pt;color:var(--green);font-weight:700}
   .cell .status.err{color:var(--red)}
 
+  /* Verso optionnel — RÉPÉTÉ dans une grille identique à la planche recto
+     (même largeur de colonne/hauteur de ligne/espacement) : une fois la
+     feuille imprimée en duplex et découpée, le même texte se retrouve au
+     dos de CHAQUE billet, quel que soit le sens du retournement duplex
+     (contenu identique dans les 6 cellules → l'alignement exact importe peu).
+     Texte horizontal (la rotation -90° testée était moins lisible), pas de
+     fond coloré derrière le texte. */
+  .vcell{display:flex;flex-direction:column;align-items:center;justify-content:center;
+              height:60mm;border:1px dashed #999;overflow:hidden;position:relative;
+              background:#fff;padding:3mm 11mm;text-align:center;gap:1.5mm}
+  .vcell .vstamp{font-family:Georgia,serif;font-weight:800;font-size:8pt;
+              color:var(--green);letter-spacing:1.5px;text-transform:uppercase}
+  .vcell .vtext{font-family:Georgia,serif;font-size:6.3pt;line-height:1.45;
+              color:#444;max-width:112mm}
+  .vcell .vsupport{display:flex;align-items:center;gap:2mm;margin-top:.5mm}
+  .vcell .vsupport img{width:12mm;height:12mm;image-rendering:pixelated;background:#fff;
+              padding:.6mm;border-radius:.8mm;border:1px solid var(--gold)}
+  .vcell .vsupport span{font-family:monospace;font-size:5.3pt;color:#777}
+
   @media print{
     .no-print{display:none!important}
     html,body{background:#fff!important;margin:0!important;padding:0!important}
-    .sheet{box-shadow:none!important}
+    .sheet,.verso-sheet{box-shadow:none!important}
+    .verso-sheet{page-break-before:always}
     @page{size:A4 landscape;margin:8mm}
   }
 </style>
@@ -362,22 +386,71 @@ _BILLET_A4_PAGE = """<!doctype html>
 __CELLS__
 </div>
 
+__VERSO__
+
 </body>
 </html>
 """
 
+# Texte "contrat" par défaut — imprimé petit, identique dans les 6 cellules
+# du verso. Ancré sur le vocabulaire réel du projet Made In Zion (MIZ,
+# chantier-école coopératif intégré à UPlanet : chaque dôme/Astroport
+# installé devient une ambassade Web3 rémunérée en Ẑen — cf. miz.html/
+# mouvement.html) plutôt qu'inventé. Se termine par un rappel de la Charte
+# Open Source (opensource.html) : le choix de licence est le socle légal de
+# toute la coopérative, pas seulement de Made In Zion.
+_BILLET_VERSO_DEFAULT_TEXT = (
+    "Le Ẑen n'est pas une monnaie spéculative : c'est l'unité de compte "
+    "d'un bien commun, celui du laboratoire Web3 Made In Zion. Chaque "
+    "Astroport installé, chaque ressource inscrite au cadastre commun, y "
+    "est mesurée et gouvernée collectivement via les toiles de confiance "
+    "UPlanet. Ce billet est un fragment d'un chantier ouvert — rejoignez-le. "
+    "Aucune invention n'y est brevetée : code, documentation et recettes "
+    "restent ouverts (AGPL-3.0 / CC BY / CC BY-SA) — la Charte Open Source "
+    "est le socle de toute la coopérative."
+)
+
+_BILLET_VERSO_CELL = """<div class="vcell">
+  <div class="vstamp">☀️ Banque Solarpunk</div>
+  <div class="vtext">__TEXT__</div>
+  <div class="vsupport">
+    <img src="__QR__" alt="QR OpenCollective">
+    <span>opencollective.com/monnaie-libre</span>
+  </div>
+</div>"""
+
+
+def _render_billet_verso_html(text: str, qr_url: str) -> str:
+    """Grille verso optionnelle — MÊME grille (colonnes/lignes/espacement)
+    que la planche recto, texte "contrat" identique répété dans les 6
+    cellules : une fois imprimée en duplex et découpée, chaque billet porte
+    ce texte au dos, quel que soit le sens du retournement duplex. Texte
+    horizontal (une bande tournée -90° a été testée puis abandonnée : moins
+    lisible)."""
+    esc = html_lib.escape
+    text_html = esc(text).replace("\n\n", "<br><br>").replace("\n", "<br>")
+    cell = (
+        _BILLET_VERSO_CELL
+        .replace("__TEXT__", text_html)
+        .replace("__QR__", qr_url)
+    )
+    cells = "\n".join([cell] * _BILLET_A4_COUNT)
+    return f'<div class="sheet verso-sheet">\n{cells}\n</div>'
+
 _BILLET_A4_CELL = """<div class="cell">
   <div class="fold"><div class="secret">__SECRET__</div></div>
-  <div class="body __FOND_CLASS__" style="background-image:__FOND_CSS__">
+  <div class="body __FOND_CLASS__" style="background-image:__FOND_CSS__;--tint:__TINT_SOLID__;--tint-overlay:__TINT_OVERLAY__">
     __LOGO_IMG__
     <div class="brand">Ğ1BILLET</div>
     <div class="main-row">
-      <div class="amount-badge">
-        <span class="num __AMOUNT_CLASS__">__AMOUNT_TEXT__</span><span class="unit">__UNIT_LABEL__</span>
+      <div class="amount-col">
+        <div class="amount-badge">
+          <span class="num __AMOUNT_CLASS__">__AMOUNT_TEXT__</span><span class="unit">__UNIT_LABEL__</span>
+        </div>
+        <img src="__PUB_QR__" alt="QR solde">
       </div>
       <div class="qr-col">
-        <div class="qr-item"><img src="__PUB_QR__" alt="QR solde"><span>Solde</span></div>
-        <div class="qr-item"><img src="__PROFILE_QR__" alt="QR profil"><span>Profil</span></div>
+        <img src="__PROFILE_QR__" alt="QR profil">
       </div>
     </div>
     <div class="g1pub">__G1PUB__</div>
@@ -387,12 +460,34 @@ _BILLET_A4_CELL = """<div class="cell">
 </div>"""
 
 
+# Teintes façon billets de banque — une couleur par coupure, pour
+# différencier les planches au premier coup d'œil (pastel : le texte
+# brand/ink reste lisible dessus). Pas d'entrée pour "vierge" (montant=0) :
+# le billet garde alors la couleur papier neutre, montant à définir à la main.
+_BILLET_TINTS: dict[float, str] = {
+    5: "#e3e3e3", 10: "#f7dede", 20: "#dde8f7", 50: "#fbe6d0",
+    100: "#dff0da", 200: "#faf3c9", 500: "#ecdcf2",
+}
+
+
+def _billet_tint_vars(amount: float) -> tuple[str, str]:
+    """(couleur pleine, couleur translucide) pour la coupure donnée —
+    variables CSS --tint/--tint-overlay. Retombe sur --paper si la coupure
+    n'a pas de teinte dédiée (montant vierge ou libre)."""
+    hexcolor = _BILLET_TINTS.get(amount)
+    if not hexcolor:
+        return "var(--paper)", "rgba(245,240,232,.74)"
+    r, g, b = int(hexcolor[1:3], 16), int(hexcolor[3:5], 16), int(hexcolor[5:7], 16)
+    return hexcolor, f"rgba({r},{g},{b},.62)"
+
+
 def _render_billet_a4_html(
     amount: float,
     cells: list[dict],
     unit_label: str = "Ẑen",
     fond_url: Optional[str] = None,
     logo_url: Optional[str] = None,
+    verso_html: str = "",
 ) -> str:
     """Compose la planche A4 paysage — 6 billets recto seul (2 colonnes × 3
     lignes), secret en vertical sur le bord gauche (à replier/scotcher)."""
@@ -402,6 +497,7 @@ def _render_billet_a4_html(
     fond_css = f"url('{esc(fond)}')" if fond else "none"
     fond_class = "has-fond" if fond else ""
     logo_img = f'<img class="logo-mark" src="{esc(logo)}" alt="">' if logo else ""
+    tint_solid, tint_overlay = _billet_tint_vars(amount)
 
     is_blank = amount <= 0
     amount_class = "blank" if is_blank else ""
@@ -416,6 +512,8 @@ def _render_billet_a4_html(
             .replace("__SECRET__", f"<b>MNEMONIC</b><br>{esc(c['mnemonic'])}")
             .replace("__FOND_CSS__", fond_css)
             .replace("__FOND_CLASS__", fond_class)
+            .replace("__TINT_SOLID__", tint_solid)
+            .replace("__TINT_OVERLAY__", tint_overlay)
             .replace("__LOGO_IMG__", logo_img)
             .replace("__AMOUNT_CLASS__", amount_class)
             .replace("__AMOUNT_TEXT__", amount_text)
@@ -433,6 +531,7 @@ def _render_billet_a4_html(
         _BILLET_A4_PAGE
         .replace("__COUNT__", str(len(cells)))
         .replace("__CELLS__", "\n".join(cell_blocks))
+        .replace("__VERSO__", verso_html)
     )
 
 
@@ -892,6 +991,8 @@ async def generate_billet(
     npub: Optional[str] = Query(None),
     fond_url: Optional[str] = Query(None),
     logo_url: Optional[str] = Query(None),
+    verso: Optional[str] = Query(None),
+    verso_text: Optional[str] = Query(None),
 ):
     """Planche A4 paysage de 6 Ğ1Billets papier imprimables — remplace le
     moteur graphique G1BILLET. RECTO SEUL : 6 clés jetables indépendantes,
@@ -903,6 +1004,12 @@ async def generate_billet(
 
     unit : zen|g1 (défaut zen) — unité du montant annoncé/transféré.
     1 Ẑen = 0.1 Ğ1 (convention UPlanet ORIGIN, cf. `nostr_PAY.sh`/`zen_send.sh`).
+
+    verso : "1" pour ajouter une page verso à l'impression, RÉPÉTÉE dans une
+    grille identique à la planche recto (même 2×3, mêmes dimensions de
+    cellule) — après découpe, chaque billet porte ce texte au dos. Texte
+    "contrat" court (~550 car. max, imprimé petit, horizontal) + QR de soutien
+    OpenCollective. `verso_text` (optionnel) remplace le texte par défaut.
     """
     if request.method == "POST":
         form = await request.form()
@@ -910,12 +1017,16 @@ async def generate_billet(
         def _f(k: str, default: str = "") -> str:
             return str(form.get(k) or default)
 
-        amount   = amount   if amount is not None else float(_f("amount", "0") or "0")
-        unit     = unit     or _f("unit", "zen")
-        mode     = mode     or _f("mode", "manual")
-        npub     = npub     or (_f("npub") or None)
-        fond_url = fond_url or (_f("fond_url") or None)
-        logo_url = logo_url or (_f("logo_url") or None)
+        amount     = amount     if amount is not None else float(_f("amount", "0") or "0")
+        unit       = unit       or _f("unit", "zen")
+        mode       = mode       or _f("mode", "manual")
+        npub       = npub       or (_f("npub") or None)
+        fond_url   = fond_url   or (_f("fond_url") or None)
+        logo_url   = logo_url   or (_f("logo_url") or None)
+        verso      = verso      or (_f("verso") or None)
+        verso_text = verso_text or (_f("verso_text") or None)
+
+    verso_enabled = str(verso or "").strip().lower() in ("1", "true", "yes", "on")
 
     mode = (mode or "manual").strip().lower()
     if mode not in ("manual", "auto"):
@@ -1019,8 +1130,16 @@ async def generate_billet(
         visitor_ip,
     )
 
+    verso_html = ""
+    if verso_enabled:
+        text = (verso_text or "").strip()[:550] or _BILLET_VERSO_DEFAULT_TEXT
+        oc_png, _ = await asyncio.to_thread(_generate_qr_png, "https://opencollective.com/monnaie-libre", 3, "M")
+        oc_qr_url = ("data:image/png;base64," + base64.b64encode(oc_png).decode()) if oc_png else ""
+        verso_html = _render_billet_verso_html(text=text, qr_url=oc_qr_url)
+
     page = _render_billet_a4_html(
         amount=amount, cells=cells, unit_label=unit_label, fond_url=fond_url, logo_url=logo_url,
+        verso_html=verso_html,
     )
     cells = None
     return HTMLResponse(page)
