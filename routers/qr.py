@@ -33,7 +33,7 @@ POST /qr/postcard  (multipart, mêmes champs)
                                ligne \\n\\n séparent les paragraphes)
   footer      str             Signature / ligne de pied verso
 
-GET  /qr/billet?amount=5[&unit=zen|g1][&mode=manual|auto][&npub=][&fond_url=][&logo_url=]
+GET  /qr/billet?amount=5[&unit=zen|g1][&fond_url=][&logo_url=][&verso=1][&verso_text=]
 POST /qr/billet  (multipart, mêmes champs)
     → Planche A4 paysage de 6 Ğ1Billets papier imprimables (2 colonnes ×
       3 lignes) — remplace l'ancien moteur graphique G1BILLET (dépôt
@@ -43,21 +43,16 @@ POST /qr/billet  (multipart, mêmes champs)
       sur disque : le secret n'existe que dans la réponse HTTP, à imprimer
       puis oublier. RECTO SEUL : le secret est imprimé en bande verticale
       sur le bord gauche de chaque billet — à replier vers l'arrière et
-      scotcher avant distribution (pas de verso séparé).
+      scotcher avant distribution. Portefeuilles TOUJOURS vierges à la
+      génération (pas de débit automatique — mode `auto` retiré le
+      2026-09-24, peu fiable en pratique) : financement manuel après coup,
+      par qui veut, vers les G1PUB imprimés.
   amount    float  requis   Montant annoncé par billet, dans l'unité `unit`
-                              (× 6 au total). 0 → billets "vierges" : la
-                              zone montant reste blanche à l'impression,
-                              inscrite à la main lors du remplissage
-                              (mode auto refusé avec amount=0)
+                              (× 6 au total, affichage seul). 0 → billets
+                              "vierges" : la zone montant reste blanche à
+                              l'impression, inscrite à la main
   unit      str    zen|g1 (défaut zen) — unité de `amount`. 1 Ẑen = 0.1 Ğ1
                               (convention UPlanet ORIGIN)
-  mode      str    manual|auto (défaut manual)
-                            manual : aucun transfert — l'utilisateur envoie
-                              lui-même les fonds vers les G1PUB imprimés
-                            auto   : débite immédiatement `amount` (unité
-                              `unit`) vers CHACUN des 6 billets, depuis le
-                              MULTIPASS authentifié (NIP-42 via `npub`)
-  npub      str    requis en mode auto (npub/hex authentifié NIP-42)
   fond_url  str    optionnel  Image de fond des billets (sinon fond neutre).
                               Par défaut coté client : bannière du profil
                               NOSTR connecté (kind 0 `banner`)
@@ -86,9 +81,6 @@ from fastapi import APIRouter, Request, BackgroundTasks, Query, HTTPException
 from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
 
 from core.config import settings
-from utils.security import find_user_directory_by_hex
-from services.nostr import verify_nostr_auth
-from services.g1_squid import get_g1_balance_native
 from utils.crypto import npub_to_hex
 
 logger = logging.getLogger(__name__)
@@ -696,47 +688,6 @@ async def _gen_billet_key() -> dict:
     return keydata
 
 
-async def _pay_billet(keyfile: Path, g1_amount: float, g1pub: str, note: str) -> tuple[bool, str]:
-    """Transfère `g1_amount` Ğ1 (déjà converti) vers g1pub via nostr_PAY.sh.
-    Retourne (succès, détail)."""
-    try:
-        pay_proc = await asyncio.create_subprocess_exec(
-            str(settings.TOOLS_PATH / "nostr_PAY.sh"), str(keyfile), f"{g1_amount:.2f}", g1pub,
-            note,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-        )
-        pay_out, _ = await pay_proc.communicate()
-    except Exception as e:
-        return False, str(e)
-    if pay_proc.returncode != 0:
-        return False, pay_out.decode()[-300:]
-    return True, ""
-
-
-async def _resolve_auto_sender(npub: str) -> tuple[Path, str]:
-    """Vérifie NIP-42 + résout le fichier .secret.dunikey du MULTIPASS connecté.
-    Lève HTTPException(status_code, detail) en cas d'échec — à traduire en
-    JSONResponse par l'appelant. Retourne (keyfile, g1pub_émetteur — "" si
-    introuvable, auquel cas le contrôle de solde en amont est simplement
-    sauté, pas bloquant)."""
-    is_hex = len(npub) == 64 and all(c in "0123456789abcdefABCDEF" for c in npub)
-    sender_hex = npub.lower() if is_hex else npub_to_hex(npub)
-    if not sender_hex or len(sender_hex) != 64:
-        raise HTTPException(status_code=400, detail="Clé Nostr invalide")
-
-    auth_ok = await verify_nostr_auth(sender_hex)
-    if not auth_ok:
-        raise HTTPException(status_code=401, detail="Authentification NIP-42 requise")
-
-    user_dir = find_user_directory_by_hex(sender_hex)  # lève déjà HTTPException 404
-    keyfile = user_dir / ".secret.dunikey"
-    if not keyfile.is_file():
-        raise HTTPException(status_code=404, detail="Clé du MULTIPASS introuvable")
-
-    g1pub_file = user_dir / "G1PUBNOSTR"
-    sender_g1pub = g1pub_file.read_text().strip() if g1pub_file.is_file() else ""
-    return keyfile, sender_g1pub
-
 
 _BILLET_EXPIRY_DAYS = 90
 
@@ -987,8 +938,6 @@ async def generate_billet(
     background_tasks: BackgroundTasks,
     amount: Optional[float] = Query(None),
     unit: Optional[str] = Query(None),
-    mode: Optional[str] = Query(None),
-    npub: Optional[str] = Query(None),
     fond_url: Optional[str] = Query(None),
     logo_url: Optional[str] = Query(None),
     verso: Optional[str] = Query(None),
@@ -997,13 +946,15 @@ async def generate_billet(
     """Planche A4 paysage de 6 Ğ1Billets papier imprimables — remplace le
     moteur graphique G1BILLET. RECTO SEUL : 6 clés jetables indépendantes,
     secret en vertical sur le bord gauche de chaque billet (à replier vers
-    l'arrière et scotcher). En mode `auto`, débite immédiatement `amount`
-    (dans l'unité choisie) vers CHACUN des 6 billets, depuis le MULTIPASS
-    authentifié — la ressource (clés + page) est toujours prête AVANT ce
-    transfert irréversible.
+    l'arrière et scotcher). Portefeuilles TOUJOURS vierges à la génération —
+    pas de débit automatique depuis un MULTIPASS (mode `auto` retiré :
+    peu fiable en pratique, cf. échecs constatés en production le 2026-09-24).
+    Financement manuel après coup, par qui veut, comme pour n'importe quel
+    portefeuille Ğ1.
 
-    unit : zen|g1 (défaut zen) — unité du montant annoncé/transféré.
-    1 Ẑen = 0.1 Ğ1 (convention UPlanet ORIGIN, cf. `nostr_PAY.sh`/`zen_send.sh`).
+    unit : zen|g1 (défaut zen) — unité du montant annoncé (affichage seul,
+    aucun transfert n'est déclenché par cet endpoint).
+    1 Ẑen = 0.1 Ğ1 (convention UPlanet ORIGIN).
 
     verso : "1" pour ajouter une page verso à l'impression, RÉPÉTÉE dans une
     grille identique à la planche recto (même 2×3, mêmes dimensions de
@@ -1019,8 +970,6 @@ async def generate_billet(
 
         amount     = amount     if amount is not None else float(_f("amount", "0") or "0")
         unit       = unit       or _f("unit", "zen")
-        mode       = mode       or _f("mode", "manual")
-        npub       = npub       or (_f("npub") or None)
         fond_url   = fond_url   or (_f("fond_url") or None)
         logo_url   = logo_url   or (_f("logo_url") or None)
         verso      = verso      or (_f("verso") or None)
@@ -1028,9 +977,6 @@ async def generate_billet(
 
     verso_enabled = str(verso or "").strip().lower() in ("1", "true", "yes", "on")
 
-    mode = (mode or "manual").strip().lower()
-    if mode not in ("manual", "auto"):
-        mode = "manual"
     unit = (unit or "zen").strip().lower()
     if unit not in ("zen", "g1"):
         unit = "zen"
@@ -1042,41 +988,6 @@ async def generate_billet(
         amount = 0.0
     if amount < 0:
         return JSONResponse({"error": "Montant invalide"}, status_code=400)
-    if mode == "auto" and amount <= 0:
-        return JSONResponse({"error": "Montant requis pour le mode automatique (ou choisissez un portefeuille vierge en mode manuel)"}, status_code=400)
-
-    # amount == 0 → billets "vierges" : la zone montant reste blanche à
-    # l'impression, à remplir à la main lors de l'activation.
-    g1_amount = amount if unit == "g1" else amount / 10
-
-    # ── Mode automatique : résoudre le MULTIPASS authentifié UNE SEULE FOIS ──
-    keyfile: Optional[Path] = None
-    if mode == "auto":
-        if not npub:
-            return JSONResponse({"error": "npub requis pour le mode automatique"}, status_code=400)
-        try:
-            keyfile, sender_g1pub = await _resolve_auto_sender(npub)
-        except HTTPException as e:
-            return JSONResponse({"error": e.detail}, status_code=e.status_code)
-
-        # Contrôle de solde AVANT de générer la moindre clé : évite de créer
-        # 6 portefeuilles jetables puis d'échouer 6 fois de suite si le
-        # MULTIPASS ne peut de toute façon pas couvrir le total.
-        total_required_g1 = g1_amount * _BILLET_A4_COUNT
-        try:
-            bal = await get_g1_balance_native(sender_g1pub) if sender_g1pub else None
-            available_g1 = (bal.get("balances", {}).get("total", 0) / 100) if bal else None
-        except Exception as e:
-            logger.warning("billet auto — vérification de solde impossible: %s", e)
-            available_g1 = None
-        if available_g1 is not None and available_g1 < total_required_g1:
-            return JSONResponse({
-                "error": (
-                    f"Solde insuffisant : {available_g1:.2f} Ğ1 disponibles, "
-                    f"{total_required_g1:.2f} Ğ1 nécessaires pour financer les "
-                    f"{_BILLET_A4_COUNT} billets ({amount:g} {unit_label} × {_BILLET_A4_COUNT})"
-                ),
-            }, status_code=402)
 
     visitor_ip = request.client.host if request.client else "?"
 
@@ -1097,16 +1008,6 @@ async def generate_billet(
         nsec = None
         expires_str = datetime.fromtimestamp(expires_ts).strftime("%d/%m/%Y") if expires_ts else ""
 
-        status, status_error = "", False
-        if mode == "auto":
-            ok, detail = await _pay_billet(
-                keyfile, g1_amount, g1pub, f"UPLANET:BILLET {amount:g} {unit_label}",
-            )
-            status = f"{amount:g} {unit_label} transférés" if ok else "⚠️ transfert échoué"
-            status_error = not ok
-            if not ok:
-                logger.error("billet a4x6 — paiement échoué pour %s: %s", g1pub[:12], detail)
-
         pub_png, _ = await asyncio.to_thread(_generate_qr_png, g1pub, 3, "M")
         pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
 
@@ -1121,12 +1022,11 @@ async def generate_billet(
         cells.append({
             "g1pub": g1pub, "mnemonic": mnemonic, "npub": npub, "expires_str": expires_str,
             "pub_qr_url": pub_qr_url, "profile_qr_url": profile_qr_url,
-            "status": status, "status_error": status_error,
         })
 
     background_tasks.add_task(
         _notify_captain,
-        f"Planche Ğ1Billet générée — {len(cells)}×{amount:g} {unit_label} (mode {mode})",
+        f"Planche Ğ1Billet générée — {len(cells)}×{amount:g} {unit_label}",
         visitor_ip,
     )
 
