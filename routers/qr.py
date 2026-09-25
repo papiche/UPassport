@@ -83,7 +83,6 @@ from fastapi import APIRouter, Request, BackgroundTasks, Query, HTTPException
 from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
 
 from core.config import settings
-from utils.crypto import npub_to_hex
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -349,10 +348,12 @@ _BILLET_A4_PAGE = """<!doctype html>
               color:var(--green);letter-spacing:1.5px;text-transform:uppercase}
   .vcell .vtext{font-family:Georgia,serif;font-size:6.3pt;line-height:1.45;
               color:#444;max-width:112mm}
-  .vcell .vsupport{display:flex;align-items:center;gap:2mm;margin-top:.5mm}
-  .vcell .vsupport img{width:12mm;height:12mm;image-rendering:pixelated;background:#fff;
+  .vcell .vsupport{display:flex;align-items:flex-start;justify-content:center;gap:7mm;margin-top:.5mm}
+  .vcell .vsupport-item{display:flex;flex-direction:column;align-items:center;gap:1mm}
+  .vcell .vsupport-item img{width:14mm;height:14mm;image-rendering:pixelated;background:#fff;
               padding:.6mm;border-radius:.8mm;border:1px solid var(--gold)}
-  .vcell .vsupport span{font-family:monospace;font-size:5.3pt;color:#777}
+  .vcell .vsupport-item span{font-family:monospace;font-size:5.3pt;color:#777;
+              max-width:34mm;line-height:1.35;display:inline-block}
 
   @media print{
     .no-print{display:none!important}
@@ -421,25 +422,27 @@ _BILLET_VERSO_CELL = """<div class="vcell">
   <div class="vstamp">☀️ Banque Solarpunk</div>
   <div class="vtext">__TEXT__</div>
   <div class="vsupport">
-    <img src="__QR__" alt="QR OpenCollective">
-    <span>opencollective.com/monnaie-libre</span>
+    <div class="vsupport-item"><img src="__OC_QR__" alt="QR OpenCollective"><span>Vos € deviennent vos Ẑen MULTIPASS (OPEX)<br>et vos ẐEN ZenCard (CAPEX) · opencollective.com/monnaie-libre</span></div>
+    <div class="vsupport-item"><img src="__ZELKOVA_QR__" alt="QR Zelkova"><span>z.astroport.one</span></div>
   </div>
 </div>"""
 
 
-def _render_billet_verso_html(text: str, qr_url: str) -> str:
+def _render_billet_verso_html(text: str, qr_url: str, zelkova_qr_url: str) -> str:
     """Grille verso optionnelle — MÊME grille (colonnes/lignes/espacement)
     que la planche recto, texte "contrat" identique répété dans les 6
     cellules : une fois imprimée en duplex et découpée, chaque billet porte
     ce texte au dos, quel que soit le sens du retournement duplex. Texte
     horizontal (une bande tournée -90° a été testée puis abandonnée : moins
-    lisible)."""
+    lisible). Deux QR de soutien : OpenCollective (financer le G1FabLab) et
+    Zelkova (le wallet Ẑen — z.astroport.one)."""
     esc = html_lib.escape
     text_html = esc(text).replace("\n\n", "<br><br>").replace("\n", "<br>")
     cell = (
         _BILLET_VERSO_CELL
         .replace("__TEXT__", text_html)
-        .replace("__QR__", qr_url)
+        .replace("__OC_QR__", qr_url)
+        .replace("__ZELKOVA_QR__", zelkova_qr_url)
     )
     cells = "\n".join([cell] * _BILLET_A4_COUNT)
     return f'<div class="sheet verso-sheet">\n{cells}\n</div>'
@@ -1084,12 +1087,9 @@ async def generate_billet(
         pub_png, _ = await asyncio.to_thread(_generate_qr_png, g1pub, 3, "M")
         pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
 
-        # QR vers le profil NOSTR (kind 0) du compte jumeau — même page que
-        # partout ailleurs dans UPlanet/earth (nostr_profile_viewer.html?hex=),
-        # servie par UPassport lui-même sous /earth (54321.py).
-        profile_hex = npub_to_hex(npub) or ""
-        profile_url = f"{str(settings.uSPOT).rstrip('/')}/earth/nostr_profile_viewer.html?hex={profile_hex}"
-        profile_png, _ = await asyncio.to_thread(_generate_qr_png, profile_url, 4, "M")
+        # QR "profil" = le npub jumeau brut (PAS un lien web) : ce QR est lu
+        # par des wallets NOSTR (Zelkova...) qui attendent une clé, pas une URL.
+        profile_png, _ = await asyncio.to_thread(_generate_qr_png, npub, 4, "M")
         profile_qr_url = ("data:image/png;base64," + base64.b64encode(profile_png).decode()) if profile_png else ""
 
         cells.append({
@@ -1108,7 +1108,9 @@ async def generate_billet(
         text = (verso_text or "").strip()[:550] or _BILLET_VERSO_DEFAULT_TEXT
         oc_png, _ = await asyncio.to_thread(_generate_qr_png, "https://opencollective.com/monnaie-libre", 3, "M")
         oc_qr_url = ("data:image/png;base64," + base64.b64encode(oc_png).decode()) if oc_png else ""
-        verso_html = _render_billet_verso_html(text=text, qr_url=oc_qr_url)
+        zelkova_png, _ = await asyncio.to_thread(_generate_qr_png, "https://z.astroport.one", 3, "M")
+        zelkova_qr_url = ("data:image/png;base64," + base64.b64encode(zelkova_png).decode()) if zelkova_png else ""
+        verso_html = _render_billet_verso_html(text=text, qr_url=oc_qr_url, zelkova_qr_url=zelkova_qr_url)
 
     page = _render_billet_a4_html(
         amount=amount, cells=cells, unit_label=unit_label, fond_url=fond_url, logo_url=logo_url,
