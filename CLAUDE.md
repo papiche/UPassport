@@ -128,6 +128,26 @@ pile DAV avec IPFS mocké et chiffrement réel).
 kind 1063/21/22) a été **supprimée** — elle n'avait rien à voir avec ce cloud
 chiffré. `SIMPLE_UI_ROUTES` dans `routers/system.py` ne la déclare plus.
 
+### cloud_import.py — Import en masse (script CLI, hors API)
+Recopie un répertoire local (archives, export NextCloud…) vers le cloud
+chiffré d'un MULTIPASS DÉJÀ EXISTANT sur cette station — même chemin de
+chiffrement/index/déclenchement FaceID qu'un `PUT /dav/…` (délègue à
+`services/cloud_storage.py::ingest_plaintext()`, extraite de
+`_commit_plaintext()` pour être réutilisable hors DAV). Pas d'auth NOSTR :
+tourne directement sur la station, avec l'accès filesystem local comme
+frontière de confiance — donc pensé pour un usage admin/cron, pas exposé en HTTP.
+
+```bash
+python3 cloud_import.py <email> <répertoire> [--dest-prefix /Photos/Import] [--dry-run] [--quiet]
+```
+
+Idempotent via un cache local (`~/.zen/tmp/cloud_import/<sha256(email)[:16]>.json`,
+`{mtime, size, dest_path}` par fichier source) — un fichier inchangé est
+ignoré sans relire l'index ni recalculer de hash, essentiel pour un cron
+répété sur des dizaines de milliers de photos. Cache perdu/absent → repli sur
+`sha256_plain` de l'entrée d'index existante au même chemin (pas de
+ré-import, pas de nouvelle clé/CID/job FaceID pour un fichier déjà importé).
+
 ### system.py
 - `GET  /` — Statut station UPlanet (avec lat/lon/deg pour grille UMAP)
 - `GET  /health` — Health check
@@ -175,7 +195,14 @@ chiffré. `SIMPLE_UI_ROUTES` dans `routers/system.py` ne la déclare plus.
 `Astroport.ONE/IA/bro/satellite_face_matcher.py`, payload
 `{name, pubkey, timestamp, source_path, bbox}` — les deux derniers champs
 depuis 2026-09-20, absents sur les points catalogués avant) :
-- `GET  /mailjet/faces` — Liste `[{id, name, pubkey, timestamp, has_photo}]`
+- `GET  /mailjet/faces` — Liste `[{id, name, pubkey, timestamp, has_photo, maybe}]`.
+  `maybe` (depuis 2026-09-25, pour les archives longue durée) : sur une entrée
+  SANS pubkey, `{name, pubkey, score}` du visage déjà nommé le plus proche par
+  cosinus quand le score tombe dans `[0.55, 0.82[` (sous le seuil de match
+  automatique `satellite_face_matcher.MATCH_THRESHOLD`, mais assez proche pour
+  être la même personne à un autre âge). Calculé serveur (scroll Qdrant
+  `with_vector: true`, `_cosine()` en Python pur) — les vecteurs ne sont
+  jamais renvoyés au client. UI : bandeau de suggestion dans `cloud.html`
 - `POST /mailjet/faces-edit` — Nomme un visage / l'associe à un pubkey (64 hex)
 - `POST /mailjet/faces-delete` — Oublie un visage (vecteur supprimé)
 - `GET  /mailjet/faces/thumbnail?point_id=…` — Miniature JPEG recadrée sur

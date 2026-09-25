@@ -838,6 +838,79 @@ def _extract_gps_umap(plaintext: bytes) -> Optional[Dict[str, Any]]:
             "umap_key": f"{lat:.2f},{lon:.2f}"}
 
 
+def ingest_plaintext(email: str, path: str, plaintext: bytes,
+                      content_type: Optional[str] = None,
+                      target_pubkey: Optional[str] = None,
+                      target_name: Optional[str] = None) -> Dict[str, Any]:
+    """Chiffre `plaintext`, le pousse sur IPFS, met à jour index+keyring de
+    `email`, et déclenche FaceID si c'est une image — le coeur de
+    `UCloudFileResource._commit_plaintext()`, extrait pour être appelable hors
+    du contexte DAV/wsgidav (import en masse depuis un répertoire local, cf.
+    `cloud_import.py`). Retourne l'entrée d'index créée/mise à jour.
+
+    `path` est normalisé ici (l'appelant DAV le fait déjà via la résolution de
+    ressource ; un appelant hors-DAV peut passer un chemin brut)."""
+    path = normalize_path(path)
+
+    # Clé AES-256 ALÉATOIRE PAR FICHIER. Jamais de clé unique par
+    # utilisateur : la compromission d'un fichier partagé ne doit pas donner
+    # accès à tout le cloud.
+    key_hex = os.urandom(32).hex()
+    payload, iv_hex = uenc_codec.encrypt_aes256gcm(plaintext, key_hex)
+
+    # Upload du blob DÉJÀ CHIFFRÉ. IPFS ne voit jamais le clair.
+    cid = ipfs_add_bytes(payload, filename=f"{base_name(path)}.uenc")
+
+    if not content_type:
+        content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+
+    # GPS EXIF — extrait ICI (clair déjà en main, avant chiffrement), jamais
+    # via le Brain : aucune coordonnée ne doit transiter par un job d'analyse
+    # déportable. Best effort, silencieux si absent/illisible.
+    geo = _extract_gps_umap(plaintext) if content_type.startswith("image/") else None
+
+    now = int(time.time())
+    with index_lock(email):
+        idx = load_index(email)
+        keyring = load_keyring(email)
+        previous = idx["entries"].get(path, {})
+
+        ensure_parent_dirs(idx, path)
+        entry = {
+            "type": "file",
+            "cid": cid,
+            "enc": ENC_LABEL,
+            "iv_hex": iv_hex,
+            "mime": content_type,
+            "size_plain": len(plaintext),
+            "size_cid": len(payload),
+            "sha256_plain": hashlib.sha256(plaintext).hexdigest(),
+            "mtime": now,
+            "created_at": previous.get("created_at", now),
+        }
+        if geo:
+            entry["geo"] = geo
+            logger.info("ucloud: GPS EXIF %s → %s (umap=%s)",
+                         path, (geo["lat"], geo["lon"]), geo["umap_key"])
+        idx["entries"][path] = entry
+        keyring[cid] = {"key_hex": key_hex}
+        # Une clé devenue orpheline (ancien CID remplacé) est retirée.
+        keyring = prune_keyring(idx, keyring)
+        keyring[cid] = {"key_hex": key_hex}
+
+        save_keyring(email, keyring)
+        save_index(email, idx)
+
+    logger.info("ucloud: ingest %s → cid=%s (%d octets clairs / %d chiffrés) [%s]",
+                 path, cid, len(plaintext), len(payload), email)
+
+    if content_type.startswith("image/"):
+        _trigger_faceid_analysis(email, path, cid, key_hex,
+                                  target_pubkey=target_pubkey, target_name=target_name)
+
+    return entry
+
+
 def _trigger_faceid_analysis(email: str, path: str, cid: str, key_hex: str,
                               target_pubkey: Optional[str] = None,
                               target_name: Optional[str] = None) -> None:
@@ -1158,80 +1231,36 @@ class UCloudFileResource(DAVNonCollection):
         return _EncryptingWriteBuffer(self)
 
     def _commit_plaintext(self, plaintext: bytes) -> None:
-        """Chiffre, pousse sur IPFS, met à jour index + keyring atomiquement."""
-        # Clé AES-256 ALÉATOIRE PAR FICHIER. Jamais de clé unique par
-        # utilisateur : la compromission d'un fichier partagé ne doit pas donner
-        # accès à tout le cloud.
-        key_hex = os.urandom(32).hex()
-        payload, iv_hex = uenc_codec.encrypt_aes256gcm(plaintext, key_hex)
+        """Chiffre, pousse sur IPFS, met à jour index + keyring atomiquement.
 
-        # Upload du blob DÉJÀ CHIFFRÉ. IPFS ne voit jamais le clair.
-        cid = ipfs_add_bytes(payload, filename=f"{self.name}.uenc")
-
+        Coeur de la logique délégué à `ingest_plaintext()` (module-level) —
+        réutilisé tel quel par `cloud_import.py` pour l'import en masse
+        (NextCloud, archives) hors du contexte DAV/wsgidav."""
         content_type = getattr(self, "_pending_content_type", None)
-        if not content_type:
-            content_type = mimetypes.guess_type(self.name)[0] or "application/octet-stream"
 
-        # GPS EXIF — extrait ICI (clair déjà en main, avant chiffrement),
-        # jamais via le Brain : aucune coordonnée ne doit transiter par un job
-        # d'analyse déportable. Best effort, silencieux si absent/illisible.
-        geo = _extract_gps_umap(plaintext) if content_type.startswith("image/") else None
+        # Enrôlement supervisé (FaceCloud "Mon visage" / "Photos d'un
+        # ami") : le client peut cibler explicitement une identité via ces
+        # deux en-têtes, plutôt que de laisser l'auto-détection créer un
+        # Inconnu_xxx. Absents = comportement automatique inchangé.
+        target_pubkey = self.environ.get("HTTP_X_FACEID_TARGET_PUBKEY", "").strip().lower()
+        target_name = self.environ.get("HTTP_X_FACEID_TARGET_NAME", "").strip()
+        if len(target_pubkey) != 64 or not all(c in "0123456789abcdef" for c in target_pubkey):
+            target_pubkey = ""
 
-        now = int(time.time())
-        with index_lock(self.email):
-            idx = load_index(self.email)
-            keyring = load_keyring(self.email)
-            previous = idx["entries"].get(self.path, {})
-
-            ensure_parent_dirs(idx, self.path)
-            entry = {
-                "type": "file",
-                "cid": cid,
-                "enc": ENC_LABEL,
-                "iv_hex": iv_hex,
-                "mime": content_type,
-                "size_plain": len(plaintext),
-                "size_cid": len(payload),
-                "sha256_plain": hashlib.sha256(plaintext).hexdigest(),
-                "mtime": now,
-                "created_at": previous.get("created_at", now),
-            }
-            if geo:
-                entry["geo"] = geo
-                logger.info("ucloud: GPS EXIF %s → %s (umap=%s)",
-                             self.path, (geo["lat"], geo["lon"]), geo["umap_key"])
-            idx["entries"][self.path] = entry
-            keyring[cid] = {"key_hex": key_hex}
-            # Une clé devenue orpheline (ancien CID remplacé) est retirée.
-            keyring = prune_keyring(idx, keyring)
-            keyring[cid] = {"key_hex": key_hex}
-
-            save_keyring(self.email, keyring)
-            save_index(self.email, idx)
+        entry = ingest_plaintext(
+            self.email, self.path, plaintext,
+            content_type=content_type,
+            target_pubkey=target_pubkey or None,
+            target_name=target_name or None,
+        )
 
         self.entry = entry
         self._was_new = False
         self.provider._invalidate(self.environ)
         logger.info(
             "ucloud: PUT %s → cid=%s (%d octets clairs / %d chiffrés)",
-            self.path,
-            cid,
-            len(plaintext),
-            len(payload),
+            self.path, entry["cid"], entry["size_plain"], entry["size_cid"],
         )
-
-        if content_type.startswith("image/"):
-            # Enrôlement supervisé (FaceCloud "Mon visage" / "Photos d'un
-            # ami") : le client peut cibler explicitement une identité via ces
-            # deux en-têtes, plutôt que de laisser l'auto-détection créer un
-            # Inconnu_xxx. Absents = comportement automatique inchangé.
-            target_pubkey = self.environ.get("HTTP_X_FACEID_TARGET_PUBKEY", "").strip().lower()
-            target_name = self.environ.get("HTTP_X_FACEID_TARGET_NAME", "").strip()
-            if len(target_pubkey) != 64 or not all(c in "0123456789abcdef" for c in target_pubkey):
-                target_pubkey = ""
-            _trigger_faceid_analysis(self.email, self.path, cid, key_hex,
-                                      target_pubkey=target_pubkey or None,
-                                      target_name=target_name or None)
 
     def end_write(self, *, with_errors):
         """Notification post-PUT. En cas d'erreur, on annule l'entrée créée."""

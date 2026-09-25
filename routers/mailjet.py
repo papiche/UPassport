@@ -1327,6 +1327,24 @@ async def get_mailjet_nostr_events(
 
 _QDRANT_URL = "http://localhost:6333"
 
+# Même seuil que Astroport.ONE/IA/bro/satellite_face_matcher.py::MATCH_THRESHOLD
+# (correspondance automatique) — un point sous ce score reste "à nommer" même
+# s'il s'agit en réalité de la même personne (visage vieilli, angle différent,
+# éclairage...). _MAYBE_SAME_MIN borne en dessous : sur des archives de
+# plusieurs décennies, une même personne à des âges très différents peut
+# tomber nettement sous 0.82 sans que ce soit pour autant quelqu'un d'autre —
+# la suggestion reste une PROPOSITION que l'utilisateur confirme (miniature à
+# l'appui), jamais un ré-étiquetage automatique.
+_AUTO_MATCH_THRESHOLD = 0.82
+_MAYBE_SAME_MIN = 0.55
+
+
+def _cosine(a: list, b: list) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(x * x for x in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
 
 def _qdrant_headers() -> dict:
     """Clé d'API Qdrant — même source que IA/bro/rag.py::_qdrant_client()."""
@@ -1405,7 +1423,15 @@ async def get_mailjet_faces(
     email: Optional[str] = Query(default=None),
     token: Optional[str] = Query(default=None),
 ):
-    """Liste les visages catalogués — [{id, name, pubkey, timestamp}]."""
+    """Liste les visages catalogués — [{id, name, pubkey, timestamp, maybe}].
+
+    `maybe` (rapprochement pour archives longue durée, cf. cloud.html) : pour
+    une entrée SANS pubkey, le point déjà nommé le plus proche par cosinus
+    quand son score tombe entre _MAYBE_SAME_MIN et _AUTO_MATCH_THRESHOLD —
+    ex. la même personne mais photographiée 20 ans plus tôt/plus tard, dont
+    l'embedding a assez dérivé pour ne pas matcher automatiquement mais reste
+    reconnaissable. Calculé ICI, les vecteurs eux-mêmes ne quittent jamais ce
+    process (récupérés avec `with_vector`, jamais renvoyés au client)."""
     email, err = _faces_auth(request, email, token)
     if err:
         return err
@@ -1415,11 +1441,11 @@ async def get_mailjet_faces(
         return JSONResponse({"faces": [], "reason": "no_hex"})
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 f"{_QDRANT_URL}/collections/{collection}/points/scroll",
                 headers=_qdrant_headers(),
-                json={"limit": 500, "with_payload": True, "with_vector": False},
+                json={"limit": 2000, "with_payload": True, "with_vector": True},
             )
     except Exception as exc:
         logger.warning("Qdrant injoignable pour %s : %s", collection, exc)
@@ -1432,18 +1458,42 @@ async def get_mailjet_faces(
         logger.warning("Qdrant scroll %s → HTTP %s", collection, resp.status_code)
         return JSONResponse({"faces": [], "reason": "qdrant_error"})
 
+    points = resp.json().get("result", {}).get("points", [])
+    named_vectors = []   # [(name, pubkey, vector), ...] — pour le rapprochement
     faces = []
-    for point in resp.json().get("result", {}).get("points", []):
+    for point in points:
         payload = point.get("payload") or {}
+        pubkey = payload.get("pubkey") or ""
+        vector = point.get("vector")
+        if pubkey and isinstance(vector, list):
+            named_vectors.append((payload.get("name") or "", pubkey, vector))
         faces.append({
             "id":        point.get("id"),
             "name":      payload.get("name") or "",
-            "pubkey":    payload.get("pubkey") or "",
+            "pubkey":    pubkey,
             "timestamp": payload.get("timestamp") or "",
             # Présent seulement pour les points catalogués après 2026-09-20 —
             # sans lui, /mailjet/faces/thumbnail n'a rien à recadrer/déchiffrer.
             "has_photo": bool(payload.get("source_path")),
+            "_vector":   vector,   # retiré avant la sérialisation finale, cf. plus bas
         })
+
+    if named_vectors:
+        for f in faces:
+            if f["pubkey"] or not isinstance(f["_vector"], list):
+                continue
+            best_name, best_pubkey, best_score = "", "", 0.0
+            for name, pubkey, vec in named_vectors:
+                score = _cosine(f["_vector"], vec)
+                if score > best_score:
+                    best_name, best_pubkey, best_score = name, pubkey, score
+            if _MAYBE_SAME_MIN <= best_score < _AUTO_MATCH_THRESHOLD:
+                f["maybe"] = {"name": best_name, "pubkey": best_pubkey,
+                              "score": round(best_score, 3)}
+
+    for f in faces:
+        f.pop("_vector", None)
+
     faces.sort(key=lambda f: (not f["pubkey"], f["name"].lower()))
     return JSONResponse({"faces": faces})
 
