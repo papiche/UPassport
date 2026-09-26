@@ -16,7 +16,7 @@ from core.middleware import RateLimitMiddleware
 from a2wsgi import WSGIMiddleware
 from services.cloud_storage import build_wsgi_dav_app
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin, calendar
 
 # Setup logging
 setup_logging()
@@ -91,6 +91,7 @@ app.include_router(skills.router)
 app.include_router(nostr_sign.router)
 app.include_router(zine.router)
 app.include_router(node_admin.router)
+app.include_router(calendar.router)
 
 if __name__ == "__main__":
     import uvicorn

@@ -270,6 +270,17 @@ async def scan_qr(
                     _obs_extra["error"] = body["error"]
         except Exception:
             pass
+        if _obs_success:
+            # Hook additif, fire-and-forget : si une invitation FaceCloud
+            # attendait CET email (routers/mailjet.py::post_mailjet_faces_invite),
+            # copie les photos correspondantes dans le cloud chiffré du compte
+            # qui vient d'être créé. Jamais bloquant, jamais d'exception
+            # possible ici — cf. le try/except interne de la fonction.
+            try:
+                from routers.mailjet import process_pending_face_claims
+                asyncio.create_task(process_pending_face_claims(_obs_email))
+            except Exception:
+                pass
         return result
     except HTTPException as exc:
         _obs_status = exc.status_code

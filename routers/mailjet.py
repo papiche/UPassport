@@ -14,6 +14,7 @@ import os
 import re
 import secrets
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional
@@ -1498,6 +1499,80 @@ async def get_mailjet_faces(
     return JSONResponse({"faces": faces})
 
 
+async def _fetch_face_point(collection: str, point_id: str) -> Optional[dict]:
+    """Retourne le payload Qdrant d'UN point (name/pubkey/source_path/bbox/…),
+    ou None si absent/erreur. Partagé par toutes les routes qui résolvent un
+    point_id (thumbnail, invite)."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points",
+                headers=_qdrant_headers(),
+                json={"ids": [point_id], "with_payload": True, "with_vector": False},
+            )
+        points = resp.json().get("result", []) if resp.status_code == 200 else []
+    except Exception as exc:
+        logger.warning("Qdrant get point %s/%s : %s", collection, point_id, exc)
+        return None
+    return points[0].get("payload") if points else None
+
+
+async def _decrypt_source_photo(email: str, source_path: str) -> tuple[bytes, str]:
+    """Déchiffre la photo source COMPLÈTE (pas recadrée) : (plaintext, mime).
+    Lève HTTPException si la photo/clé est introuvable ou le déchiffrement
+    échoue. Partagé par la miniature de visage (recadrée ensuite) et la
+    migration de photo lors d'une invitation FaceCloud acceptée (photo
+    complète, jamais juste le visage recadré)."""
+    from services import cloud_storage
+    idx = cloud_storage.load_index(email)
+    entry = cloud_storage.get_entry(idx, source_path)
+    if not entry or not entry.get("cid"):
+        raise HTTPException(status_code=404, detail="photo source introuvable (supprimée ?)")
+    key_hex = cloud_storage.get_key_hex(email, entry["cid"])
+    if not key_hex:
+        raise HTTPException(status_code=404, detail="clé de déchiffrement introuvable")
+
+    sys.path.insert(0, str(settings.TOOLS_PATH))
+    import uenc_codec  # noqa: E402
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            ipfs_resp = await client.post(f"http://127.0.0.1:5001/api/v0/cat?arg={entry['cid']}")
+            ipfs_resp.raise_for_status()
+        plaintext = uenc_codec.decrypt_aes256gcm(ipfs_resp.content, key_hex)
+    except Exception as exc:
+        logger.error("FaceID : déchiffrement échoué pour %s (%s): %s", source_path, email, exc)
+        raise HTTPException(status_code=502, detail=f"déchiffrement impossible: {type(exc).__name__}")
+    return plaintext, (entry.get("mime") or "application/octet-stream")
+
+
+def _crop_face_jpeg(plaintext: bytes, bbox: Optional[dict]) -> bytes:
+    """Recadre une image quelconque sur `bbox` (marge 50%) et la ré-encode en
+    JPEG ≤300px — jamais persisté, juste retourné en mémoire. Lève
+    HTTPException si le recadrage échoue (image corrompue, etc.)."""
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
+        if bbox:
+            w, h = img.size
+            x1 = float(bbox.get("x1", 0)); y1 = float(bbox.get("y1", 0))
+            x2 = float(bbox.get("x2", w)); y2 = float(bbox.get("y2", h))
+            bw, bh = max(x2 - x1, 1.0), max(y2 - y1, 1.0)
+            pad = 0.5  # marge autour du visage : un peu de contexte pour reconnaître
+            cx1 = max(0, x1 - bw * pad); cy1 = max(0, y1 - bh * pad)
+            cx2 = min(w, x2 + bw * pad); cy2 = min(h, y2 + bh * pad)
+            if cx2 > cx1 and cy2 > cy1:
+                img = img.crop((int(cx1), int(cy1), int(cx2), int(cy2)))
+        img.thumbnail((300, 300))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"recadrage impossible: {type(exc).__name__}")
+
+
 @router.get("/mailjet/faces/thumbnail")
 async def get_face_thumbnail(
     request: Request,
@@ -1520,67 +1595,19 @@ async def get_face_thumbnail(
     if not collection:
         raise HTTPException(status_code=404, detail="no_hex")
 
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"{_QDRANT_URL}/collections/{collection}/points",
-                headers=_qdrant_headers(),
-                json={"ids": [point_id], "with_payload": True, "with_vector": False},
-            )
-        points = resp.json().get("result", []) if resp.status_code == 200 else []
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Qdrant injoignable: {exc}")
-    if not points:
+    payload = await _fetch_face_point(collection, point_id)
+    if not payload:
         raise HTTPException(status_code=404, detail="point introuvable")
 
-    payload = points[0].get("payload") or {}
     source_path = payload.get("source_path")
-    bbox = payload.get("bbox") or {}
     if not source_path:
         raise HTTPException(status_code=404, detail="pas de photo source enregistrée pour ce visage")
 
-    from services import cloud_storage
-    idx = cloud_storage.load_index(email)
-    entry = cloud_storage.get_entry(idx, source_path)
-    if not entry or not entry.get("cid"):
-        raise HTTPException(status_code=404, detail="photo source introuvable (supprimée ?)")
-    key_hex = cloud_storage.get_key_hex(email, entry["cid"])
-    if not key_hex:
-        raise HTTPException(status_code=404, detail="clé de déchiffrement introuvable")
-
-    sys.path.insert(0, str(settings.TOOLS_PATH))
-    import uenc_codec  # noqa: E402
-
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            ipfs_resp = await client.post(f"http://127.0.0.1:5001/api/v0/cat?arg={entry['cid']}")
-            ipfs_resp.raise_for_status()
-        plaintext = uenc_codec.decrypt_aes256gcm(ipfs_resp.content, key_hex)
-    except Exception as exc:
-        logger.error("FaceID thumbnail : déchiffrement échoué pour %s: %s", source_path, exc)
-        raise HTTPException(status_code=502, detail=f"déchiffrement impossible: {type(exc).__name__}")
-
-    try:
-        from PIL import Image
-        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
-        if bbox:
-            w, h = img.size
-            x1 = float(bbox.get("x1", 0)); y1 = float(bbox.get("y1", 0))
-            x2 = float(bbox.get("x2", w)); y2 = float(bbox.get("y2", h))
-            bw, bh = max(x2 - x1, 1.0), max(y2 - y1, 1.0)
-            pad = 0.5  # marge autour du visage : un peu de contexte pour reconnaître
-            cx1 = max(0, x1 - bw * pad); cy1 = max(0, y1 - bh * pad)
-            cx2 = min(w, x2 + bw * pad); cy2 = min(h, y2 + bh * pad)
-            if cx2 > cx1 and cy2 > cy1:
-                img = img.crop((int(cx1), int(cy1), int(cx2), int(cy2)))
-        img.thumbnail((300, 300))
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"recadrage impossible: {type(exc).__name__}")
+    plaintext, _mime = await _decrypt_source_photo(email, source_path)
+    jpeg = _crop_face_jpeg(plaintext, payload.get("bbox") or {})
 
     return Response(
-        content=buf.getvalue(),
+        content=jpeg,
         media_type="image/jpeg",
         headers={"Cache-Control": "private, max-age=1800"},
     )
@@ -1662,6 +1689,382 @@ async def post_mailjet_faces_delete(
 
     logger.info("FaceID %s : point %s supprimé", email, point_id)
     return JSONResponse({"ok": True})
+
+
+# ─── Invitation FaceCloud — inviter un "Inconnu_xxx" à créer son MULTIPASS ──
+#
+# Flux : quelqu'un catalogue un visage "Inconnu_xxx" sur SES photos (upload
+# normal) → il connaît/devine l'email de cette personne → post_mailjet_faces_invite
+# vérifie D'ABORD si cet email a déjà une identité NOSTR QUELQUE PART (cette
+# station, son cache, ou le swarm — tools/search_for_this_email_in_nostr.sh,
+# jamais seulement ~/.zen/game/nostr/ local) :
+#   - Identité déjà trouvée → migration IMMÉDIATE des photos, pas d'attente.
+#   - Aucune identité nulle part → email d'invitation à créer un MULTIPASS,
+#     avec un jeton de "claim" en attente (7 jours).
+#
+# Si la personne crée ensuite son MULTIPASS sur CETTE station avec la même
+# adresse email, process_pending_face_claims() (appelée en tâche de fond juste
+# après chaque création réussie, cf. routers/identity.py::scan_qr) complète la
+# migration. Dans tous les cas : photos COMPLÈTES (pas juste le visage
+# recadré), rechiffrées avec une clé propre au destinataire — l'expéditeur
+# garde sa copie intacte, ce n'est jamais un déplacement.
+#
+# ⚠️ Le jeton en attente est stocké sous ~/.zen/game/nostr/{owner}/.face_invites/
+# (durable), PAS sous ~/.zen/tmp/ qui est purgé quotidiennement et détruirait
+# silencieusement l'invitation avant l'échéance de 7 jours annoncée par email.
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_FACE_INVITE_TTL = 7 * 24 * 3600  # 7 jours — aligné sur mailjet.sh --expire 7d
+
+
+def _face_invites_dir(owner_email: str) -> Path:
+    return settings.GAME_PATH / "nostr" / owner_email / ".face_invites"
+
+
+def _face_invite_path(owner_email: str, token: str) -> Path:
+    # `token` vient de secrets.token_urlsafe (déjà alphanumérique/URL-safe),
+    # mais on borne quand même le nom de fichier par défense en profondeur.
+    safe = re.sub(r"[^A-Za-z0-9_-]", "", token)[:64]
+    return _face_invites_dir(owner_email) / f"{safe}.json"
+
+
+async def _search_email_in_nostr_hex(email: str) -> Optional[str]:
+    """Résout un email en HEX NOSTR en cherchant LOCAL, puis CACHE (TW de cette
+    station), puis SWARM (tools/search_for_this_email_in_nostr.sh) — jamais
+    limité à ~/.zen/game/nostr/ de cette seule station : un MULTIPASS peut
+    avoir été créé ailleurs dans la constellation. Retourne None si aucune
+    identité n'est trouvée nulle part."""
+    script = settings.TOOLS_PATH / "search_for_this_email_in_nostr.sh"
+    if not script.exists():
+        return None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bash", str(script), email,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+    except Exception as exc:
+        logger.warning("search_for_this_email_in_nostr.sh(%s) : %s", email, exc)
+        return None
+    match = re.search(r"\bHEX=(\S+)", stdout.decode("utf-8", "ignore"))
+    hex_val = match.group(1) if match else None
+    return hex_val if hex_val and len(hex_val) == 64 else None
+
+
+async def _migrate_face_photos(
+    owner_email: str, collection: Optional[str],
+    photos: list[dict], claimant_email: str, claimant_hex: str,
+) -> int:
+    """Copie les photos COMPLÈTES (déchiffrées puis rechiffrées avec une clé
+    propre au destinataire) dans le cloud chiffré de `claimant_email`, et
+    marque chaque point Qdrant correspondant comme identifié chez le
+    propriétaire d'origine. Best-effort par photo — une erreur individuelle
+    n'interrompt pas les suivantes. Retourne le nombre de photos migrées."""
+    from services import cloud_storage
+    migrated = 0
+    for ref in photos:
+        source_path = ref.get("source_path")
+        point_id = ref.get("point_id")
+        if not source_path:
+            continue
+        try:
+            plaintext, mime = await _decrypt_source_photo(owner_email, source_path)
+        except HTTPException as exc:
+            logger.warning("FaceID claim : photo %s ignorée (%s)", source_path, exc.detail)
+            continue
+
+        dest_path = f"/Photos/FaceCloud/{Path(source_path).name}"
+        try:
+            cloud_storage.ingest_plaintext(
+                claimant_email, dest_path, plaintext,
+                content_type=mime, target_pubkey=claimant_hex,
+            )
+            migrated += 1
+        except Exception as exc:
+            logger.warning("FaceID claim : ingestion %s → %s échouée (%s)", source_path, claimant_email, exc)
+            continue
+
+        if collection and point_id:
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    await client.post(
+                        f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
+                        headers=_qdrant_headers(),
+                        json={"payload": {"pubkey": claimant_hex}, "points": [point_id]},
+                    )
+            except Exception as exc:
+                logger.warning("FaceID claim : maj payload %s échouée (%s)", point_id, exc)
+
+    return migrated
+
+
+@router.post("/mailjet/faces-invite")
+async def post_mailjet_faces_invite(
+    request: Request,
+    email: Optional[str] = Form(default=None),
+    token: Optional[str] = Form(default=None),
+    point_id: str = Form(...),
+    to_email: str = Form(...),
+):
+    """Envoie une invitation MULTIPASS à la personne détectée sur `point_id`,
+    avec un aperçu (miniatures recadrées, jamais la photo entière à ce stade)
+    des photos où elle apparaît. Voir le commentaire de section ci-dessus pour
+    le flux complet (email → création MULTIPASS → migration automatique)."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    to_email = to_email.strip().lower()
+    if not _EMAIL_RE.match(to_email):
+        return JSONResponse({"error": "Adresse email invalide"}, status_code=400)
+
+    collection = _faces_collection(email)
+    if not collection:
+        return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
+
+    payload = await _fetch_face_point(collection, point_id)
+    if not payload:
+        return JSONResponse({"error": "Visage introuvable."}, status_code=404)
+    if payload.get("pubkey"):
+        return JSONResponse({"error": "Ce visage est déjà associé à un MULTIPASS."}, status_code=400)
+
+    # Le visage ciblé + les autres points NON nommés dont il est le plus proche
+    # voisin par cosinus (même heuristique "maybe" que GET /mailjet/faces, mais
+    # utilisée ici pour rassembler ce qui est probablement la MÊME personne,
+    # plutôt que de proposer un rapprochement à confirmer).
+    candidates = [(point_id, payload)]
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points/scroll",
+                headers=_qdrant_headers(),
+                json={"limit": 2000, "with_payload": True, "with_vector": True},
+            )
+        if resp.status_code == 200:
+            points = resp.json().get("result", {}).get("points", [])
+            target_vec = next((p.get("vector") for p in points if p.get("id") == point_id), None)
+            if isinstance(target_vec, list):
+                scored = []
+                for p in points:
+                    pid = p.get("id")
+                    ppayload = p.get("payload") or {}
+                    if pid == point_id or ppayload.get("pubkey"):
+                        continue
+                    vec = p.get("vector")
+                    if not isinstance(vec, list):
+                        continue
+                    score = _cosine(target_vec, vec)
+                    if score >= _MAYBE_SAME_MIN:
+                        scored.append((score, pid, ppayload))
+                scored.sort(key=lambda t: t[0], reverse=True)
+                candidates.extend((pid, ppayload) for _score, pid, ppayload in scored[:3])
+    except Exception as exc:
+        logger.warning("FaceID invite : recherche de photos additionnelles échouée (%s)", exc)
+
+    photo_refs: list[dict] = []   # conservé dans le jeton pour la migration ultérieure
+    attach_files: list[str] = []  # fichiers temporaires JPEG à joindre à l'email
+    for pid, ppayload in candidates[:4]:
+        source_path = ppayload.get("source_path")
+        if not source_path:
+            continue
+        try:
+            plaintext, _mime = await _decrypt_source_photo(email, source_path)
+            jpeg = _crop_face_jpeg(plaintext, ppayload.get("bbox") or {})
+        except HTTPException as exc:
+            logger.warning("FaceID invite : aperçu %s ignoré (%s)", source_path, exc.detail)
+            continue
+        photo_refs.append({"point_id": pid, "source_path": source_path, "bbox": ppayload.get("bbox")})
+        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp.write(jpeg)
+        tmp.close()
+        attach_files.append(tmp.name)
+
+    if not photo_refs:
+        return JSONResponse({"error": "Aucune photo exploitable pour ce visage."}, status_code=404)
+
+    n_photos = len(photo_refs)
+    mailjet_sh = settings.TOOLS_PATH / "mailjet.sh"
+    if not mailjet_sh.exists():
+        for af in attach_files:
+            Path(af).unlink(missing_ok=True)
+        return JSONResponse({"error": "Envoi d'email indisponible sur cette station"}, status_code=502)
+
+    # ── Identité déjà existante QUELQUE PART (cette station, son cache, ou le
+    # swarm) ? Si oui, migration IMMÉDIATE — inutile d'attendre une inscription
+    # que la personne ne fera jamais puisqu'elle a déjà un MULTIPASS.
+    existing_hex = await _search_email_in_nostr_hex(to_email)
+    if existing_hex:
+        migrated = await _migrate_face_photos(email, collection, photo_refs, to_email, existing_hex)
+        for af in attach_files:
+            Path(af).unlink(missing_ok=True)
+        if migrated == 0:
+            return JSONResponse({"error": "Identité trouvée mais migration des photos échouée."}, status_code=502)
+
+        body_html = (
+            "<h2>📸 Des photos de vous ont été ajoutées à votre cloud</h2>"
+            f"<p>Quelqu'un a détecté votre visage sur {migrated} photo{'s' if migrated > 1 else ''} "
+            "prise(s) via le réseau UPlanet. Votre MULTIPASS existant a été reconnu automatiquement : "
+            "une copie complète de ces photos est désormais dans votre cloud personnel chiffré.</p>"
+            "<p style=\"color:#888;font-size:.85em\">La personne qui vous a photographié·e garde aussi "
+            "sa copie — ce n'est pas un déplacement.</p>"
+        )
+        html_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f:
+                f.write(body_html)
+                html_path = f.name
+            proc = await asyncio.create_subprocess_exec(
+                str(mailjet_sh), "--channel", "facecloud-invite", "--no-ipfs-link",
+                to_email, html_path, "📸 Des photos de vous ajoutées à votre cloud UPlanet",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=30)
+        except Exception as exc:
+            logger.warning("[faces-invite] confirmation email échouée (%s)", exc)
+        finally:
+            if html_path:
+                Path(html_path).unlink(missing_ok=True)
+
+        logger.info("[faces-invite] %s → %s : identité existante (%d photo(s) migrées immédiatement)",
+                    email, to_email, migrated)
+        return JSONResponse({"ok": True, "matched": True, "photos": migrated})
+
+    # ── Aucune identité nulle part : invitation à créer un MULTIPASS. Le jeton
+    # en attente est stocké sous ~/.zen/game/nostr/{owner}/.face_invites/
+    # (DURABLE — jamais sous ~/.zen/tmp/, purgé quotidiennement, qui casserait
+    # silencieusement l'invitation avant les 7 jours annoncés par email).
+    invite_token = secrets.token_urlsafe(24)
+    invites_dir = _face_invites_dir(email)
+    invites_dir.mkdir(parents=True, exist_ok=True)
+    _face_invite_path(email, invite_token).write_text(json.dumps({
+        "owner_email": email,
+        "collection": collection,
+        "to_email": to_email,
+        "photos": photo_refs,
+        "created_at": int(time.time()),
+        "expires_at": int(time.time()) + _FACE_INVITE_TTL,
+    }), encoding="utf-8")
+
+    signup_url = f"{str(settings.uSPOT).rstrip('/')}/earth/GAFAM.html?claim={invite_token}"
+    body_html = (
+        "<h2>📸 Des photos de vous attendent</h2>"
+        f"<p>Quelqu'un a détecté votre visage sur {n_photos} photo{'s' if n_photos > 1 else ''} "
+        "prise(s) via le réseau UPlanet — en pièce jointe, un aperçu recadré.</p>"
+        f"<p><a href='{signup_url}' style=\"display:inline-block;background:#16a34a;color:#fff;"
+        "padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600\">"
+        "Créer mon MULTIPASS pour les récupérer</a></p>"
+        "<p style=\"color:#888;font-size:.85em\">En créant votre MULTIPASS avec CETTE adresse email "
+        "dans les 7 jours, une copie complète de ces photos sera automatiquement ajoutée à votre "
+        "propre cloud personnel chiffré. La personne qui vous a photographié·e garde aussi sa copie — "
+        "ce n'est pas un déplacement.</p>"
+    )
+
+    html_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f:
+            f.write(body_html)
+            html_path = f.name
+
+        cmd = [str(mailjet_sh), "--channel", "facecloud-invite", "--expire", "7d"]
+        for af in attach_files:
+            cmd += ["--attach", af]
+        cmd += [to_email, html_path, "📸 Des photos de vous sur UPlanet"]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            await asyncio.wait_for(proc.communicate(), timeout=30)
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            _face_invite_path(email, invite_token).unlink(missing_ok=True)
+            return JSONResponse({"error": "Délai d'envoi dépassé"}, status_code=504)
+
+        if proc.returncode != 0:
+            logger.warning("[faces-invite] mailjet.sh code %s", proc.returncode)
+            _face_invite_path(email, invite_token).unlink(missing_ok=True)
+            return JSONResponse({"error": "Échec de l'envoi"}, status_code=502)
+    finally:
+        if html_path:
+            Path(html_path).unlink(missing_ok=True)
+        for af in attach_files:
+            Path(af).unlink(missing_ok=True)
+
+    logger.info("[faces-invite] %s → %s : invitation envoyée (%d photo(s), point=%s)",
+                email, to_email, n_photos, point_id)
+    return JSONResponse({"ok": True, "matched": False, "photos": n_photos})
+
+
+async def process_pending_face_claims(email: str) -> None:
+    """Hook additif appelé en tâche de fond (fire-and-forget, cf.
+    routers/identity.py::scan_qr) juste après une création MULTIPASS réussie
+    SUR CETTE STATION.
+
+    Parcourt les invitations FaceCloud en attente de TOUS les comptes locaux
+    (~/.zen/game/nostr/*/.face_invites/*.json — stockage durable, cf.
+    post_mailjet_faces_invite) et, pour celles dont `to_email` correspond et
+    qui ne sont pas expirées, copie les photos COMPLÈTES (déchiffrées puis
+    rechiffrées avec une clé propre au nouveau MULTIPASS) dans son cloud
+    chiffré, et marque le visage correspondant comme identifié chez
+    l'expéditeur d'origine.
+
+    Ne couvre que le cas où la personne invitée crée son MULTIPASS SUR CETTE
+    STATION : si une identité existait déjà ailleurs (autre station, swarm),
+    c'est post_mailjet_faces_invite qui l'a déjà traité immédiatement à
+    l'envoi (cf. _search_email_in_nostr_hex) — ce hook ne fait qu'attraper le
+    cas restant : email totalement inconnu au moment de l'invitation.
+
+    Ne lève JAMAIS d'exception vers l'appelant et ne bloque jamais : une panne
+    ici ne doit en aucun cas faire échouer une création de compte."""
+    try:
+        # `_scan_qr_impl` (routers/identity.py) résout le dossier MULTIPASS avec
+        # l'email TEL QUE SOUMIS (pas de .lower()) — on doit utiliser exactement
+        # la même casse ici pour retrouver le bon dossier/HEX, la comparaison
+        # avec l'invitation restant elle insensible à la casse.
+        raw_email = (email or "").strip()
+        email_lc = raw_email.lower()
+        nostr_root = settings.GAME_PATH / "nostr"
+        if not raw_email or not nostr_root.exists():
+            return
+
+        hex_file = nostr_root / raw_email / "HEX"
+        if not hex_file.exists():
+            return
+        claimant_hex = hex_file.read_text().strip()
+        if len(claimant_hex) != 64:
+            return
+
+        now = int(time.time())
+
+        for invite_file in list(nostr_root.glob("*/.face_invites/*.json")):
+            try:
+                data = json.loads(invite_file.read_text(encoding="utf-8"))
+            except Exception:
+                invite_file.unlink(missing_ok=True)
+                continue
+
+            if (data.get("to_email") or "").strip().lower() != email_lc:
+                continue
+            if now > int(data.get("expires_at", 0)):
+                invite_file.unlink(missing_ok=True)
+                continue
+
+            owner_email = data.get("owner_email")
+            collection = data.get("collection")
+            photos = data.get("photos") or []
+            if not owner_email:
+                invite_file.unlink(missing_ok=True)
+                continue
+
+            migrated = await _migrate_face_photos(owner_email, collection, photos, raw_email, claimant_hex)
+            invite_file.unlink(missing_ok=True)
+            logger.info("FaceID claim : %s → %s (%d/%d photo(s) migrées, inscription locale)",
+                        owner_email, raw_email, migrated, len(photos))
+    except Exception as exc:
+        logger.warning("process_pending_face_claims(%s) : erreur inattendue (%s)", email, exc)
 
 
 # ─── Inventaire — objets/lieux/scènes détectés (.ucloud/index.json) ─────────
