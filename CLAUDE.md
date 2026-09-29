@@ -195,15 +195,27 @@ ré-import, pas de nouvelle clé/CID/job FaceID pour un fichier déjà importé)
 `Astroport.ONE/IA/bro/satellite_face_matcher.py`, payload
 `{name, pubkey, timestamp, source_path, bbox}` — les deux derniers champs
 depuis 2026-09-20, absents sur les points catalogués avant) :
-- `GET  /mailjet/faces` — Liste `[{id, name, pubkey, timestamp, has_photo, maybe}]`.
+- `GET  /mailjet/faces` — Liste
+  `[{id, name, pubkey, timestamp, has_photo, maybe, group_id, group_size}]`.
   `maybe` (depuis 2026-09-25, pour les archives longue durée) : sur une entrée
   SANS pubkey, `{name, pubkey, score}` du visage déjà nommé le plus proche par
   cosinus quand le score tombe dans `[0.55, 0.82[` (sous le seuil de match
   automatique `satellite_face_matcher.MATCH_THRESHOLD`, mais assez proche pour
-  être la même personne à un autre âge). Calculé serveur (scroll Qdrant
-  `with_vector: true`, `_cosine()` en Python pur) — les vecteurs ne sont
-  jamais renvoyés au client. UI : bandeau de suggestion dans `cloud.html`
+  être la même personne à un autre âge). `group_id`/`group_size` (depuis
+  2026-09-30) : regroupement ENTRE ELLES (union-find transitif, même seuil
+  `_MAYBE_SAME_MIN=0.55`) des entrées SANS pubkey — même personne détectée sur
+  plusieurs photos, mais pas encore identifiée du tout — présent seulement
+  quand la composante connexe compte ≥2 membres. Les deux sont calculés
+  serveur (scroll Qdrant `with_vector: true`, `_cosine()`/`_cluster_unnamed_faces()`
+  en Python pur, cf. `routers/mailjet.py`) — les vecteurs ne sont jamais
+  renvoyés au client, et rien n'est persisté dans Qdrant (recalculé à chaque
+  appel). UI : bandeau de suggestion + regroupement visuel dans `cloud.html`
 - `POST /mailjet/faces-edit` — Nomme un visage / l'associe à un pubkey (64 hex)
+- `POST /mailjet/faces-edit-bulk` — Même chose pour plusieurs `point_id` à la
+  fois (`point_ids` séparés par des virgules, 200 max) : un seul `set_payload`
+  Qdrant sur toute la liste — permet d'attribuer une identité commune à un
+  groupe suggéré (ou une sélection manuelle) en un seul appel NIP-98 plutôt
+  qu'un aller-retour par photo
 - `POST /mailjet/faces-delete` — Oublie un visage (vecteur supprimé)
 - `GET  /mailjet/faces/thumbnail?point_id=…` — Miniature JPEG recadrée sur
   `bbox` (marge 50%) à partir de `source_path` : résout l'entrée
