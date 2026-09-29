@@ -1347,6 +1347,48 @@ def _cosine(a: list, b: list) -> float:
     return dot / (na * nb) if na and nb else 0.0
 
 
+def _cluster_unnamed_faces(faces: list, threshold: float) -> None:
+    """Regroupe entre eux (union-find, transitif) les visages SANS pubkey dont
+    les embeddings sont proches par cosinus — ex. la même personne détectée
+    sur plusieurs photos avec un embedding trop différent d'une photo à
+    l'autre pour matcher automatiquement à l'ingestion (satellite_face_matcher
+    MATCH_THRESHOLD=0.82), mais assez proche pour être manifestement la même
+    personne. Contrairement à `maybe` (Inconnu → Nommé), ceci compare les
+    Inconnus ENTRE EUX, pour permettre de leur attribuer une identité commune
+    en un seul geste avant même de savoir qui c'est. Purement calculé pour
+    cette réponse (comme `maybe`) — aucun `group_id` n'est stocké dans Qdrant.
+    Modifie `faces` en place : ajoute `group_id`/`group_size` aux entrées dont
+    la composante connexe compte plus d'un membre."""
+    unnamed = [f for f in faces if not f["pubkey"] and isinstance(f["_vector"], list)]
+    parent = {f["id"]: f["id"] for f in unnamed}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for i in range(len(unnamed)):
+        for j in range(i + 1, len(unnamed)):
+            if _cosine(unnamed[i]["_vector"], unnamed[j]["_vector"]) >= threshold:
+                ra, rb = find(unnamed[i]["id"]), find(unnamed[j]["id"])
+                if ra != rb:
+                    parent[ra] = rb
+
+    components: dict = {}
+    for f in unnamed:
+        components.setdefault(find(f["id"]), []).append(f["id"])
+
+    for ids in components.values():
+        if len(ids) < 2:
+            continue
+        group_id = hashlib.sha1("|".join(sorted(ids)).encode()).hexdigest()[:12]
+        for f in unnamed:
+            if f["id"] in ids:
+                f["group_id"] = group_id
+                f["group_size"] = len(ids)
+
+
 def _qdrant_headers() -> dict:
     """Clé d'API Qdrant — même source que IA/bro/rag.py::_qdrant_client()."""
     try:
@@ -1424,15 +1466,24 @@ async def get_mailjet_faces(
     email: Optional[str] = Query(default=None),
     token: Optional[str] = Query(default=None),
 ):
-    """Liste les visages catalogués — [{id, name, pubkey, timestamp, maybe}].
+    """Liste les visages catalogués —
+    [{id, name, pubkey, timestamp, maybe, group_id, group_size}].
 
     `maybe` (rapprochement pour archives longue durée, cf. cloud.html) : pour
     une entrée SANS pubkey, le point déjà nommé le plus proche par cosinus
     quand son score tombe entre _MAYBE_SAME_MIN et _AUTO_MATCH_THRESHOLD —
     ex. la même personne mais photographiée 20 ans plus tôt/plus tard, dont
     l'embedding a assez dérivé pour ne pas matcher automatiquement mais reste
-    reconnaissable. Calculé ICI, les vecteurs eux-mêmes ne quittent jamais ce
-    process (récupérés avec `with_vector`, jamais renvoyés au client)."""
+    reconnaissable.
+
+    `group_id`/`group_size` (cf. _cluster_unnamed_faces) : regroupement des
+    visages SANS pubkey ENTRE EUX (même personne détectée plusieurs fois,
+    jamais encore nommée) — présent seulement quand au moins 2 entrées se
+    rapprochent par cosinus. Permet de leur attribuer un nom/pubkey commun en
+    un seul geste (POST /mailjet/faces-edit-bulk) avant toute identification.
+
+    Calculé ICI, les vecteurs eux-mêmes ne quittent jamais ce process
+    (récupérés avec `with_vector`, jamais renvoyés au client)."""
     email, err = _faces_auth(request, email, token)
     if err:
         return err
@@ -1491,6 +1542,8 @@ async def get_mailjet_faces(
             if _MAYBE_SAME_MIN <= best_score < _AUTO_MATCH_THRESHOLD:
                 f["maybe"] = {"name": best_name, "pubkey": best_pubkey,
                               "score": round(best_score, 3)}
+
+    _cluster_unnamed_faces(faces, _MAYBE_SAME_MIN)
 
     for f in faces:
         f.pop("_vector", None)
@@ -1654,6 +1707,58 @@ async def post_mailjet_faces_edit(
 
     logger.info("FaceID %s : point %s → name=%r pubkey=%s", email, point_id, name, pubkey[:12])
     return JSONResponse({"ok": True})
+
+
+@router.post("/mailjet/faces-edit-bulk")
+async def post_mailjet_faces_edit_bulk(
+    request: Request,
+    email: Optional[str] = Form(default=None),
+    token: Optional[str] = Form(default=None),
+    point_ids: str = Form(...),
+    name: str = Form(...),
+    pubkey: str = Form(default=""),
+):
+    """Nomme EN UNE FOIS plusieurs visages 'Inconnu' rassemblés — via le
+    `group_id` suggéré par GET /mailjet/faces, ou une sélection manuelle dans
+    cloud.html — plutôt qu'un aller-retour NIP-98 par photo. `point_ids` :
+    identifiants séparés par des virgules. Même sémantique que
+    /mailjet/faces-edit (payload merge Qdrant, vecteurs inchangés)."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    collection = _faces_collection(email)
+    if not collection:
+        return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
+
+    pubkey = pubkey.strip().lower()
+    if pubkey and (len(pubkey) != 64 or not re.fullmatch(r"[0-9a-f]{64}", pubkey)):
+        return JSONResponse({"error": "La clé publique doit être 64 caractères hexadécimaux."},
+                            status_code=400)
+
+    ids = [pid.strip() for pid in point_ids.split(",") if pid.strip()]
+    if not ids:
+        return JSONResponse({"error": "Aucun visage sélectionné."}, status_code=400)
+    if len(ids) > 200:
+        return JSONResponse({"error": "Trop de visages sélectionnés (200 max)."}, status_code=400)
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
+                headers=_qdrant_headers(),
+                json={"payload": {"name": name.strip(), "pubkey": pubkey or None},
+                      "points": ids},
+            )
+    except Exception as exc:
+        logger.warning("Qdrant set_payload bulk %s : %s", collection, exc)
+        return JSONResponse({"error": "Qdrant injoignable."}, status_code=503)
+
+    if resp.status_code != 200:
+        return JSONResponse({"error": f"Qdrant HTTP {resp.status_code}"}, status_code=502)
+
+    logger.info("FaceID %s : %d points → name=%r pubkey=%s", email, len(ids), name, pubkey[:12])
+    return JSONResponse({"ok": True, "updated": len(ids)})
 
 
 @router.post("/mailjet/faces-delete")
