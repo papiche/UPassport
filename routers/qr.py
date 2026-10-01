@@ -35,18 +35,24 @@ POST /qr/postcard  (multipart, mêmes champs)
 
 GET  /qr/billet?amount=5[&unit=zen|g1][&fond_url=][&logo_url=][&verso=1][&verso_text=]
 POST /qr/billet  (multipart, mêmes champs)
+    Auth NIP-98 OBLIGATOIRE (Authorization: Nostr <event>, kind 27235) — seul
+    un MULTIPASS connecté peut créer un Ğ1Billet (cf. UPlanet/earth/billet.html).
     → Planche A4 paysage de 6 Ğ1Billets papier imprimables (2 colonnes ×
       3 lignes) — remplace l'ancien moteur graphique G1BILLET (dépôt
       externe fermé). Chaque billet a sa propre clé G1/duniter JETABLE
-      (phrase mnémonique BIP39, cf. `billet_gen.sh` — dérivation identique à
-      `keygen.html`), jamais persistée
-      sur disque : le secret n'existe que dans la réponse HTTP, à imprimer
-      puis oublier. RECTO SEUL : le secret est imprimé en bande verticale
-      sur le bord gauche de chaque billet — à replier vers l'arrière et
-      scotcher avant distribution. Portefeuilles TOUJOURS vierges à la
-      génération (pas de débit automatique — mode `auto` retiré le
-      2026-09-24, peu fiable en pratique) : financement manuel après coup,
-      par qui veut, vers les G1PUB imprimés.
+      (cf. `billet_gen.sh`), jamais persistée sur disque : le secret n'existe
+      que dans la réponse HTTP, à imprimer puis oublier. Son seed est scindé
+      en 3 parts Shamir (2-sur-3, GF(256), même procédé que TrocZen) : P1
+      (QR visible), P2 (bande repliable/scellée), P3 (jamais imprimé —
+      témoin chiffré publié sur NOSTR, réserve de recours/support). Aucune
+      part seule ne permet de dépenser — la reconstruction (2 parts
+      minimum) se fait hors-ligne, côté client, via
+      `UPlanet/earth/billet_redeem.html`. RECTO SEUL : P2 est imprimé en
+      bande verticale sur le bord gauche de chaque billet — à replier vers
+      l'arrière et scotcher avant distribution. Portefeuilles TOUJOURS
+      vierges à la génération (pas de débit automatique — mode `auto`
+      retiré le 2026-09-24, peu fiable en pratique) : financement manuel
+      après coup, par qui veut, vers les G1PUB imprimés.
   amount    float  requis   Montant annoncé par billet, dans l'unité `unit`
                               (× 6 au total, affichage seul). 0 → billets
                               "vierges" : la zone montant reste blanche à
@@ -69,20 +75,17 @@ import json
 import logging
 import tempfile
 import shutil
-import time
 import urllib.parse
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import httpx
-from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
 
-from fastapi import APIRouter, Request, BackgroundTasks, Query, HTTPException
+from fastapi import APIRouter, Request, BackgroundTasks, Query, HTTPException, Depends
 from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
 
 from core.config import settings
+from services.nostr import verify_nip98_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -285,15 +288,40 @@ _BILLET_A4_PAGE = """<!doctype html>
      vertical (dont le dimensionnement intrinsèque échappe à la grille/flex
      et déborde de la cellule). position:absolute retire le texte du flux :
      sa longueur ne peut plus influencer la taille de .fold ni de la ligne. */
-  .cell .fold{width:15mm;flex:0 0 15mm;height:100%;position:relative;overflow:hidden;
+  .cell .fold{width:21mm;flex:0 0 21mm;height:100%;position:relative;overflow:hidden;
               border-right:1px dashed var(--red);
               background:repeating-linear-gradient(45deg,#fffaf0,#fffaf0 2mm,#f2dcdc 2mm,#f2dcdc 4mm)}
+  /* 56mm = largeur AVANT rotation = hauteur visible une fois pivoté (calée
+     sur les 60mm de la cellule). La contrainte réelle est inverse : la
+     HAUTEUR avant rotation devient la LARGEUR visible une fois pivoté —
+     qui doit tenir dans les 21mm du .fold, sans quoi le contenu se retrouve
+     rogné par overflow:hidden (constaté à l'impression). D'où l'hexa forcé
+     sur EXACTEMENT 2 lignes (cf. _render_billet_a4_html) plutôt que laissé
+     au retour à la ligne naturel. Fold élargi (15mm→21mm) pour un QR P2
+     plus gros et lisible, au prix d'un peu de largeur reprise sur .body
+     (qui a de la marge depuis le passage à la disposition horizontale).
+
+     Avec rotate(-90deg), empiler verticalement avant rotation (QR puis
+     texte) les sépare, une fois pivoté, HORIZONTALEMENT (QR vers le bord
+     externe, texte vers le corps du billet) — PAS verticalement : une
+     rotation -90° envoie l'axe Y (vertical, empilement) vers l'axe X final
+     (horizontal), et l'axe X (largeur) vers l'axe Y final (vertical).
+     Pour que le QR apparaisse bien AU-DESSUS du texte sur la page imprimée
+     (demande explicite), il faut donc les juxtaposer HORIZONTALEMENT avant
+     rotation (flex row), QR en dernier (axe X original croissant → axe Y
+     final décroissant = vers le haut une fois pivoté) — vérifié par rendu
+     réel, pas seulement par le calcul. */
   .cell .fold .secret{position:absolute;top:50%;left:50%;width:56mm;
               transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center center;
-              font-family:monospace;font-size:6pt;line-height:1.3;letter-spacing:.1px;
-              text-align:center;color:#333;word-break:break-word;
-              background:#fffaf0;padding:1.5mm 2mm;border-radius:1mm}
-  .cell .fold .secret b{color:var(--red);font-weight:700}
+              display:flex;flex-direction:row;align-items:center;justify-content:center;gap:1.5mm;
+              font-family:monospace;font-size:5pt;line-height:1.25;letter-spacing:0;
+              color:#333;background:#fffaf0;padding:1mm 2mm;border-radius:1mm}
+  .cell .fold .secret .p2-text{text-align:center}
+  .cell .fold .secret b{display:block;color:var(--red);font-weight:700;
+              font-family:sans-serif;font-size:5.5pt;margin-bottom:.4mm}
+  .cell .fold .secret img{width:17mm;height:17mm;image-rendering:pixelated;
+              display:block;flex-shrink:0;background:#fff;padding:.5mm;
+              border-radius:.6mm;border:1px solid var(--gold)}
 
   .cell .body{flex:1;min-width:0;position:relative;padding:3mm;display:flex;
               flex-direction:column;gap:1.5mm;background-color:var(--tint,var(--paper));
@@ -301,36 +329,54 @@ _BILLET_A4_PAGE = """<!doctype html>
   .cell .body.has-fond::before{content:'';position:absolute;inset:0;
               background:var(--tint-overlay,rgba(245,240,232,.74))}
   .cell .body>*{position:relative}
-  .cell .logo-mark{position:absolute;bottom:2mm;right:2mm;width:16mm;height:16mm;
-              border-radius:50%;object-fit:cover;border:1px solid var(--gold);
-              box-shadow:0 1px 3px rgba(0,0,0,.35)}
   .cell .brand{font-size:7.5pt;letter-spacing:1.5px;color:var(--green);
               text-transform:uppercase;font-weight:700}
 
-  /* Rangée principale : montant + QR solde à gauche (façon billet de
-     banque — gros chiffre sur fond blanc, unité en petites capitales
-     dessous, QR de vérification du solde juste en dessous), QR profil
-     NOSTR à droite. */
-  .cell .main-row{display:flex;align-items:flex-start;justify-content:space-between;
-              gap:2.5mm;margin-top:1mm}
-  .cell .amount-col{display:flex;flex-direction:column;align-items:center;
-              gap:1.5mm;flex-shrink:0}
+  /* Coin haut-droit : logo du profil (si connecté) PUIS, juste dessous,
+     le QR P1 — regroupés pour laisser la ligne principale (montant+solde)
+     respirer à gauche. */
+  .cell .corner-stack{position:absolute;top:2mm;right:2mm;display:flex;
+              flex-direction:column;align-items:center;gap:1mm}
+  .cell .corner-stack .logo-mark{width:16mm;height:16mm;border-radius:50%;
+              object-fit:cover;border:1px solid var(--gold);
+              box-shadow:0 1px 3px rgba(0,0,0,.35)}
+
+  /* Montant + QR solde EN COLONNE (le solde se lit juste sous le montant,
+     sans sous-titre — le contexte suffit). P1 est dans le coin
+     (.corner-stack) et "Encaisser" est passé au verso (cf.
+     _render_billet_verso_html), ce qui laisse assez de hauteur pour cette
+     seule colonne sans repousser g1pub/statut hors de la cellule (c'est
+     l'empilement de TROIS éléments — montant, QR, ET une légende — qui
+     avait causé l'overflow:hidden silencieux corrigé précédemment ; une
+     colonne à deux éléments, tailles réduites, tient dans les 60mm). */
+  .cell .main-row{display:flex;margin-top:1mm}
+  .cell .amount-qr-col{display:flex;flex-direction:column;align-items:center;gap:1mm}
   .cell .amount-badge{display:inline-flex;flex-direction:column;align-items:center;
               line-height:1;background:#fff;color:var(--red);font-weight:800;
-              padding:2mm 4mm;border-radius:2mm;border:1.5px solid var(--gold);
-              box-shadow:0 1px 3px rgba(0,0,0,.35)}
-  .cell .amount-badge .num{font-size:26pt;min-width:14mm;min-height:1em;
+              padding:1.2mm 3mm;border-radius:2mm;border:1.5px solid var(--gold);
+              box-shadow:0 1px 3px rgba(0,0,0,.35);flex-shrink:0}
+  .cell .amount-badge .num{font-size:19pt;min-width:12mm;min-height:1em;
               display:inline-block;text-align:center}
-  .cell .amount-badge .num.blank{min-width:20mm;border-bottom:1.5px dashed var(--gold)}
-  .cell .amount-badge .unit{font-size:7.5pt;font-weight:700;color:var(--ink);
+  .cell .amount-badge .num.blank{min-width:17mm;border-bottom:1.5px dashed var(--gold)}
+  .cell .amount-badge .unit{font-size:6.5pt;font-weight:700;color:var(--ink);
               letter-spacing:1px;text-transform:uppercase;margin-top:.5mm}
-  .cell .qr-col{flex-shrink:0;display:flex}
-  .cell .qr-col img,.cell .amount-col img{width:24mm;height:24mm;image-rendering:pixelated;
+  .cell .solde-qr{width:18mm;height:18mm;image-rendering:pixelated;
               background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
+  .cell .qr-item{display:flex;flex-direction:column;align-items:center;gap:.5mm;flex-shrink:0}
+  .cell .qr-item img{width:20mm;height:20mm;image-rendering:pixelated;
+              background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
+  /* Fond photo possible derrière (profil NOSTR connecté) : les légendes et le
+     bloc g1pub/statut ont besoin de leur PROPRE contraste, pas seulement du
+     voile --tint-overlay — une image chargée (ex. photo de profil) peut
+     rendre un simple texte gris illisible dessus. */
+  .cell .qr-item span{font-family:sans-serif;font-size:4.3pt;color:#444;
+              text-transform:uppercase;letter-spacing:.3px;
+              background:rgba(255,255,255,.88);padding:.3mm 1.2mm;border-radius:.8mm}
 
-  .cell .g1pub{font-family:monospace;font-size:5pt;color:#555;word-break:break-all;
-              margin-top:auto}
-  .cell .expiry{font-family:sans-serif;font-size:4.6pt;color:#777}
+  .cell .info-block{background:rgba(255,255,255,.82);border-radius:1.2mm;
+              padding:1mm 1.5mm;margin-top:auto;display:flex;flex-direction:column;gap:.3mm}
+  .cell .g1pub{font-family:monospace;font-size:5pt;color:#444;word-break:break-all}
+  .cell .expiry{font-family:sans-serif;font-size:4.6pt;color:#666}
   .cell .status{font-family:sans-serif;font-size:5.5pt;color:var(--green);font-weight:700}
   .cell .status.err{color:var(--red)}
 
@@ -348,12 +394,12 @@ _BILLET_A4_PAGE = """<!doctype html>
               color:var(--green);letter-spacing:1.5px;text-transform:uppercase}
   .vcell .vtext{font-family:Georgia,serif;font-size:6.3pt;line-height:1.45;
               color:#444;max-width:112mm}
-  .vcell .vsupport{display:flex;align-items:flex-start;justify-content:center;gap:7mm;margin-top:.5mm}
-  .vcell .vsupport-item{display:flex;flex-direction:column;align-items:center;gap:1mm}
-  .vcell .vsupport-item img{width:14mm;height:14mm;image-rendering:pixelated;background:#fff;
+  .vcell .vsupport{display:flex;align-items:flex-start;justify-content:center;gap:5mm;margin-top:.5mm}
+  .vcell .vsupport-item{display:flex;flex-direction:column;align-items:center;gap:.6mm}
+  .vcell .vsupport-item img{width:20mm;height:20mm;image-rendering:pixelated;background:#fff;
               padding:.6mm;border-radius:.8mm;border:1px solid var(--gold)}
-  .vcell .vsupport-item span{font-family:monospace;font-size:5.3pt;color:#777;
-              max-width:34mm;line-height:1.35;display:inline-block}
+  .vcell .vsupport-item span{font-family:monospace;font-size:4.3pt;color:#777;
+              max-width:30mm;line-height:1.25;display:inline-block}
 
   @media print{
     .no-print{display:none!important}
@@ -372,10 +418,12 @@ _BILLET_A4_PAGE = """<!doctype html>
 <body>
 
 <div class="warn no-print">
-  🔒 Chaque billet n'a qu'un recto. Le secret (phrase mnémonique) est imprimé en <b>vertical sur le
-  bord gauche</b> de chaque billet : repliez cette bande vers l'arrière le long du trait pointillé
-  et scotchez-la avant de distribuer les billets. Cette page ne pourra pas être régénérée à
-  l'identique : imprimez avant de fermer cet onglet.
+  🔒 Chaque billet n'a qu'un recto. Le secret est scindé en 3 parts (Shamir 2-sur-3) : P1 (QR en
+  clair, à droite) + P2, imprimée en <b>vertical sur le bord gauche</b> — repliez cette bande vers
+  l'arrière le long du trait pointillé et scotchez-la avant de distribuer les billets. Aucune des
+  deux parts imprimées ne permet, seule, de dépenser le billet : voir <code>billet_redeem.html</code>
+  pour la reconstruction. Cette page ne pourra pas être régénérée à l'identique : imprimez avant de
+  fermer cet onglet.
 </div>
 
 <div class="bar no-print">
@@ -419,23 +467,30 @@ _BILLET_VERSO_DEFAULT_TEXT = (
 )
 
 _BILLET_VERSO_CELL = """<div class="vcell">
-  <div class="vstamp">☀️ Banque Solarpunk</div>
+  <div class="vstamp">☀️ Monnaie Libre</div>
   <div class="vtext">__TEXT__</div>
   <div class="vsupport">
-    <div class="vsupport-item"><img src="__OC_QR__" alt="QR OpenCollective"><span>Vos € deviennent vos Ẑen MULTIPASS (OPEX)<br>et vos ẐEN ZenCard (CAPEX) · opencollective.com/monnaie-libre</span></div>
+    <div class="vsupport-item"><img src="__OC_QR__" alt="QR OpenCollective"><span>opencollective.com/monnaie-libre</span></div>
     <div class="vsupport-item"><img src="__ZELKOVA_QR__" alt="QR Zelkova"><span>z.astroport.one</span></div>
+    <div class="vsupport-item"><img src="__REDEEM_QR__" alt="QR reconstruction"><span>Encaisser (P1+P2)</span></div>
   </div>
 </div>"""
 
 
-def _render_billet_verso_html(text: str, qr_url: str, zelkova_qr_url: str) -> str:
+def _render_billet_verso_html(text: str, qr_url: str, zelkova_qr_url: str, redeem_qr_url: str) -> str:
     """Grille verso optionnelle — MÊME grille (colonnes/lignes/espacement)
     que la planche recto, texte "contrat" identique répété dans les 6
     cellules : une fois imprimée en duplex et découpée, chaque billet porte
-    ce texte au dos, quel que soit le sens du retournement duplex. Texte
-    horizontal (une bande tournée -90° a été testée puis abandonnée : moins
-    lisible). Deux QR de soutien : OpenCollective (financer le G1FabLab) et
-    Zelkova (le wallet Ẑen — z.astroport.one)."""
+    ce texte au dos, quel que soit le sens du retournement duplex. Trois QR
+    de soutien : OpenCollective (financer le G1FabLab), Zelkova (le wallet
+    Ẑen — z.astroport.one) et billet_redeem.html (reconstruction P1+P2).
+
+    `redeem_qr_url` est volontairement le même lien GÉNÉRIQUE
+    (SANS ?g1pub=...) sur les 6 cellules : un lien par billet serait faux
+    une fois sur deux après impression duplex + découpe, puisque la
+    correspondance recto/verso par position n'est pas garantie (cf.
+    commentaire ci-dessus) — contrairement au QR "reconstruction"
+    spécifique à chaque billet qui existait au recto avant cette révision."""
     esc = html_lib.escape
     text_html = esc(text).replace("\n\n", "<br><br>").replace("\n", "<br>")
     cell = (
@@ -443,6 +498,7 @@ def _render_billet_verso_html(text: str, qr_url: str, zelkova_qr_url: str) -> st
         .replace("__TEXT__", text_html)
         .replace("__OC_QR__", qr_url)
         .replace("__ZELKOVA_QR__", zelkova_qr_url)
+        .replace("__REDEEM_QR__", redeem_qr_url)
     )
     cells = "\n".join([cell] * _BILLET_A4_COUNT)
     return f'<div class="sheet verso-sheet">\n{cells}\n</div>'
@@ -450,22 +506,27 @@ def _render_billet_verso_html(text: str, qr_url: str, zelkova_qr_url: str) -> st
 _BILLET_A4_CELL = """<div class="cell">
   <div class="fold"><div class="secret">__SECRET__</div></div>
   <div class="body __FOND_CLASS__" style="background-image:__FOND_CSS__;--tint:__TINT_SOLID__;--tint-overlay:__TINT_OVERLAY__">
-    __LOGO_IMG__
+    <div class="corner-stack">
+      __LOGO_IMG__
+      <div class="qr-item">
+        <img src="__PROFILE_QR__" alt="QR P1">
+        <span>P1</span>
+      </div>
+    </div>
     <div class="brand">Ğ1BILLET</div>
     <div class="main-row">
-      <div class="amount-col">
+      <div class="amount-qr-col">
         <div class="amount-badge">
           <span class="num __AMOUNT_CLASS__">__AMOUNT_TEXT__</span><span class="unit">__UNIT_LABEL__</span>
         </div>
-        <img src="__PUB_QR__" alt="QR solde">
-      </div>
-      <div class="qr-col">
-        <img src="__PROFILE_QR__" alt="QR profil">
+        <img class="solde-qr" src="__PUB_QR__" alt="QR solde">
       </div>
     </div>
-    <div class="g1pub">__G1PUB__</div>
-    <div class="expiry">__EXPIRES__</div>
-    <div class="status __STATUS_CLASS__">__STATUS__</div>
+    <div class="info-block">
+      <div class="g1pub">__G1PUB__</div>
+      <div class="expiry">__EXPIRES__</div>
+      <div class="status __STATUS_CLASS__">__STATUS__</div>
+    </div>
   </div>
 </div>"""
 
@@ -491,54 +552,6 @@ def _billet_tint_vars(amount: float) -> tuple[str, str]:
     return hexcolor, f"rgba({r},{g},{b},.62)"
 
 
-_BILLET_FONT_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
-
-
-def _billet_kind0_images(amount: float, unit_label: str) -> tuple[str, str]:
-    """Génère l'icône (picture) et la bannière (banner) du profil NOSTR kind 0
-    du billet — même teinte par coupure que la planche recto (_BILLET_TINTS),
-    montant mis en évidence. Deux data: URI PNG, rien n'est jamais écrit sur
-    disque (même discipline que le reste de la génération du billet)."""
-    hexcolor = _BILLET_TINTS.get(amount, "#c8a83c")
-    bg = tuple(int(hexcolor[i:i + 2], 16) for i in (1, 3, 5))
-    is_blank = amount <= 0
-    amount_text = "VIERGE" if is_blank else f"{amount:g}"
-
-    def _font(size: int) -> ImageFont.FreeTypeFont:
-        try:
-            return ImageFont.truetype(_BILLET_FONT_BOLD, size)
-        except Exception:
-            return ImageFont.load_default()
-
-    def _centered(draw: ImageDraw.ImageDraw, text: str, font, width: int, y: int, fill: str) -> None:
-        bbox = draw.textbbox((0, 0), text, font=font)
-        x = (width - (bbox[2] - bbox[0])) / 2 - bbox[0]
-        draw.text((x, y), text, fill=fill, font=font)
-
-    def _png_data_uri(img: Image.Image) -> str:
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-
-    # Icône (picture) — carrée, montant en gros, façon badge du recto.
-    icon = Image.new("RGB", (256, 256), bg)
-    idraw = ImageDraw.Draw(icon)
-    _centered(idraw, amount_text, _font(30 if is_blank else 90), 256, 84, "#8b1a1a")
-    if not is_blank:
-        _centered(idraw, unit_label, _font(24), 256, 168, "#1a1a1a")
-
-    # Bannière (banner) — large, brand + montant.
-    banner = Image.new("RGB", (600, 200), bg)
-    bdraw = ImageDraw.Draw(banner)
-    bdraw.text((24, 24), "Ğ1BILLET", fill="#2d5a1b", font=_font(34))
-    amount_banner = amount_text if is_blank else f"{amount_text} {unit_label}"
-    bbox = bdraw.textbbox((0, 0), amount_banner, font=_font(58))
-    bdraw.text((600 - (bbox[2] - bbox[0]) - 24 - bbox[0], 200 - (bbox[3] - bbox[1]) - 30 - bbox[1]),
-               amount_banner, fill="#8b1a1a", font=_font(58))
-
-    return _png_data_uri(icon), _png_data_uri(banner)
-
-
 def _render_billet_a4_html(
     amount: float,
     cells: list[dict],
@@ -548,7 +561,8 @@ def _render_billet_a4_html(
     verso_html: str = "",
 ) -> str:
     """Compose la planche A4 paysage — 6 billets recto seul (2 colonnes × 3
-    lignes), secret en vertical sur le bord gauche (à replier/scotcher)."""
+    lignes), part P2 (Shamir 2-sur-3) en vertical sur le bord gauche
+    (à replier/scotcher)."""
     esc = html_lib.escape
     fond = _sanitize_image_url(fond_url)
     logo = _sanitize_image_url(logo_url)
@@ -565,9 +579,15 @@ def _render_billet_a4_html(
     for c in cells:
         status = esc(c.get("status", "")) or ("Portefeuille vierge — montant à inscrire à la main" if is_blank else "")
         status_class = "err" if c.get("status_error") else ""
+        # P2 sur EXACTEMENT 2 lignes (32+32 car.) — jamais laissé au retour à
+        # la ligne naturel du navigateur (cf. commentaire CSS .fold .secret) :
+        # un wrap imprévisible a déjà tronqué/rogné l'affichage à l'impression.
+        p2_hex = c["p2"]
+        p2_line1, p2_line2 = p2_hex[:32], p2_hex[32:]
         cell_blocks.append(
             _BILLET_A4_CELL
-            .replace("__SECRET__", f"<b>MNEMONIC</b><br>{esc(c['mnemonic'])}")
+            .replace("__SECRET__", f'<div class="p2-text"><b>P2</b>{esc(p2_line1)}<br>{esc(p2_line2)}</div>'
+                     f'<img src="{c.get("p2_qr_url", "")}" alt="QR P2">')
             .replace("__FOND_CSS__", fond_css)
             .replace("__FOND_CLASS__", fond_class)
             .replace("__TINT_SOLID__", tint_solid)
@@ -577,10 +597,9 @@ def _render_billet_a4_html(
             .replace("__AMOUNT_TEXT__", amount_text)
             .replace("__UNIT_LABEL__", esc(unit_label))
             .replace("__PUB_QR__", c["pub_qr_url"])
-            .replace("__PROFILE_QR__", c.get("profile_qr_url", ""))
+            .replace("__PROFILE_QR__", c.get("p1_qr_url", ""))
             .replace("__G1PUB__", esc(c["g1pub"]))
-            .replace("__EXPIRES__", (f"Valide jusqu'au {esc(c['expires_str'])} · {esc(c['npub'][:16])}…"
-                                      if c.get("expires_str") else ""))
+            .replace("__EXPIRES__", "Réunir 2 parts sur 3 (QR + bande) pour dépenser")
             .replace("__STATUS__", status)
             .replace("__STATUS_CLASS__", status_class)
         )
@@ -738,9 +757,9 @@ async def _download_picture_url(url: str) -> Optional[str]:
 
 async def _gen_billet_key() -> dict:
     """Génère une clé G1 jetable via billet_gen.sh (tout en /dev/shm, jamais
-    journalisé — cf. billet_gen.sh). Retourne {"g1pub","mnemonic"} — mnemonic
-    est une phrase BIP39 standard (12 mots), dérivation identique à
-    UPlanet/earth/keygen.html (onglet "Mnemonic (v2)")."""
+    journalisé — cf. billet_gen.sh). Retourne {"g1pub","p1","p2","p3"} — le
+    seed a été scindé en 3 parts Shamir (2-sur-3, GF(256)), p1/p2/p3 en hex
+    (32 octets chacune)."""
     proc = await asyncio.create_subprocess_exec(
         str(_BILLET_SCRIPT),
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -757,68 +776,79 @@ async def _gen_billet_key() -> dict:
 
 
 
-_BILLET_EXPIRY_DAYS = 90
+_BILLET_WITNESS_KEYFILE = Path.home() / ".zen" / "game" / "uplanet.G1.nostr"
 
 
-async def _publish_billet_emission(
-    nsec: str, npub: str, g1pub: str, amount: float, unit_label: str,
-) -> Optional[int]:
-    """Publie un profil NOSTR (kind 0) AU NOM DU BILLET LUI-MÊME — signé par
-    le compte NOSTR jumeau dérivé de la MÊME phrase mnémonique que le
-    portefeuille G1 (billet_gen.sh). Quiconque connaît la phrase peut
-    reproduire cette signature ; personne d'autre ne le peut — même garantie
-    que pour les fonds, sans tiers de confiance additionnel.
-
-    `picture` (icône) et `banner` sont générées à la volée (_billet_kind0_images,
-    Pillow, même teinte par coupure que le recto — _BILLET_TINTS) et embarquées
-    en `data:image/png;base64,...` directement dans le contenu de l'event —
-    jamais écrites sur disque ni hébergées ailleurs.
-
-    Attestation PUBLIQUE et INFORMATIVE uniquement : `["expiration", …]`
-    (NIP-40) donne une date de fin vérifiable par n'importe quel client
-    NOSTR/relay, mais ne verrouille aucune dépense — les fonds restent
-    entièrement sur la blockchain Ğ1. Best-effort : une panne du relay ne
-    doit jamais faire échouer la génération du billet.
-
-    Retourne le timestamp Unix d'expiration si la publication a réussi,
-    sinon None (le billet reste valide, juste sans attestation publique).
-    """
-    expires_ts = int(time.time()) + _BILLET_EXPIRY_DAYS * 86400
-    expires_str = datetime.fromtimestamp(expires_ts).strftime("%d/%m/%Y")
-    picture_uri, banner_uri = _billet_kind0_images(amount, unit_label)
-    content = json.dumps({
-        "name": f"Ğ1Billet · {amount:g} {unit_label}",
-        "about": f"Ğ1Billet papier — G1PUB {g1pub} — valable jusqu'au {expires_str}",
-        "picture": picture_uri,
-        "banner": banner_uri,
-    })
-    tags = json.dumps([["expiration", str(expires_ts)], ["t", "g1billet"]])
-
-    shm = "/dev/shm" if os.path.isdir("/dev/shm") else None
-    fd, keyfile_path = tempfile.mkstemp(dir=shm)
+async def _encrypt_with_uplanetname(plaintext_hex: str) -> Optional[str]:
+    """Chiffre une valeur via coop_encrypt() (cooperative_config.sh —
+    AES-256-CBC, clé = sha256($UPLANETNAME)) : même convention que la config
+    coopérative (kind 30800). Retourne "iv:base64", ou None si échec."""
     try:
-        os.write(fd, f"NSEC={nsec}; NPUB={npub};".encode())
-        os.close(fd)
-        os.chmod(keyfile_path, 0o600)
+        proc = await asyncio.create_subprocess_exec(
+            "bash", "-c",
+            f'source "{settings.TOOLS_PATH}/cooperative_config.sh" >/dev/null 2>&1 && coop_encrypt "$1"',
+            "--", plaintext_hex,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+        out = stdout.decode().strip()
+        if proc.returncode != 0 or not out:
+            logger.warning("billet witness — coop_encrypt échec: %s", stderr.decode()[:200])
+            return None
+        return out
+    except Exception as e:
+        logger.warning("billet witness — coop_encrypt erreur: %s", e)
+        return None
+
+
+async def _publish_billet_witness(
+    p3_hex: str, g1pub: str, amount: float, unit_label: str, creator_hex: str,
+) -> bool:
+    """Publie la part P3 (Shamir 2-sur-3, cf. billet_gen.sh) CHIFFRÉE sur
+    NOSTR, comme témoin d'émission du billet — réserve de recours/support
+    UNIQUEMENT, jamais utilisée dans le flux normal de dépense (cf.
+    UPlanet/earth/billet_redeem.html, qui ne réunit que P1+P2, imprimées
+    toutes deux sur le billet). Il n'existe plus aucune identité NOSTR
+    propre au billet : cet event est signé par l'identité coopérative de la
+    station (~/.zen/game/uplanet.G1.nostr — même identité que la config
+    coopérative kind 30800), avec un tag `["p", creator_hex]` reliant le
+    billet au MULTIPASS de son créateur (authentifié via NIP-98, cf.
+    generate_billet) — traçabilité de l'émission, PAS une protection
+    anti-purge (ce témoin reste chiffré/inerte sans P1+P2).
+
+    P3 est chiffrée avec $UPLANETNAME (_encrypt_with_uplanetname) : seule
+    une station de la même constellation peut la déchiffrer. Kind 30078
+    (NIP-78, générique) : PAS de protection anti-purge dédiée — contrairement
+    à l'ancien profil kind 0, ce témoin est inerte sans P1+P2 ; sa purge
+    éventuelle ne dégrade que le recours en dernier ressort, jamais le
+    portefeuille Ğ1 lui-même.
+
+    Best-effort : un échec ne doit jamais faire échouer la génération du
+    billet. Retourne True si la publication a réussi.
+    """
+    encrypted = await _encrypt_with_uplanetname(p3_hex)
+    if not encrypted:
+        return False
+    content = json.dumps({"p3": encrypted})
+    tags = json.dumps([
+        ["d", f"g1billet:{g1pub}"], ["t", "g1billet"], ["g1pub", g1pub],
+        ["amount", f"{amount:g}"], ["unit", unit_label], ["p", creator_hex],
+    ])
+    try:
         proc = await asyncio.create_subprocess_exec(
             "python3", str(settings.TOOLS_PATH / "nostr_send_note.py"),
-            "--keyfile", keyfile_path, "--content", content,
-            "--kind", "0", "--tags", tags, "--relays", settings.myRELAY,
+            "--keyfile", str(_BILLET_WITNESS_KEYFILE), "--content", content,
+            "--kind", "30078", "--tags", tags, "--relays", settings.myRELAY,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         if proc.returncode != 0:
-            logger.warning("billet emission NOSTR — échec pour %s: %s", npub[:16], stderr.decode()[:200])
-            return None
-        return expires_ts
+            logger.warning("billet witness NOSTR — échec pour %s: %s", g1pub[:16], stderr.decode()[:200])
+            return False
+        return True
     except Exception as e:
-        logger.warning("billet emission NOSTR — erreur: %s", e)
-        return None
-    finally:
-        try:
-            os.remove(keyfile_path)
-        except OSError:
-            pass
+        logger.warning("billet witness NOSTR — erreur: %s", e)
+        return False
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -1018,6 +1048,7 @@ async def generate_billet(
     logo_url: Optional[str] = Query(None),
     verso: Optional[str] = Query(None),
     verso_text: Optional[str] = Query(None),
+    creator_hex: str = Depends(verify_nip98_auth),
 ):
     """Planche A4 paysage de 6 Ğ1Billets papier imprimables — remplace le
     moteur graphique G1BILLET. RECTO SEUL : 6 clés jetables indépendantes,
@@ -1027,6 +1058,13 @@ async def generate_billet(
     peu fiable en pratique, cf. échecs constatés en production le 2026-09-24).
     Financement manuel après coup, par qui veut, comme pour n'importe quel
     portefeuille Ğ1.
+
+    Auth NIP-98 OBLIGATOIRE (Authorization: Nostr <event>, kind 27235) — même
+    mécanisme que /api/cloud/enroll, /api/fileupload, /api/calendar/email :
+    seul un MULTIPASS connecté peut créer un Ğ1Billet. Le pubkey authentifié
+    (`creator_hex`) est associé au témoin NOSTR de chaque billet (tag `p`,
+    cf. _publish_billet_witness) — traçabilité de l'émission, pas une
+    restriction d'usage du billet lui-même (toujours un bearer Ğ1 classique).
 
     unit : zen|g1 (défaut zen) — unité du montant annoncé (affichage seul,
     aucun transfert n'est déclenché par cet endpoint).
@@ -1076,25 +1114,29 @@ async def generate_billet(
             return JSONResponse({"error": "génération de clé impossible"}, status_code=500)
 
         g1pub = keydata["g1pub"]
-        mnemonic = keydata["mnemonic"]
-        nsec, npub = keydata["nsec"], keydata["npub"]
+        p1, p2, p3 = keydata["p1"], keydata["p2"], keydata["p3"]
         keydata = None
 
-        expires_ts = await _publish_billet_emission(nsec, npub, g1pub, amount, unit_label)
-        nsec = None
-        expires_str = datetime.fromtimestamp(expires_ts).strftime("%d/%m/%Y") if expires_ts else ""
+        await _publish_billet_witness(p3, g1pub, amount, unit_label, creator_hex)
+        p3 = None
 
         pub_png, _ = await asyncio.to_thread(_generate_qr_png, g1pub, 3, "M")
         pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
 
-        # QR "profil" = le npub jumeau brut (PAS un lien web) : ce QR est lu
-        # par des wallets NOSTR (Zelkova...) qui attendent une clé, pas une URL.
-        profile_png, _ = await asyncio.to_thread(_generate_qr_png, npub, 4, "M")
-        profile_qr_url = ("data:image/png;base64," + base64.b64encode(profile_png).decode()) if profile_png else ""
+        # QR "P1" = part Shamir visible (hex, PAS un lien web) — seule, elle
+        # ne permet pas de reconstruire le secret (il faut au moins 2 des 3
+        # parts P1/P2/P3, cf. UPlanet/earth/billet_redeem.html).
+        p1_png, _ = await asyncio.to_thread(_generate_qr_png, p1, 4, "M")
+        p1_qr_url = ("data:image/png;base64," + base64.b64encode(p1_png).decode()) if p1_png else ""
+
+        # QR "P2" — même nature que P1 (hex, inerte seule), imprimé sous la
+        # bande repliable/scellée.
+        p2_png, _ = await asyncio.to_thread(_generate_qr_png, p2, 4, "M")
+        p2_qr_url = ("data:image/png;base64," + base64.b64encode(p2_png).decode()) if p2_png else ""
 
         cells.append({
-            "g1pub": g1pub, "mnemonic": mnemonic, "npub": npub, "expires_str": expires_str,
-            "pub_qr_url": pub_qr_url, "profile_qr_url": profile_qr_url,
+            "g1pub": g1pub, "p1": p1, "p2": p2,
+            "pub_qr_url": pub_qr_url, "p1_qr_url": p1_qr_url, "p2_qr_url": p2_qr_url,
         })
 
     background_tasks.add_task(
@@ -1110,7 +1152,17 @@ async def generate_billet(
         oc_qr_url = ("data:image/png;base64," + base64.b64encode(oc_png).decode()) if oc_png else ""
         zelkova_png, _ = await asyncio.to_thread(_generate_qr_png, "https://z.astroport.one", 3, "M")
         zelkova_qr_url = ("data:image/png;base64," + base64.b64encode(zelkova_png).decode()) if zelkova_png else ""
-        verso_html = _render_billet_verso_html(text=text, qr_url=oc_qr_url, zelkova_qr_url=zelkova_qr_url)
+        # Lien GÉNÉRIQUE (sans ?g1pub=...) — même origine que /qr/billet,
+        # /earth/ étant monté sur ce même serveur UPassport (cf. 54321.py).
+        # Jamais de lien par-billet ici : la correspondance recto/verso par
+        # position n'est pas garantie après impression duplex + découpe
+        # (cf. _render_billet_verso_html).
+        redeem_url = str(request.base_url).rstrip("/") + "/earth/billet_redeem.html"
+        redeem_png, _ = await asyncio.to_thread(_generate_qr_png, redeem_url, 3, "M")
+        redeem_qr_url = ("data:image/png;base64," + base64.b64encode(redeem_png).decode()) if redeem_png else ""
+        verso_html = _render_billet_verso_html(
+            text=text, qr_url=oc_qr_url, zelkova_qr_url=zelkova_qr_url, redeem_qr_url=redeem_qr_url,
+        )
 
     page = _render_billet_a4_html(
         amount=amount, cells=cells, unit_label=unit_label, fond_url=fond_url, logo_url=logo_url,
