@@ -318,3 +318,21 @@ requis : le serveur autonome de wsgidav n'est jamais utilisé ici.
 # Template : upassport.service.tpl
 # Démarrage : ./start_secure_server.sh
 ```
+
+
+## Studio vidéo IA — `routers/story.py` + `services/story_render.py` (Kind 30510)
+
+Personnages et scènes de vidéos IA (`Astroport.ONE/tools/story_asset.py`), versions, rendus. Auth NIP-98 **et** clé = MULTIPASS
+du Capitaine (`settings.CAPTAINEMAIL`) ; interface `UPlanet/earth/story.html`. Portées : `private` (clé dans le keyring, jamais
+exposée) ou `coop` (clé dérivée de `$UPLANETNAME`, lisible par tous les Capitaines via les événements du relais).
+- `GET/POST /api/story/assets` — liste (mes paquets + coop des autres) / création `{type,name,scope}`
+- `GET /api/story/asset/{cid}` · `GET …/file?path=` — contenu déchiffré d'une version quelconque (texte ≤ 512 Ko inclus)
+- `PUT /api/story/asset/{cid}` — `{changes:{chemin:{text|b64|delete}}, description?, attach:[{cid}], reshare?}` → nouvelle version
+  (anciens CID conservés ; un paquet d'un autre Capitaine → 400, utiliser `fork`). Corps ≤ 25 Mo, chemins sans `..`,
+  storyboard validé comme `generate_scene.sh`
+- `GET …/versions` · `POST …/restore` · `POST …/fork {name,scope}`
+- `POST …/render {regen?}` → job ; `GET /api/story/jobs[/{id}]` (étape, plan en cours, plans prêts, ETA, journal),
+  `POST …/cancel`, `GET …/jobs/{id}/file?name=` (shot_NN.mp4, vo_NN.wav, scene.mp4), `GET /api/story/render/{version_cid}/{id}/file`
+- Jobs : process détachés (`start_new_session`), un seul à la fois (file `queued`), état dans `library/jobs/*.json`,
+  `progress.json` écrit par `generate_scene.sh` / `generate_character.sh`. Rendus archivés par version (`renders/<auteur>-<d>/v/<cid>/<job>/`),
+  coop : mp4 ajouté à IPFS et annoncé dans l'événement (`renders`). Tests : `tests/test_story_router.py`.

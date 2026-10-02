@@ -16,7 +16,7 @@ from core.middleware import RateLimitMiddleware
 from a2wsgi import WSGIMiddleware
 from services.cloud_storage import build_wsgi_dav_app
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin, calendar
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin, calendar, story
 
 # Setup logging
 setup_logging()
@@ -76,6 +76,7 @@ app.include_router(media_library.router)
 app.include_router(media_upload.router)
 app.include_router(finance.router)
 app.include_router(cloud.router)
+app.include_router(story.router)
 app.include_router(analytics.router)
 app.include_router(ipfs.router)
 app.include_router(identity.router)
