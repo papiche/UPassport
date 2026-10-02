@@ -28,7 +28,7 @@ même photo).
 
 Chaque image importée déclenche l'analyse FaceID exactement comme un PUT DAV
 normal (cf. services/cloud_storage.py::ingest_plaintext), avec le MÊME seuil
-de correspondance (0.82) que le flux interactif — voir cloud.html pour le
+de correspondance (0.82) que le flux interactif — voir ucloud.html pour le
 rapprochement manuel des visages qui ne matchent pas automatiquement (ex :
 la même personne à des âges différents).
 """

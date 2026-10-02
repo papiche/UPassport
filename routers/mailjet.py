@@ -1339,6 +1339,14 @@ _QDRANT_URL = "http://localhost:6333"
 _AUTO_MATCH_THRESHOLD = 0.82
 _MAYBE_SAME_MIN = 0.55
 
+# Garde-fous de performance : _cluster_unnamed_faces est du Python pur en
+# O(n²) (une comparaison cosinus par paire) — au-delà de quelques centaines
+# de visages SANS pubkey, le coût devient notable à chaque GET /mailjet/faces.
+# _pca_2d s'appuie sur numpy/LAPACK (SVD), largement plus rapide à n égal,
+# mais reste borné par prudence contre un catalogue pathologiquement grand.
+_CLUSTER_MAX_UNNAMED = 400
+_PCA_MAX_FACES = 5000
+
 
 def _cosine(a: list, b: list) -> float:
     dot = sum(x * y for x, y in zip(a, b))
@@ -1358,8 +1366,15 @@ def _cluster_unnamed_faces(faces: list, threshold: float) -> None:
     en un seul geste avant même de savoir qui c'est. Purement calculé pour
     cette réponse (comme `maybe`) — aucun `group_id` n'est stocké dans Qdrant.
     Modifie `faces` en place : ajoute `group_id`/`group_size` aux entrées dont
-    la composante connexe compte plus d'un membre."""
+    la composante connexe compte plus d'un membre. Au-delà de
+    _CLUSTER_MAX_UNNAMED visages SANS pubkey, le coût O(n²) en Python pur
+    devient trop lourd pour un simple GET — ne regroupe pas, la liste reste
+    utilisable (juste sans suggestion de regroupement)."""
     unnamed = [f for f in faces if not f["pubkey"] and isinstance(f["_vector"], list)]
+    if len(unnamed) > _CLUSTER_MAX_UNNAMED:
+        logger.info("FaceID : regroupement ignoré (%d visages sans pubkey > %d)",
+                    len(unnamed), _CLUSTER_MAX_UNNAMED)
+        return
     parent = {f["id"]: f["id"] for f in unnamed}
 
     def find(x):
@@ -1387,6 +1402,35 @@ def _cluster_unnamed_faces(faces: list, threshold: float) -> None:
             if f["id"] in ids:
                 f["group_id"] = group_id
                 f["group_size"] = len(ids)
+
+
+def _pca_2d(vectors: list) -> list:
+    """Projection PCA 2D (SVD pure numpy) des embeddings — positions pour la
+    vue « nébuleuse » de ucloud.html. Les vecteurs 512D ne quittent jamais ce
+    process : seules des coordonnées x,y normalisées dans [-1, 1] sont
+    renvoyées au client, jamais les vecteurs eux-mêmes. Au-delà de
+    _PCA_MAX_FACES, ne calcule rien (numpy/LAPACK est rapide mais reste
+    borné par prudence contre un catalogue pathologiquement grand)."""
+    if len(vectors) < 2:
+        return [(0.0, 0.0) for _ in vectors]
+    if len(vectors) > _PCA_MAX_FACES:
+        logger.info("FaceID : projection PCA ignorée (%d visages > %d)",
+                    len(vectors), _PCA_MAX_FACES)
+        return [(0.0, 0.0) for _ in vectors]
+    import numpy as np
+    mat = np.asarray(vectors, dtype=np.float64)
+    centered = mat - mat.mean(axis=0)
+    try:
+        u, s, _vt = np.linalg.svd(centered, full_matrices=False)
+    except np.linalg.LinAlgError:
+        return [(0.0, 0.0) for _ in vectors]
+    k = min(2, u.shape[1])
+    coords = u[:, :k] * s[:k]
+    if k < 2:
+        coords = np.pad(coords, ((0, 0), (0, 2 - k)))
+    max_abs = float(np.abs(coords).max()) or 1.0
+    coords = coords / max_abs
+    return [(float(c[0]), float(c[1])) for c in coords]
 
 
 def _qdrant_headers() -> dict:
@@ -1467,9 +1511,9 @@ async def get_mailjet_faces(
     token: Optional[str] = Query(default=None),
 ):
     """Liste les visages catalogués —
-    [{id, name, pubkey, timestamp, maybe, group_id, group_size}].
+    [{id, name, pubkey, timestamp, maybe, group_id, group_size, x, y}].
 
-    `maybe` (rapprochement pour archives longue durée, cf. cloud.html) : pour
+    `maybe` (rapprochement pour archives longue durée, cf. ucloud.html) : pour
     une entrée SANS pubkey, le point déjà nommé le plus proche par cosinus
     quand son score tombe entre _MAYBE_SAME_MIN et _AUTO_MATCH_THRESHOLD —
     ex. la même personne mais photographiée 20 ans plus tôt/plus tard, dont
@@ -1481,6 +1525,11 @@ async def get_mailjet_faces(
     jamais encore nommée) — présent seulement quand au moins 2 entrées se
     rapprochent par cosinus. Permet de leur attribuer un nom/pubkey commun en
     un seul geste (POST /mailjet/faces-edit-bulk) avant toute identification.
+
+    `x`/`y` (cf. _pca_2d) : projection PCA 2D de l'embedding, normalisée dans
+    [-1, 1] — alimente la vue « nébuleuse » p5.js de ucloud.html (parcours
+    spatial + association par sélection multiple). Comme pour `maybe`, les
+    vecteurs 512D eux-mêmes ne quittent jamais ce process.
 
     Calculé ICI, les vecteurs eux-mêmes ne quittent jamais ce process
     (récupérés avec `with_vector`, jamais renvoyés au client)."""
@@ -1544,6 +1593,12 @@ async def get_mailjet_faces(
                               "score": round(best_score, 3)}
 
     _cluster_unnamed_faces(faces, _MAYBE_SAME_MIN)
+
+    with_vector = [f for f in faces if isinstance(f["_vector"], list)]
+    if with_vector:
+        coords = _pca_2d([f["_vector"] for f in with_vector])
+        for f, (x, y) in zip(with_vector, coords):
+            f["x"], f["y"] = round(x, 4), round(y, 4)
 
     for f in faces:
         f.pop("_vector", None)
@@ -1624,6 +1679,59 @@ def _crop_face_jpeg(plaintext: bytes, bbox: Optional[dict]) -> bytes:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"recadrage impossible: {type(exc).__name__}")
+
+
+def _resize_full_jpeg(plaintext: bytes, max_side: int = 1024) -> bytes:
+    """Ré-encode une image quelconque en JPEG ≤max_side px, SANS recadrage —
+    contrairement à _crop_face_jpeg, pour l'aperçu photo entière au survol
+    (vue nébuleuse, cf. ucloud.html). Jamais persisté, juste retourné."""
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
+        img.thumbnail((max_side, max_side))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"redimensionnement impossible: {type(exc).__name__}")
+
+
+@router.get("/mailjet/faces/photo")
+async def get_face_full_photo(
+    request: Request,
+    point_id: str = Query(...),
+    email: Optional[str] = Query(default=None),
+    token: Optional[str] = Query(default=None),
+):
+    """Photo ENTIÈRE (pas recadrée sur le visage) du point `point_id`,
+    déchiffrée à la volée — aperçu au survol d'un point dans la vue
+    nébuleuse (face-nebula.js) : la miniature recadrée identifie le visage,
+    cette route donne le contexte complet de la photo. Même discipline que
+    /mailjet/faces/thumbnail : jamais persistée en clair."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    collection = _faces_collection(email)
+    if not collection:
+        raise HTTPException(status_code=404, detail="no_hex")
+
+    payload = await _fetch_face_point(collection, point_id)
+    if not payload:
+        raise HTTPException(status_code=404, detail="point introuvable")
+
+    source_path = payload.get("source_path")
+    if not source_path:
+        raise HTTPException(status_code=404, detail="pas de photo source enregistrée pour ce visage")
+
+    plaintext, _mime = await _decrypt_source_photo(email, source_path)
+    jpeg = _resize_full_jpeg(plaintext)
+
+    return Response(
+        content=jpeg,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=1800"},
+    )
 
 
 @router.get("/mailjet/faces/thumbnail")
@@ -1720,7 +1828,7 @@ async def post_mailjet_faces_edit_bulk(
 ):
     """Nomme EN UNE FOIS plusieurs visages 'Inconnu' rassemblés — via le
     `group_id` suggéré par GET /mailjet/faces, ou une sélection manuelle dans
-    cloud.html — plutôt qu'un aller-retour NIP-98 par photo. `point_ids` :
+    ucloud.html — plutôt qu'un aller-retour NIP-98 par photo. `point_ids` :
     identifiants séparés par des virgules. Même sémantique que
     /mailjet/faces-edit (payload merge Qdrant, vecteurs inchangés)."""
     email, err = _faces_auth(request, email, token)
@@ -2170,105 +2278,6 @@ async def process_pending_face_claims(email: str) -> None:
                         owner_email, raw_email, migrated, len(photos))
     except Exception as exc:
         logger.warning("process_pending_face_claims(%s) : erreur inattendue (%s)", email, exc)
-
-
-# ─── Inventaire — objets/lieux/scènes détectés (.ucloud/index.json) ─────────
-#
-# Contrepartie du catalogue de visages ci-dessus, mais pour les photos où
-# AUCUN visage n'a été détecté : faceid.sh (§8.5) enchaîne alors sur
-# IA/inventory_recognition.py (Ollama vision), et
-# satellite_face_matcher.py::_tag_ucloud_scene() écrit le résultat dans le
-# champ `scene` de l'entrée correspondante de index.json — jamais dans
-# `tags` (réservé aux noms d'amis à qui une photo de visage a été partagée),
-# pour ne jamais mélanger les deux catégories ici.
-#
-# Contrairement au catalogue de visages (Qdrant), il n'y a pas de base
-# vectorielle : la liste est simplement les entrées de index.json qui portent
-# un champ `scene`.
-
-@router.get("/mailjet/inventory")
-async def get_mailjet_inventory(
-    request: Request,
-    email: Optional[str] = Query(default=None),
-    token: Optional[str] = Query(default=None),
-):
-    """Liste les photos où un objet/lieu/scène a été identifié —
-    [{path, type, category, name, description, confidence, tags, timestamp}]."""
-    email, err = _faces_auth(request, email, token)
-    if err:
-        return err
-
-    from services import cloud_storage
-    idx = cloud_storage.load_index(email)
-    items = []
-    for path, entry in (idx.get("entries") or {}).items():
-        scene = entry.get("scene")
-        if not isinstance(scene, dict):
-            continue
-        items.append({
-            "path": path,
-            "type": scene.get("type") or "object",
-            "category": scene.get("category") or "",
-            "name": scene.get("name") or "",
-            "description": scene.get("description") or "",
-            "confidence": scene.get("confidence"),
-            "tags": scene.get("tags") or [],
-            "timestamp": scene.get("timestamp") or "",
-        })
-    items.sort(key=lambda it: it["timestamp"], reverse=True)
-    return JSONResponse({"items": items})
-
-
-@router.get("/mailjet/inventory/thumbnail")
-async def get_inventory_thumbnail(
-    request: Request,
-    path: str = Query(...),
-    email: Optional[str] = Query(default=None),
-    token: Optional[str] = Query(default=None),
-):
-    """Miniature de la photo entière (pas de recadrage — contrairement aux
-    visages, il n'y a pas de `bbox` unique à isoler), déchiffrée à la volée,
-    jamais persistée en clair (même discipline que GET /dav/ et
-    /mailjet/faces/thumbnail)."""
-    email, err = _faces_auth(request, email, token)
-    if err:
-        return err
-
-    from services import cloud_storage
-    idx = cloud_storage.load_index(email)
-    entry = cloud_storage.get_entry(idx, path)
-    if not entry or not entry.get("cid") or not isinstance(entry.get("scene"), dict):
-        raise HTTPException(status_code=404, detail="photo introuvable (supprimée ?)")
-    key_hex = cloud_storage.get_key_hex(email, entry["cid"])
-    if not key_hex:
-        raise HTTPException(status_code=404, detail="clé de déchiffrement introuvable")
-
-    sys.path.insert(0, str(settings.TOOLS_PATH))
-    import uenc_codec  # noqa: E402
-
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            ipfs_resp = await client.post(f"http://127.0.0.1:5001/api/v0/cat?arg={entry['cid']}")
-            ipfs_resp.raise_for_status()
-        plaintext = uenc_codec.decrypt_aes256gcm(ipfs_resp.content, key_hex)
-    except Exception as exc:
-        logger.error("Inventory thumbnail : déchiffrement échoué pour %s: %s", path, exc)
-        raise HTTPException(status_code=502, detail=f"déchiffrement impossible: {type(exc).__name__}")
-
-    try:
-        from PIL import Image
-        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
-        img.thumbnail((300, 300))
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"miniature impossible: {type(exc).__name__}")
-
-    return Response(
-        content=buf.getvalue(),
-        media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=1800"},
-    )
 
 
 @router.get("/mailjet/scraper-log", response_class=HTMLResponse)

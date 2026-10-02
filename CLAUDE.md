@@ -82,7 +82,7 @@ Enrôlement seul : le transfert de fichiers passe par le montage WebDAV `/dav/`
 - `GET  /api/cloud/status` — `{enrolled, dav_url, files, bytes, max_file_size}` — ne révèle jamais le token
 - `POST /api/cloud/reveal` — Retourne le token **EXISTANT** (même réponse qu'`enroll`) sans le renouveler. Même garde NIP-98/NIP-42 que les autres routes : cette preuve de possession de la clé MULTIPASS donne de toute façon un accès complet à `/dav/` en direct (NIP-98 est un des deux mécanismes d'auth acceptés par le montage DAV lui-même), donc révéler le token Basic Auth à ce même appelant n'élargit aucun accès — ça évite juste à l'utilisateur de devoir régénérer (et donc déconnecter ses clients existants) s'il veut juste remonter le disque sur un nouvel appareil
 - `POST /api/cloud/revoke` — Supprime le token (déconnecte les clients montés) ; fichiers et clés intacts
-- `GET  /api/cloud/files` — Liste TOUS les fichiers de `.ucloud/index.json` (pas de filtrage FaceID/inventaire) : `{files:[{path, mime, size, mtime, tags, has_scene, readonly}]}`, triés par date décroissante. Alimente la section « Mes fichiers » de FaceCloud (galerie brute du disque, indépendante de ce qui a été catalogué)
+- `GET  /api/cloud/files` — Liste TOUS les fichiers de `.ucloud/index.json` (pas de filtrage FaceID) : `{files:[{path, mime, size, mtime, tags, readonly}]}`, triés par date décroissante. Alimente la section « Mes fichiers » de FaceCloud (galerie brute du disque, indépendante de ce qui a été catalogué) — ne contient en pratique QUE des photos avec visage (cf. ligne ci-dessous, depuis 2026-10-02)
 - `GET  /api/cloud/thumbnail?path=…` — Miniature JPEG (300×300 max) de N'IMPORTE QUEL fichier image de l'index, déchiffrée à la volée (`ipfs_cat` + `uenc_codec.decrypt_aes256gcm`, jamais persistée en clair). Contrairement à `/mailjet/faces|inventory/thumbnail`, ne requiert aucun catalogage préalable — fonctionne sur toute image présente sur `/dav/`
 
 ### Montage `/dav` — WebDAV chiffré (services/cloud_storage.py)
@@ -93,7 +93,8 @@ AES-GCM tournent dans un pool de threads, sans figer la boucle uvicorn.
 - **PUT** : flux DAV → buffer borné 20 MB → clé AES-256 **aléatoire par fichier** → `uenc_codec.encrypt_aes256gcm()` → `ipfs add` → index + keyring
   - Si image : GPS EXIF extrait ICI (clair encore en main, avant chiffrement — jamais via le Brain) → `entry.geo = {lat, lon, umap_key}` si présent (Pillow, best effort, silencieux sinon)
   - Si image : déclenche `_trigger_faceid_analysis()` (voir plus bas) — asynchrone, ne bloque jamais la réponse DAV
-  - **Enrôlement supervisé** (depuis 2026-09-20) : en-têtes optionnels `X-FaceID-Target-Pubkey` (64 hex, sinon ignoré) / `X-FaceID-Target-Name` lus sur la requête PUT et transmis à `_trigger_faceid_analysis()` → `trigger_bro_vision_analysis.sh` → DM `vision_analysis_job` → `bro_dm_daemon.sh` → `satellite_face_matcher.py`, qui cataloguera alors CHAQUE visage détecté DIRECTEMENT sous cette identité (pas de recherche par similarité, pas de bootstrap `Inconnu_xxx`). Émis par `UPlanet/earth/cloud.html` pour les flux « Définir mon FaceID » et « Photos d'un ami » (voir plus bas)
+  - **Enrôlement supervisé** (depuis 2026-09-20) : en-têtes optionnels `X-FaceID-Target-Pubkey` (64 hex, sinon ignoré) / `X-FaceID-Target-Name` lus sur la requête PUT et transmis à `_trigger_faceid_analysis()` → `trigger_bro_vision_analysis.sh` → DM `vision_analysis_job` → `bro_dm_daemon.sh` → `satellite_face_matcher.py`, qui cataloguera alors CHAQUE visage détecté DIRECTEMENT sous cette identité (pas de recherche par similarité, pas de bootstrap `Inconnu_xxx`). Émis par `UPlanet/earth/ucloud.html` pour les flux « Définir mon FaceID » et « Photos d'un ami » (voir plus bas)
+  - **`.ucloud` réservé aux visages** (depuis 2026-10-02) : si `satellite_face_matcher.py` ne détecte AUCUN visage sur l'image, l'entrée (index + clé de keyring) est supprimée immédiatement — pas d'analyse de scène/objet, pas de conservation (`_delete_ucloud_entry()`, appelée depuis le bloc `if not faces:` de `main()`). Le blob IPFS n'est pas dépin (comme pour un DELETE DAV classique), seule la clé de déchiffrement disparaît. L'ancienne fonctionnalité « Objets & lieux détectés » (`_tag_ucloud_scene()`, `/mailjet/inventory*`, §8.5 de `IA/generators/faceid.sh`) a été retirée entièrement — `IA/inventory_recognition.py` reste utilisé par ailleurs pour la commande NOSTR `#inventory` du BRO responder, indépendante de ce pipeline
 - **GET** : index → CID → `ipfs cat` → déchiffrement one-shot → fichier éphémère 0600 → flux HTTP → purge immédiate (+ purge TTL 60 s de secours)
 - **Auth** : `Authorization: Nostr …` (NIP-98 vérifiée par `services/nostr.py`, aucune duplication crypto) OU Basic `email:dav_token`
 - **Isolation** : la racine DAV est résolue depuis l'email authentifié, jamais depuis le chemin
@@ -113,7 +114,7 @@ Stockage par utilisateur (tout en 0600, écritures atomiques sous `flock`) :
 restent INCHANGÉS. Ici rien n'est publié sur IPNS, et ce qui part vers IPFS est
 déjà chiffré.
 
-Interface : `UPlanet/earth/cloud.html` — **FaceCloud**, page unique combinant
+Interface : `UPlanet/earth/ucloud.html` — **FaceCloud**, page unique combinant
 activation + instructions de montage, envoi de photos (`PUT /dav/Photos/…`)
 et catalogue de visages (`/mailjet/faces*`). Tout y passe par un seul
 mécanisme d'auth : NIP-98, un event frais par appel. Trois flux d'envoi :
@@ -127,6 +128,8 @@ pile DAV avec IPFS mocké et chiffrement réel).
 ⚠️ L'ancienne route `GET /cloud` (template `templates/cloud.html`, drive NOSTR
 kind 1063/21/22) a été **supprimée** — elle n'avait rien à voir avec ce cloud
 chiffré. `SIMPLE_UI_ROUTES` dans `routers/system.py` ne la déclare plus.
+`UPlanet/earth/cloud.html` (FaceCloud) a lui-même été renommé `ucloud.html`
+le 2026-10-02 — mettre à jour tout lien/bookmark existant.
 
 ### cloud_import.py — Import en masse (script CLI, hors API)
 Recopie un répertoire local (archives, export NextCloud…) vers le cloud
@@ -147,6 +150,33 @@ ignoré sans relire l'index ni recalculer de hash, essentiel pour un cron
 répété sur des dizaines de milliers de photos. Cache perdu/absent → repli sur
 `sha256_plain` de l'entrée d'index existante au même chemin (pas de
 ré-import, pas de nouvelle clé/CID/job FaceID pour un fichier déjà importé).
+
+### cloud_purge_no_face.py — Purge rétroactive (script CLI, hors API)
+Complément ponctuel de `.ucloud` réservé aux visages (voir plus haut) : purge
+les entrées DÉJÀ cataloguées par l'ancienne fonctionnalité « Objets & lieux
+détectés » (retirée le 2026-10-02), reconnaissables à leur champ `scene`
+dans `index.json`. Portée volontairement conservatrice — une entrée sans
+`scene` ET sans `tags` est ambiguë (visage jamais partagé, ou jamais
+analysée) et n'est PAS touchée, pour ne jamais risquer de supprimer une
+vraie photo de visage.
+
+```bash
+python3 cloud_purge_no_face.py [--email EMAIL] [--clean] [--quiet] [--list-ambiguous]
+```
+Sans `--clean` : dry-run (liste les candidats, rien n'est supprimé). Avec
+`--email` : un seul MULTIPASS, sinon tous ceux hébergés sur cette station
+(`~/.zen/game/nostr/*/.ucloud/index.json`). Supprime l'entrée d'index + sa
+clé de keyring (`remove_subtree`/`prune_keyring`, même discipline qu'un
+DELETE DAV) — le blob IPFS n'est pas dépin.
+
+`--list-ambiguous` (`find_ambiguous()`) lève partiellement l'ambiguïté des
+entrées sans `scene`/`tags` SANS rien supprimer : croise chaque chemin avec
+le catalogue Qdrant `faces_{hex}` du propriétaire (`source_path`, présent
+depuis 2026-09-20) via un scroll direct (httpx synchrone, même
+`_qdrant_headers()` que `routers/mailjet.py` mais dupliqué ici — ce script
+tourne hors FastAPI). Une entrée dont le chemin correspond à un point Qdrant
+est un visage confirmé (ignorée) ; sinon elle reste ambiguë et est listée
+pour décision humaine (ré-analyser, ignorer, supprimer à la main).
 
 ### system.py
 - `GET  /` — Statut station UPlanet (avec lat/lon/deg pour grille UMAP)
@@ -196,7 +226,7 @@ ré-import, pas de nouvelle clé/CID/job FaceID pour un fichier déjà importé)
 `{name, pubkey, timestamp, source_path, bbox}` — les deux derniers champs
 depuis 2026-09-20, absents sur les points catalogués avant) :
 - `GET  /mailjet/faces` — Liste
-  `[{id, name, pubkey, timestamp, has_photo, maybe, group_id, group_size}]`.
+  `[{id, name, pubkey, timestamp, has_photo, maybe, group_id, group_size, x, y}]`.
   `maybe` (depuis 2026-09-25, pour les archives longue durée) : sur une entrée
   SANS pubkey, `{name, pubkey, score}` du visage déjà nommé le plus proche par
   cosinus quand le score tombe dans `[0.55, 0.82[` (sous le seuil de match
@@ -205,11 +235,18 @@ depuis 2026-09-20, absents sur les points catalogués avant) :
   2026-09-30) : regroupement ENTRE ELLES (union-find transitif, même seuil
   `_MAYBE_SAME_MIN=0.55`) des entrées SANS pubkey — même personne détectée sur
   plusieurs photos, mais pas encore identifiée du tout — présent seulement
-  quand la composante connexe compte ≥2 membres. Les deux sont calculés
-  serveur (scroll Qdrant `with_vector: true`, `_cosine()`/`_cluster_unnamed_faces()`
-  en Python pur, cf. `routers/mailjet.py`) — les vecteurs ne sont jamais
-  renvoyés au client, et rien n'est persisté dans Qdrant (recalculé à chaque
-  appel). UI : bandeau de suggestion + regroupement visuel dans `cloud.html`
+  quand la composante connexe compte ≥2 membres. `x`/`y` (depuis 2026-10-02) :
+  projection PCA 2D de l'embedding (`_pca_2d()`, SVD numpy), normalisée dans
+  [-1, 1] — alimente la vue « nébuleuse » p5.js de `ucloud.html`. Les trois
+  sont calculés serveur (scroll Qdrant `with_vector: true`,
+  `_cosine()`/`_cluster_unnamed_faces()`/`_pca_2d()`, cf. `routers/mailjet.py`)
+  — les vecteurs 512D ne sont jamais renvoyés au client, et rien n'est
+  persisté dans Qdrant (recalculé à chaque appel). Garde-fous de performance
+  (Python pur, O(n²)) : `_CLUSTER_MAX_UNNAMED=400` visages sans pubkey
+  au-delà duquel le regroupement est ignoré (la liste reste utilisable, juste
+  sans suggestion) ; `_PCA_MAX_FACES=5000` visages au total au-delà duquel la
+  projection est ignorée (`x`/`y` à 0). UI : bandeau de suggestion +
+  regroupement visuel + nébuleuse dans `ucloud.html`
 - `POST /mailjet/faces-edit` — Nomme un visage / l'associe à un pubkey (64 hex)
 - `POST /mailjet/faces-edit-bulk` — Même chose pour plusieurs `point_id` à la
   fois (`point_ids` séparés par des virgules, 200 max) : un seul `set_payload`
@@ -224,24 +261,18 @@ depuis 2026-09-20, absents sur les points catalogués avant) :
   réponse JPEG directe. Jamais persistée en clair (même discipline que le
   GET `/dav/`). 404 si `source_path` absent (points pré-2026-09-20) ou si la
   photo/clé a depuis été supprimée du cloud chiffré.
+- `GET  /mailjet/faces/photo?point_id=…` — Même résolution que la miniature
+  ci-dessus, mais photo ENTIÈRE (pas de recadrage `bbox`), redimensionnée
+  ≤1024px (`_resize_full_jpeg()`) — aperçu au survol d'un point dans la vue
+  nébuleuse de `ucloud.html` (la vignette identifie le visage, cette route
+  donne le contexte complet de la photo)
 
 Auth de ces 3 routes (`_faces_auth`) : **`Authorization: Nostr <event>` (NIP-98)**
 — même mécanisme que `/api/cloud/enroll` et `/api/fileupload`, EMAIL résolu via
 `services.cloud_storage.email_for_hex()` — **OU** le couple `email`+`token`
 historique (repli conservé pour `mailjet_prefs.html`). Un NIP-98 valide prime et
-rend `email`/`token` inutiles. Interface : `UPlanet/earth/cloud.html` (FaceCloud) —
+rend `email`/`token` inutiles. Interface : `UPlanet/earth/ucloud.html` (FaceCloud) —
 `mailjet_prefs.html` n'affiche plus les visages.
-
-**Inventaire — objets/lieux/scènes** (contrepartie du catalogue de visages
-pour les photos où AUCUN visage n'a été détecté ; pas de base vectorielle ici,
-juste les entrées de `.ucloud/index.json` portant un champ `scene`, écrit par
-`satellite_face_matcher.py::_tag_ucloud_scene()` — jamais mélangé avec `tags`,
-réservé aux noms d'amis à qui une photo de visage a été partagée) :
-- `GET /mailjet/inventory` — `{items:[{path, type, category, name, description, confidence, tags, timestamp}]}`
-- `GET /mailjet/inventory/thumbnail?path=…` — miniature JPEG de la photo entière
-  (pas de `bbox` à recadrer, contrairement aux visages), déchiffrée à la volée,
-  jamais persistée en clair
-Même auth (`_faces_auth`) que les routes `/mailjet/faces*`.
 
 **Templates** (Jinja2, dans `templates/`) :
 - `mailjet_base.html` — Base partagée (CSS + blocs)

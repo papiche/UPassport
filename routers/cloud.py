@@ -181,8 +181,8 @@ async def reveal_cloud_token(request: Request, npub: str = Depends(require_nostr
     "/api/cloud/files",
     summary="Lister les fichiers du cloud chiffré",
     description="TOUS les fichiers présents sur /dav/ — pas seulement ceux "
-                "catalogués par FaceID (visages) ou l'inventaire (objets/lieux). "
-                "Sert de navigateur générique dans FaceCloud, section « Mes fichiers ».",
+                "catalogués par FaceID (visages). Sert de navigateur générique "
+                "dans FaceCloud, section « Mes fichiers ».",
 )
 async def list_cloud_files(request: Request, npub: str = Depends(require_nostr_auth)):
     email = _email_for_authenticated_npub(npub)
@@ -197,7 +197,6 @@ async def list_cloud_files(request: Request, npub: str = Depends(require_nostr_a
             "size": entry.get("size_plain") or 0,
             "mtime": entry.get("mtime") or 0,
             "tags": entry.get("tags") or [],
-            "has_scene": isinstance(entry.get("scene"), dict),
             "readonly": bool(entry.get("readonly")),
         })
     files.sort(key=lambda f: f["mtime"], reverse=True)
