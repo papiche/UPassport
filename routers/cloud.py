@@ -22,6 +22,7 @@ chiffrement AES-256-GCM est appliqué.
 
 import asyncio
 import io
+import json
 import logging
 import subprocess
 import sys
@@ -201,9 +202,63 @@ async def list_cloud_files(request: Request, npub: str = Depends(require_nostr_a
             "mtime": entry.get("mtime") or 0,
             "tags": entry.get("tags") or [],
             "readonly": bool(entry.get("readonly")),
+            # "no_face" (satellite_face_matcher.py::_tag_ucloud_no_face) :
+            # analysé, aucun visage trouvé — conservé quand même (post-
+            # traitement futur), distinct de "pas encore analysé" (absent).
+            "faceid_status": (entry.get("faceid") or {}).get("status"),
         })
     files.sort(key=lambda f: f["mtime"], reverse=True)
     return JSONResponse({"files": files})
+
+
+@router.post(
+    "/api/cloud/files/delete",
+    summary="Supprimer plusieurs fichiers du cloud chiffré",
+    description="Suppression définitive (index + clé de keyring + dépin IPFS "
+                "des CID devenus orphelins) d'un lot de chemins — même "
+                "discipline que UCloudFileResource.delete() (DAV). Les "
+                "entrées en lecture seule (partagées par un autre compte) "
+                "sont ignorées, jamais supprimées d'ici.",
+)
+async def delete_cloud_files(
+    request: Request,
+    paths: str = Form(..., description="Tableau JSON de chemins, ex. '[\"/Photos/a.jpg\"]'"),
+    npub: str = Depends(require_nostr_auth),
+):
+    email = _email_for_authenticated_npub(npub)
+    try:
+        requested = json.loads(paths)
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "paths doit être un tableau JSON de chemins."}, status_code=400)
+    if not isinstance(requested, list) or not requested or not all(isinstance(p, str) for p in requested):
+        return JSONResponse({"error": "paths doit être un tableau JSON non vide de chaînes."}, status_code=400)
+    if len(requested) > 200:
+        return JSONResponse({"error": "Trop de fichiers sélectionnés (200 max)."}, status_code=400)
+
+    deleted = []
+    skipped_readonly = []
+    with cloud_storage.index_lock(email):
+        index = cloud_storage.load_index(email)
+        keyring = cloud_storage.load_keyring(email)
+        old_keyring = dict(keyring)
+        for path in requested:
+            entry = cloud_storage.get_entry(index, path)
+            if entry is None:
+                continue
+            if entry.get("readonly"):
+                skipped_readonly.append(path)
+                continue
+            cloud_storage.remove_subtree(index, path)
+            deleted.append(path)
+        keyring = cloud_storage.prune_keyring(index, keyring)
+        cloud_storage.save_keyring(email, keyring)
+        cloud_storage.save_index(email, index)
+    # Hors du verrou (I/O réseau IPFS) — best-effort, cf. ipfs_unpin().
+    cloud_storage.unpin_orphaned_cids(old_keyring, keyring)
+
+    logger.info("ucloud: suppression groupée pour %s — %d supprimé(s), %d lecture seule ignoré(s)",
+                email, len(deleted), len(skipped_readonly))
+    return JSONResponse({"success": True, "deleted": deleted, "skipped_readonly": skipped_readonly})
 
 
 @router.get(
@@ -268,3 +323,166 @@ async def revoke_cloud(request: Request, npub: str = Depends(require_nostr_auth)
     revoked = cloud_storage.revoke_dav_token(email)
     logger.info("ucloud: révocation DAV pour %s (existait=%s)", email, revoked)
     return JSONResponse({"success": True, "revoked": revoked, "email": email})
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Sources WebDAV externes — import quotidien vers FaceCloud
+# ═════════════════════════════════════════════════════════════════════════════
+# Permet d'alimenter régulièrement son propre .ucloud depuis un dossier d'un
+# AUTRE serveur WebDAV (cf. services/webdav_client.py, services/cloud_storage.py
+# ::load_webdav_sources, webdav_import.py). Le mot de passe du serveur tiers
+# n'est JAMAIS renvoyé par GET — seul `POST` le reçoit, à l'ajout.
+
+def _public_source(source: dict) -> dict:
+    """Vue sans mot de passe — seule forme jamais renvoyée au client."""
+    return {k: v for k, v in source.items() if k != "password"}
+
+
+@router.get(
+    "/api/cloud/webdav-sources",
+    summary="Lister les sources WebDAV externes configurées",
+)
+async def list_webdav_sources(request: Request, npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    sources = cloud_storage.load_webdav_sources(email)
+    return JSONResponse({"sources": [_public_source(s) for s in sources]})
+
+
+@router.post(
+    "/api/cloud/webdav-browse",
+    summary="Parcourir un dossier d'un serveur WebDAV tiers",
+    description="PROPFIND Depth:1 sur `url`+`path` — alimente le sélecteur de "
+                "dossier de ucloud.html AVANT d'enregistrer une source (les "
+                "identifiants ne sont pas persistés par cet appel).",
+)
+async def browse_webdav(
+    request: Request,
+    url: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    path: str = Form(default=""),
+    npub: str = Depends(require_nostr_auth),
+):
+    _email_for_authenticated_npub(npub)   # auth seule : pas besoin de l'email ici
+    try:
+        items = await webdav_client.list_folder(url, username, password, path)
+    except webdav_client.WebdavError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=502)
+    return JSONResponse({"path": path, "items": items})
+
+
+@router.post(
+    "/api/cloud/webdav-sources",
+    summary="Ajouter une source WebDAV externe",
+    description="Vérifie la connexion (PROPFIND) avant d'enregistrer — un "
+                "identifiant invalide échoue ici plutôt qu'en silence le "
+                "lendemain, dans le cron quotidien.",
+)
+async def add_webdav_source(
+    request: Request,
+    label: str = Form(...),
+    url: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    remote_path: str = Form(default=""),
+    dest_prefix: str = Form(default="/Photos/Import"),
+    npub: str = Depends(require_nostr_auth),
+):
+    email = _email_for_authenticated_npub(npub)
+    try:
+        await webdav_client.check_connection(url, username, password)
+    except webdav_client.WebdavError as exc:
+        return JSONResponse({"error": f"Connexion refusée : {exc}"}, status_code=400)
+
+    entry = cloud_storage.add_webdav_source(
+        email, label=label.strip() or url, url=url.strip(), username=username.strip(),
+        password=password, remote_path=remote_path.strip("/"),
+        dest_prefix=dest_prefix.strip() or "/Photos/Import",
+    )
+    return JSONResponse({"success": True, "source": _public_source(entry)})
+
+
+@router.delete(
+    "/api/cloud/webdav-sources/{source_id}",
+    summary="Supprimer une source WebDAV externe",
+)
+async def delete_webdav_source(
+    request: Request, source_id: str, npub: str = Depends(require_nostr_auth),
+):
+    email = _email_for_authenticated_npub(npub)
+    removed = cloud_storage.remove_webdav_source(email, source_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Source introuvable")
+    return JSONResponse({"success": True})
+
+
+@router.post(
+    "/api/cloud/webdav-sources/{source_id}/sync",
+    summary="Importer maintenant (hors attente du cron quotidien)",
+    description="Lance webdav_import.py en arrière-plan pour CETTE seule "
+                "source — répond immédiatement, le résultat apparaît dans "
+                "`last_sync` au prochain GET /api/cloud/webdav-sources "
+                "(l'UI propose un bouton Actualiser, même discipline que "
+                "l'analyse FaceID asynchrone).",
+)
+async def sync_webdav_source_now(
+    request: Request, source_id: str, npub: str = Depends(require_nostr_auth),
+):
+    email = _email_for_authenticated_npub(npub)
+    sources = cloud_storage.load_webdav_sources(email)
+    if not any(s.get("id") == source_id for s in sources):
+        raise HTTPException(status_code=404, detail="Source introuvable")
+
+    script = settings.BASE_DIR / "webdav_import.py"
+    if not script.exists():
+        raise HTTPException(status_code=500, detail="webdav_import.py introuvable")
+    try:
+        subprocess.Popen(
+            [sys.executable, str(script), email, "--source-id", source_id],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as exc:
+        logger.warning("ucloud: déclenchement webdav_import impossible pour %s: %s", email, exc)
+        raise HTTPException(status_code=500, detail="Lancement de l'import impossible")
+    logger.info("ucloud: import WebDAV manuel déclenché pour %s (source %s)", email, source_id)
+    return JSONResponse({"success": True, "message": "Import lancé en arrière-plan"})
+
+
+@router.get(
+    "/api/cloud/webdav-sources/{source_id}/status",
+    summary="Niveau de synchro d'une source WebDAV",
+    description="Compte les images présentes côté serveur DISTANT (PROPFIND "
+                "récursif plafonné, cf. webdav_client.walk_files) et celles "
+                "déjà cataloguées LOCALEMENT sous dest_prefix — un aperçu, "
+                "PAS un import. Appel potentiellement lent (parcours réseau "
+                "complet du dossier distant) : à la demande (bouton dédié), "
+                "jamais automatique au chargement de la page.",
+)
+async def webdav_source_status(
+    request: Request, source_id: str, npub: str = Depends(require_nostr_auth),
+):
+    email = _email_for_authenticated_npub(npub)
+    sources = cloud_storage.load_webdav_sources(email)
+    source = next((s for s in sources if s.get("id") == source_id), None)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source introuvable")
+
+    try:
+        remote_files = await webdav_client.walk_files(
+            source["url"], source["username"], source["password"],
+            source.get("remote_path") or "")
+    except webdav_client.WebdavError as exc:
+        return JSONResponse({"error": f"Connexion refusée : {exc}"}, status_code=502)
+
+    dest_prefix = (source.get("dest_prefix") or "/Photos/Import").rstrip("/")
+    index = cloud_storage.load_index(email)
+    local_count = sum(
+        1 for path, e in (index.get("entries") or {}).items()
+        if isinstance(e, dict) and e.get("type") == "file" and path.startswith(dest_prefix + "/")
+    )
+    return JSONResponse({
+        "remote_count": len(remote_files),
+        "remote_capped": len(remote_files) >= 2000,
+        "local_count": local_count,
+    })
