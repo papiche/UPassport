@@ -362,8 +362,25 @@ exposée) ou `coop` (clé dérivée de `$UPLANETNAME`, lisible par tous les Capi
   (anciens CID conservés ; un paquet d'un autre Capitaine → 400, utiliser `fork`). Corps ≤ 25 Mo, chemins sans `..`,
   storyboard validé comme `generate_scene.sh`
 - `GET …/versions` · `POST …/restore` · `POST …/fork {name,scope}`
+- `DELETE /api/story/asset/{cid}` — retire toute la lignée du trousseau local + demande de suppression NIP-09
+  (kind 5, best-effort) pour l'événement courant. Équivalent CLI : `story_asset.py delete REF`
+- `GET …/export` — tar.gz EN CLAIR (manifest + fichiers, pas de chiffrement/IPFS/NOSTR) : sauvegarde locale ou transfert
+  manuel vers une autre station. `POST /api/story/import` (multipart `file`,`scope`,`name?`) — installe un paquet exporté
+  comme NOUVEL asset de cette bibliothèque (nouvelle clé/CID/lignée, comme `fork` mais depuis un fichier local ; nom
+  dédupliqué automatiquement s'il collide avec un asset déjà présent, pour ne pas écraser son événement Kind 30510
+  remplaçable). Équivalent CLI : `story_asset.py export REF -o F.tar.gz` / `importpkg F.tar.gz [--scope] [--name]`
 - `POST …/render {regen?}` → job ; `GET /api/story/jobs[/{id}]` (étape, plan en cours, plans prêts, ETA, journal),
   `POST …/cancel`, `GET …/jobs/{id}/file?name=` (shot_NN.mp4, vo_NN.wav, scene.mp4), `GET /api/story/render/{version_cid}/{id}/file`
+- `POST …/render-shot {index}` — job `kind:"shot"` : ne (re)calcule qu'un plan (même cache de travail que la scène,
+  ni finition ni assemblage). La prise précédente de ce plan est archivée avant d'être remplacée (jamais perdue) :
+  `GET …/shot/{index}/takes` (liste) · `GET …/shot/{index}/takes/{take}/file`. Garde anti-collision : refuse si un
+  rendu (scène entière OU plan seul) tourne déjà sur le même répertoire de travail.
+- CLI uniquement (pont CLI/Web, pas exposé en API) : `story_asset.py resolve-character NOM --dest DIR` installe un
+  personnage de la bibliothèque dans un dossier quelconque (utilisé automatiquement par `generate_scene.sh` quand un
+  acteur `"nom": {}` est absent de `$CAST_BANK`) ; `story_asset.py rebuild [--force]` reconstruit `library/keyring.json`
+  depuis le relais NOSTR si `$SCENES_DIR` a été supprimé — `coop` toujours récupérable (clé dérivée de
+  `$UPLANETNAME`), `private` seulement si sa clé a été sauvegardée par DM NOSTR à soi-même (kind 4, envoyé
+  automatiquement par `seal()` à chaque version privée).
 - Jobs : process détachés (`start_new_session`), un seul à la fois (file `queued`), état dans `library/jobs/*.json`,
   `progress.json` écrit par `generate_scene.sh` / `generate_character.sh`. Rendus archivés par version (`renders/<auteur>-<d>/v/<cid>/<job>/`),
   coop : mp4 ajouté à IPFS et annoncé dans l'événement (`renders`). Tests : `tests/test_story_router.py`.

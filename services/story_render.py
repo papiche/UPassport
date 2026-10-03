@@ -150,6 +150,8 @@ def start_render(ref: str, regen: Optional[List[str]] = None) -> Dict[str, Any]:
     key = _asset_key(entry)
     root = RENDERS_DIR / key
     src, work = root / "src", root / "work"
+    if _asset_has_active_job(work):
+        raise story_asset.AssetError("un rendu est déjà en cours pour cette scène : patientez qu'il se termine")
     if src.exists():
         shutil.rmtree(src)  # le paquet de CETTE version : ses chemins $SCENES_DIR doivent résoudre dedans
     for rel, data in files.items():
@@ -190,6 +192,94 @@ def start_render(ref: str, regen: Optional[List[str]] = None) -> Dict[str, Any]:
     _ensure_pump()
     _pump()
     return job_status(job["id"])
+
+
+def _asset_has_active_job(work: Path) -> bool:
+    """Un job (scène entière ou plan seul) tourne-t-il déjà sur CE répertoire de travail ?
+    Évite qu'un rendu de plan supprime des fichiers qu'un rendu complet est en train de lire
+    ou d'écrire sur le même cache (et inversement)."""
+    if not JOBS_DIR.is_dir():
+        return False
+    for p in JOBS_DIR.glob("*.json"):
+        try:
+            j = json.loads(p.read_text())
+        except (OSError, ValueError):
+            continue
+        if j.get("workdir") == str(work) and j.get("status") in ("queued", "running"):
+            return True
+    return False
+
+
+def start_shot_render(ref: str, index: int) -> Dict[str, Any]:
+    """Rend UN SEUL plan d'une scène déjà publiée, dans le même répertoire de travail qu'un
+    rendu complet (les autres plans déjà calculés ne sont pas retouchés — cache partagé). La
+    prise précédente de ce plan, si elle existe, est archivée sous v/<cid>/shots/<index>/ (jamais
+    perdue) avant d'être remplacée."""
+    entry, manifest, files = story_asset.open_bundle(ref)
+    if manifest["type"] != "scene":
+        raise story_asset.AssetError("seule une scène a des plans à générer séparément")
+    if "storyboard.json" not in files:
+        raise story_asset.AssetError("ce paquet n'a pas de storyboard")
+    sb = json.loads(files["storyboard.json"])
+    nb = len(sb.get("shots", []))
+    if not (0 <= index < nb):
+        raise story_asset.AssetError(f"plan {index} hors plage (0-{nb - 1})")
+    key = _asset_key(entry)
+    root = RENDERS_DIR / key
+    src, work = root / "src", root / "work"
+    if _asset_has_active_job(work):
+        raise story_asset.AssetError("un rendu est déjà en cours pour cette scène : patientez qu'il se termine")
+    if not src.exists():  # premier rendu de cette version (comme start_render)
+        for rel, data in files.items():
+            story_asset.check_path(rel)
+            dest = src / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+    work.mkdir(parents=True, exist_ok=True)
+    n = f"{index:02d}"
+    old = work / f"shot_{n}.mp4"
+    if old.exists():
+        takes_dir = root / "v" / entry["cid"] / "shots" / n
+        takes_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(old, takes_dir / f"{int(time.time())}.mp4")
+    # Repart à neuf sur ce plan (et ses fichiers dérivés) : un clic sur « Générer ce plan »
+    # demande explicitement une nouvelle prise, même si rien n'a changé dans le storyboard
+    for pat in (f"shot_{n}.*", f"talk_{n}.*", f"screenclip_{n}.*", f"mix_{n}.*", f"part_{n}.*",
+                f"vo_{n}.*", f"image_{n}.*", f"last_{n}.*", f"card_{n}.*", f"screen_{n}.*", f"title_{n}.txt",
+                f"shot_{n}.sig"):
+        for p in work.glob(pat):
+            p.unlink(missing_ok=True)
+    job: Dict[str, Any] = {"id": uuid.uuid4().hex[:12], "kind": "shot", "status": "queued", "cid": entry["cid"],
+                           "name": manifest["name"], "version": entry.get("version", 1), "scope": entry.get("scope", "private"),
+                           "mine": not entry.get("foreign"), "queued": int(time.time()), "src": str(src), "workdir": str(work),
+                           "root": str(root), "log": str(root / "job.log"), "shots": 1, "shot_index": index,
+                           "cmd": [str(GEN_DIR / "generate_scene.sh"), "-w", str(work), "-i", str(index), str(src / "storyboard.json")]}
+    (work / "progress.json").unlink(missing_ok=True)
+    with _lock:
+        _write_job(job)
+    _ensure_pump()
+    _pump()
+    return job_status(job["id"])
+
+
+def shot_takes(ref: str, index: int) -> List[Dict[str, Any]]:
+    """Prises archivées d'un plan (hors la courante), de la plus récente à la plus ancienne."""
+    entry = story_asset.find_entry(ref)
+    takes_dir = RENDERS_DIR / _asset_key(entry) / "v" / entry["cid"] / "shots" / f"{index:02d}"
+    if not takes_dir.is_dir():
+        return []
+    out = [{"id": p.stem, "created": int(p.stat().st_mtime)} for p in takes_dir.glob("*.mp4")]
+    return sorted(out, key=lambda t: t["created"], reverse=True)
+
+
+def shot_take_file(ref: str, index: int, take: str) -> Path:
+    if not re.fullmatch(r"\d{1,12}", take):
+        raise story_asset.AssetError("identifiant de prise invalide")
+    entry = story_asset.find_entry(ref)
+    p = RENDERS_DIR / _asset_key(entry) / "v" / entry["cid"] / "shots" / f"{index:02d}" / f"{take}.mp4"
+    if not p.is_file():
+        raise story_asset.AssetError("prise introuvable")
+    return p
 
 
 def _ensure_pump() -> None:
@@ -286,8 +376,10 @@ def _finish(job: Dict[str, Any]) -> None:
     try:
         if job["kind"] == "scene":
             job["render"] = _archive_scene(job, work)
-        else:
+        elif job["kind"] == "character":
             job["render"] = _apply_character(job, work)
+        else:
+            job["render"] = _finish_shot(job, work)
         job["status"] = "done"
     except Exception as exc:  # noqa: BLE001 - l'erreur est montrée à l'utilisateur
         logger.exception("story: fin de job %s", job["id"])
@@ -321,6 +413,14 @@ def _archive_scene(job: Dict[str, Any], work: Path) -> Dict[str, Any]:
         if entry:
             story_asset.announce(entry)  # les autres Capitaines voient et entendent ce rendu
     return {k: v for k, v in rec.items() if k != "dir"}
+
+
+def _finish_shot(job: Dict[str, Any], work: Path) -> Dict[str, Any]:
+    idx = job["shot_index"]
+    name = f"shot_{idx:02d}.mp4"
+    if not (work / name).exists():
+        raise story_asset.AssetError(f"{name} absent après le rendu")
+    return {"index": idx, "file": name, "duration": _duration(work / name)}
 
 
 def _apply_character(job: Dict[str, Any], work: Path) -> Dict[str, Any]:

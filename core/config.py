@@ -88,6 +88,18 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+# CAPTAINEMAIL n'est jamais dans UPassport/.env ni dans l'environnement du process
+# (le service systemd ne source pas my.sh) : côté bash, tools/my.sh le dérive du
+# symlink ~/.zen/game/players/.current. Sans ce repli, settings.CAPTAINEMAIL reste
+# "" en permanence et toute route qui s'appuie dessus pour identifier le Capitaine
+# (ex. routers/story.py::_require_captain) rejette TOUJOURS, même une authentification
+# NIP-98 parfaitement valide du vrai Capitaine.
+if not settings.CAPTAINEMAIL:
+    try:
+        settings.CAPTAINEMAIL = (Path.home() / ".zen/game/players/.current/.player").read_text().strip()
+    except OSError:
+        pass
+
 # Interpréteur Python du venv ~/.astro/ (contient duniterpy, libnacl, base58, pynostr, websocket-client)
 _astro_py = Path.home() / ".astro" / "bin" / "python3"
 ASTRO_PYTHON: str = str(_astro_py) if _astro_py.exists() else "python3"

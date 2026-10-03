@@ -15,7 +15,13 @@ suivi par `services/story_render.py`.
     GET  /api/story/asset/{cid}/versions                historique + rendus de chaque version
     POST /api/story/asset/{cid}/restore                 nouvelle version = copie d'une ancienne
     POST /api/story/asset/{cid}/fork                    copie à mon nom (paquet d'un autre Capitaine)
+    GET  /api/story/asset/{cid}/export                  tar.gz EN CLAIR (sauvegarde / transfert manuel)
+    POST /api/story/import                               {file} → installe un paquet exporté dans ma bibliothèque
+    DELETE /api/story/asset/{cid}                         retire le paquet (toute sa lignée) de ma bibliothèque
     POST /api/story/asset/{cid}/render                  {regen?} → job (scène : vidéo ; personnage : portrait + voix)
+    POST /api/story/asset/{cid}/render-shot              {index} → job (un seul plan d'une scène)
+    GET  /api/story/asset/{cid}/shot/{index}/takes       prises archivées de ce plan (hors la courante)
+    GET  …/shot/{index}/takes/{take}/file                 fichier d'une prise archivée
     GET  /api/story/jobs · /api/story/jobs/{id}         suivi de progression
     POST /api/story/jobs/{id}/cancel
     GET  /api/story/jobs/{id}/file?name=                plan / vidéo / voix en cours de rendu
@@ -29,7 +35,7 @@ import base64
 import logging
 import mimetypes
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from core.config import settings
@@ -43,6 +49,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_BODY = 25 * 1024 * 1024
+MAX_IMPORT = 200 * 1024 * 1024  # paquet exporté (tar.gz en clair, vidéo incluse pour une scène)
 TEXT_EXT = (".json", ".txt", ".md")
 TEXT_PREVIEW_MAX = 512 * 1024
 
@@ -189,6 +196,38 @@ async def story_fork(cid: str, request: Request, npub: str = Depends(require_nos
     return {"cid": entry["cid"], "version": entry["version"]}
 
 
+@router.get("/api/story/asset/{cid}/export", summary="Télécharger le paquet en clair (sauvegarde / transfert manuel)")
+async def story_export(cid: str, npub: str = Depends(require_nostr_auth)):
+    _require_captain(npub)
+    entry = await _run(story_asset.find_entry, cid)
+    blob = await _run(story_asset.export_bytes, cid)
+    filename = f"{entry['type']}-{story_asset.slug(entry['name'])}.tar.gz"
+    return Response(content=blob, media_type="application/gzip",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.delete("/api/story/asset/{cid}", summary="Retirer un paquet (toute sa lignée) de ma bibliothèque")
+async def story_delete(cid: str, npub: str = Depends(require_nostr_auth)):
+    _require_captain(npub)
+    result = await _run(story_asset.delete, cid)
+    logger.info("story: %s « %s » supprimé (%d version(s))", result["type"], result["name"], len(result["removed"]))
+    return {"removed": len(result["removed"])}
+
+
+@router.post("/api/story/import", summary="Installer un paquet exporté dans ma bibliothèque")
+async def story_import(npub: str = Depends(require_nostr_auth), file: UploadFile = File(...),
+                       scope: str = Form("private"), name: str = Form(None)):
+    _require_captain(npub)
+    if scope not in story_asset.SCOPES:
+        raise HTTPException(status_code=400, detail="scope : private ou coop")
+    blob = await file.read()
+    if len(blob) > MAX_IMPORT:
+        raise HTTPException(status_code=413, detail=f"paquet trop gros ({MAX_IMPORT // 1024 // 1024} Mo max)")
+    entry = await _run(story_asset.import_file, blob, scope, (name or "").strip() or None)
+    logger.info("story: %s « %s » importé (%s)", entry["type"], entry["name"], entry["cid"])
+    return {"cid": entry["cid"], "name": entry["name"], "type": entry["type"], "version": entry["version"]}
+
+
 # ─── Rendu et suivi ─────────────────────────────────────────────────────────
 @router.post("/api/story/asset/{cid}/render", summary="Générer (scène : vidéo ; personnage : portrait et voix)")
 async def story_render_start(cid: str, request: Request, npub: str = Depends(require_nostr_auth)):
@@ -196,6 +235,29 @@ async def story_render_start(cid: str, request: Request, npub: str = Depends(req
     b = await _json(request)
     regen = [r for r in (b.get("regen") or []) if r in ("portrait", "voice")]
     return await _run(story_render.start_render, cid, regen)
+
+
+@router.post("/api/story/asset/{cid}/render-shot", summary="Générer un seul plan (scène uniquement)")
+async def story_render_shot(cid: str, request: Request, npub: str = Depends(require_nostr_auth)):
+    _require_captain(npub)
+    b = await _json(request)
+    index = b.get("index")
+    if not isinstance(index, int) or index < 0:
+        raise HTTPException(status_code=400, detail="index de plan invalide")
+    return await _run(story_render.start_shot_render, cid, index)
+
+
+@router.get("/api/story/asset/{cid}/shot/{index}/takes", summary="Prises archivées d'un plan")
+async def story_shot_takes(cid: str, index: int, npub: str = Depends(require_nostr_auth)):
+    _require_captain(npub)
+    return {"takes": await _run(story_render.shot_takes, cid, index)}
+
+
+@router.get("/api/story/asset/{cid}/shot/{index}/takes/{take}/file", summary="Fichier d'une prise archivée")
+async def story_shot_take_file(cid: str, index: int, take: str, npub: str = Depends(require_nostr_auth)):
+    _require_captain(npub)
+    path = await _run(story_render.shot_take_file, cid, index, take)
+    return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
 
 
 @router.get("/api/story/jobs", summary="Rendus en cours et récents")
