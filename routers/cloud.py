@@ -23,12 +23,15 @@ chiffrement AES-256-GCM est appliqué.
 import asyncio
 import io
 import logging
+import subprocess
+import sys
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
+from core.config import settings
 from services.nostr import require_nostr_auth
-from services import cloud_storage
+from services import cloud_storage, webdav_client
 from utils.crypto import npub_to_hex
 
 logger = logging.getLogger(__name__)

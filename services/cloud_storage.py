@@ -79,6 +79,7 @@ logger = logging.getLogger(__name__)
 GAME_NOSTR_PATH: Path = settings.GAME_PATH / "nostr"
 UCLOUD_DIRNAME = ".ucloud"
 DAV_TOKEN_FILENAME = "dav_token"
+WEBDAV_SOURCES_FILENAME = "webdav_sources.json"
 CACHE_DIR: Path = settings.ZEN_PATH / "tmp" / "ucloud_cache"
 CACHE_TTL = 60  # secondes — filet de sécurité si le `finally` a échoué
 
@@ -144,6 +145,10 @@ def lock_path(email: str) -> Path:
 
 def token_path(email: str) -> Path:
     return ucloud_dir(email) / DAV_TOKEN_FILENAME
+
+
+def webdav_sources_path(email: str) -> Path:
+    return ucloud_dir(email) / WEBDAV_SOURCES_FILENAME
 
 
 def ensure_ucloud_dir(email: str) -> Path:
@@ -772,6 +777,99 @@ def revoke_dav_token(email: str) -> bool:
         return True
     except FileNotFoundError:
         return False
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Sources WebDAV externes — import quotidien depuis un cloud tiers
+# ═════════════════════════════════════════════════════════════════════════════
+# Permet d'alimenter régulièrement son propre FaceCloud depuis un dossier d'un
+# AUTRE serveur WebDAV (NextCloud, ownCloud, une autre station Astroport…) —
+# cf. webdav_import.py (script batch, invoqué par
+# RUNTIME/NOSTRCARD.refresh.sh) et routers/cloud.py (CRUD + parcours de
+# dossiers pour le sélecteur de ucloud.html). Même discipline que dav_token :
+# JSON en clair, 0600, écriture atomique — la frontière de confiance est le
+# filesystem local de la station (ce ne sont QUE des identifiants vers un
+# serveur tiers, jamais la clé MULTIPASS elle-même).
+
+def load_webdav_sources(email: str) -> List[Dict[str, Any]]:
+    """[{id, label, url, username, password, remote_path, dest_prefix,
+    created_at, last_sync}] — `last_sync` est None tant qu'aucun import n'a
+    encore tourné, sinon {"at", "imported", "skipped", "errors"}."""
+    path = webdav_sources_path(email)
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("ucloud: webdav_sources illisible pour %s: %s", email, exc)
+        return []
+    sources = data.get("sources") if isinstance(data, dict) else None
+    return sources if isinstance(sources, list) else []
+
+
+def save_webdav_sources(email: str, sources: List[Dict[str, Any]]) -> None:
+    ensure_ucloud_dir(email)
+    path = webdav_sources_path(email)
+    tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    fd = os.open(str(tmp), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, _FILE_MODE)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump({"sources": sources}, fh, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, _FILE_MODE)
+        os.replace(tmp, path)
+        os.chmod(path, _FILE_MODE)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def add_webdav_source(email: str, label: str, url: str, username: str, password: str,
+                       remote_path: str, dest_prefix: str) -> Dict[str, Any]:
+    sources = load_webdav_sources(email)
+    entry = {
+        "id": os.urandom(8).hex(),
+        "label": label,
+        "url": url,
+        "username": username,
+        "password": password,
+        "remote_path": remote_path,
+        "dest_prefix": dest_prefix,
+        "created_at": int(time.time()),
+        "last_sync": None,
+    }
+    sources.append(entry)
+    save_webdav_sources(email, sources)
+    logger.info("ucloud: source WebDAV '%s' ajoutée pour %s", label, email)
+    return entry
+
+
+def remove_webdav_source(email: str, source_id: str) -> bool:
+    sources = load_webdav_sources(email)
+    kept = [s for s in sources if s.get("id") != source_id]
+    if len(kept) == len(sources):
+        return False
+    save_webdav_sources(email, kept)
+    logger.info("ucloud: source WebDAV %s supprimée pour %s", source_id, email)
+    return True
+
+
+def record_webdav_sync(email: str, source_id: str, summary: Dict[str, Any]) -> None:
+    """Écrit le résumé du dernier import (`imported`/`skipped`/`errors`/`at`)
+    — appelé par webdav_import.py en fin de passage, lu par l'UI pour
+    afficher l'état de chaque source sans rejouer l'import."""
+    sources = load_webdav_sources(email)
+    touched = False
+    for s in sources:
+        if s.get("id") == source_id:
+            s["last_sync"] = summary
+            touched = True
+    if touched:
+        save_webdav_sources(email, sources)
 
 
 def verify_basic_credentials(user_name: str, password: str) -> Optional[str]:
