@@ -157,11 +157,14 @@ def purge_user(email: str, clean: bool, quiet: bool) -> int:
         with cloud_storage.index_lock(email):
             idx = cloud_storage.load_index(email)
             keyring = cloud_storage.load_keyring(email)
+            old_keyring = dict(keyring)
             for path, _entry in candidates:
                 cloud_storage.remove_subtree(idx, path)
             keyring = cloud_storage.prune_keyring(idx, keyring)
             cloud_storage.save_keyring(email, keyring)
             cloud_storage.save_index(email, idx)
+        # Hors du verrou (I/O réseau IPFS) — best-effort, cf. ipfs_unpin().
+        cloud_storage.unpin_orphaned_cids(old_keyring, keyring)
 
     return len(candidates)
 

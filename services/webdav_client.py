@@ -82,7 +82,14 @@ async def list_folder(root_url: str, username: str, password: str,
     except ET.ParseError as exc:
         raise WebdavError(f"réponse PROPFIND illisible : {exc}") from exc
 
-    base_path = httpx.URL(base).path
+    # Le préfixe à retrancher de chaque href est celui du DOSSIER INTERROGÉ
+    # (`target_url`), PAS celui de la racine `root_url` — sans quoi un enfant
+    # d'un sous-dossier (ex. Photos/WdTest/top.jpg quand on interroge
+    # Photos/WdTest/) contient encore un '/' après retranchement du préfixe
+    # racine et se fait rejeter par le garde-fou Depth:1 ci-dessous (bug
+    # corrigé le 2026-10-03 — toute PROPFIND sur un sous-dossier renvoyait
+    # silencieusement une liste vide).
+    target_path = httpx.URL(target_url).path
     items: List[Dict[str, Any]] = []
     for response_el in root:
         if _localname(response_el.tag) != "response":
@@ -107,9 +114,9 @@ async def list_folder(root_url: str, username: str, password: str,
                             pass
                     elif ptag == "getlastmodified" and prop.text:
                         mtime = prop.text
-        if not href or not href.startswith(base_path):
-            continue   # hors de la racine configurée — ignoré par prudence
-        child_rel = href[len(base_path):].strip("/")
+        if not href or not href.startswith(target_path):
+            continue   # hors du dossier interrogé — ignoré par prudence
+        child_rel = href[len(target_path):].strip("/")
         if not child_rel or "/" in child_rel:
             continue   # le dossier courant lui-même, ou un petit-enfant (garde-fou Depth:1)
         items.append({
@@ -128,15 +135,21 @@ async def walk_files(root_url: str, username: str, password: str,
     """Tous les FICHIERS sous `rel_path`, parcouru récursivement niveau par
     niveau (pas de Depth: infinity, cf. `list_folder`). Plafonné à
     `max_files` par prudence (un dossier mal choisi — toute la photothèque —
-    ne doit pas bloquer indéfiniment l'import quotidien)."""
+    ne doit pas bloquer indéfiniment l'import quotidien). Un sous-dossier qui
+    échoue (404 sur une entrée fantôme du serveur distant, permission refusée
+    sur UN dossier précis, etc.) est ignoré plutôt que de faire échouer tout
+    le reste de l'arborescence."""
     out: List[Dict[str, Any]] = []
     entries = await list_folder(root_url, username, password, rel_path)
     for entry in entries:
         if len(out) >= max_files:
             break
         if entry["is_dir"]:
-            out.extend(await walk_files(root_url, username, password, entry["path"],
-                                         max_files=max_files - len(out)))
+            try:
+                out.extend(await walk_files(root_url, username, password, entry["path"],
+                                             max_files=max_files - len(out)))
+            except WebdavError:
+                continue
         else:
             out.append(entry)
     return out[:max_files]
