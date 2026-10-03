@@ -497,6 +497,40 @@ def ipfs_cat(cid: str, max_bytes: Optional[int] = None) -> bytes:
     return b"".join(chunks)
 
 
+def ipfs_unpin(cid: str) -> bool:
+    """Retire l'épinglage d'un CID (best-effort, ne lève JAMAIS) : un échec
+    d'unpin ne doit jamais faire échouer une suppression utilisateur — ce qui
+    compte réellement pour la confidentialité, c'est la clé AES détruite
+    (cf. `unpin_orphaned_cids`), pas la libération d'espace disque IPFS.
+    Ne force pas de garbage collection (`ipfs repo gc`) : c'est une opération
+    globale et coûteuse, à laisser au rythme de maintenance de la station,
+    pas à chaque suppression."""
+    try:
+        with httpx.Client(timeout=IPFS_TIMEOUT) as client:
+            resp = client.post(_ipfs_api("pin/rm"), params={"arg": cid})
+        if resp.status_code == 200:
+            return True
+        logger.warning("ucloud: ipfs pin rm %s → HTTP %s: %s", cid, resp.status_code, resp.text[:200])
+        return False
+    except httpx.HTTPError as exc:
+        logger.warning("ucloud: ipfs pin rm %s injoignable: %s", cid, exc)
+        return False
+
+
+def unpin_orphaned_cids(old_keyring: Dict[str, Any], new_keyring: Dict[str, Any]) -> List[str]:
+    """CIDs présents dans `old_keyring` mais plus dans `new_keyring` (après
+    `prune_keyring`, donc plus référencés par aucune entrée de l'index) :
+    leur clé de déchiffrement est détruite, leur bloc IPFS ne sert plus à
+    rien dans ce cloud — on en retire l'épinglage pour que `ipfs repo gc`
+    puisse un jour récupérer l'espace. Retourne les CIDs réellement
+    dépinglés (un échec individuel n'empêche pas les autres)."""
+    orphaned = set(old_keyring) - set(new_keyring)
+    unpinned = [cid for cid in orphaned if ipfs_unpin(cid)]
+    if unpinned:
+        logger.info("ucloud: %d CID dépinglé(s) (clé détruite, plus référencé)", len(unpinned))
+    return unpinned
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Cache éphémère du CLAIR (0600) + purge TTL
 # ═════════════════════════════════════════════════════════════════════════════
@@ -936,6 +970,40 @@ def _extract_gps_umap(plaintext: bytes) -> Optional[Dict[str, Any]]:
             "umap_key": f"{lat:.2f},{lon:.2f}"}
 
 
+def _normalize_image_orientation(plaintext: bytes, content_type: str) -> bytes:
+    """Ré-encode `plaintext` à l'endroit si un tag EXIF Orientation ≠ 1 est
+    présent (rotation 90/180/270 ou miroir) — sinon retourne `plaintext`
+    inchangé (pas de recompression inutile). Appelé ICI, avant chiffrement,
+    pour que l'image STOCKÉE soit canoniquement à l'endroit : ComfyUI
+    (LoadImage) normalise lui aussi l'orientation avant détection, donc sans
+    ce correctif le bbox retourné (repère "à l'endroit") ne correspondait pas
+    au pixel brut stocké (repère "à plat") — d'où les visages mal recadrés et
+    les photos pivotées constatées sur un import WebDAV de masse
+    (2026-10-03). Best effort : toute image déjà sans rotation ou dont la
+    lecture échoue ressort inchangée.
+    """
+    if not content_type.startswith("image/") or content_type == "image/svg+xml":
+        return plaintext
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(io.BytesIO(plaintext)) as img:
+            orientation = img.getexif().get(0x0112, 1)
+            if orientation in (0, 1):
+                return plaintext
+            fmt = img.format or "JPEG"
+            transposed = ImageOps.exif_transpose(img)
+            if transposed is None:
+                return plaintext
+            if fmt == "JPEG" and transposed.mode not in ("RGB", "L"):
+                transposed = transposed.convert("RGB")
+            buf = io.BytesIO()
+            transposed.save(buf, format=fmt, **({"quality": 95} if fmt == "JPEG" else {}))
+            return buf.getvalue()
+    except Exception as exc:
+        logger.debug("ucloud: normalisation orientation EXIF échouée : %s", exc)
+        return plaintext
+
+
 def ingest_plaintext(email: str, path: str, plaintext: bytes,
                       content_type: Optional[str] = None,
                       target_pubkey: Optional[str] = None,
@@ -950,6 +1018,15 @@ def ingest_plaintext(email: str, path: str, plaintext: bytes,
     ressource ; un appelant hors-DAV peut passer un chemin brut)."""
     path = normalize_path(path)
 
+    if not content_type:
+        content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+
+    # Orientation EXIF normalisée AVANT chiffrement (cf. docstring) — `plaintext`
+    # désigne désormais, pour le reste de la fonction, le pixel canonique qui
+    # sera effectivement stocké (taille/hash calculés plus bas en découlent).
+    if content_type.startswith("image/"):
+        plaintext = _normalize_image_orientation(plaintext, content_type)
+
     # Clé AES-256 ALÉATOIRE PAR FICHIER. Jamais de clé unique par
     # utilisateur : la compromission d'un fichier partagé ne doit pas donner
     # accès à tout le cloud.
@@ -958,9 +1035,6 @@ def ingest_plaintext(email: str, path: str, plaintext: bytes,
 
     # Upload du blob DÉJÀ CHIFFRÉ. IPFS ne voit jamais le clair.
     cid = ipfs_add_bytes(payload, filename=f"{base_name(path)}.uenc")
-
-    if not content_type:
-        content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
 
     # GPS EXIF — extrait ICI (clair déjà en main, avant chiffrement), jamais
     # via le Brain : aucune coordonnée ne doit transiter par un job d'analyse
@@ -971,6 +1045,7 @@ def ingest_plaintext(email: str, path: str, plaintext: bytes,
     with index_lock(email):
         idx = load_index(email)
         keyring = load_keyring(email)
+        old_keyring = dict(keyring)
         previous = idx["entries"].get(path, {})
 
         ensure_parent_dirs(idx, path)
@@ -992,12 +1067,16 @@ def ingest_plaintext(email: str, path: str, plaintext: bytes,
                          path, (geo["lat"], geo["lon"]), geo["umap_key"])
         idx["entries"][path] = entry
         keyring[cid] = {"key_hex": key_hex}
-        # Une clé devenue orpheline (ancien CID remplacé) est retirée.
+        # Une clé devenue orpheline (ancien CID remplacé — ce PUT écrase un
+        # fichier déjà présent à ce chemin) est retirée.
         keyring = prune_keyring(idx, keyring)
         keyring[cid] = {"key_hex": key_hex}
 
         save_keyring(email, keyring)
         save_index(email, idx)
+    # Le CID remplacé (s'il y en avait un) est dépinglé — même discipline que
+    # UCloudFileResource.delete(), hors du verrou (I/O réseau IPFS).
+    unpin_orphaned_cids(old_keyring, keyring)
 
     logger.info("ucloud: ingest %s → cid=%s (%d octets clairs / %d chiffrés) [%s]",
                  path, cid, len(plaintext), len(payload), email)
@@ -1380,12 +1459,16 @@ class UCloudFileResource(DAVNonCollection):
         with index_lock(self.email):
             idx = load_index(self.email)
             keyring = load_keyring(self.email)
+            old_keyring = dict(keyring)
             remove_subtree(idx, self.path)
-            # Le blob reste sur IPFS (il peut être épinglé ailleurs, ou partagé) ;
-            # c'est la CLÉ qu'on détruit — sans elle le blob est du bruit.
+            # La clé est détruite (sans elle le blob IPFS n'est que du bruit
+            # chiffré) ET le CID devenu orphelin est dépinglé — depuis
+            # 2026-10-04 : avant, seul le pin restait, laissant le blob
+            # indéfiniment sur IPFS (cf. CLAUDE.md pour l'historique).
             keyring = prune_keyring(idx, keyring)
             save_keyring(self.email, keyring)
             save_index(self.email, idx)
+        unpin_orphaned_cids(old_keyring, keyring)
         # Le cache d'index par requête doit être invalidé : wsgidav revérifie
         # `provider.exists()` juste après le delete.
         self.provider._invalidate(self.environ)
@@ -1530,10 +1613,12 @@ class UCloudCollection(DAVCollection):
         with index_lock(self.email):
             idx = load_index(self.email)
             keyring = load_keyring(self.email)
+            old_keyring = dict(keyring)
             remove_subtree(idx, self.path)
             keyring = prune_keyring(idx, keyring)
             save_keyring(self.email, keyring)
             save_index(self.email, idx)
+        unpin_orphaned_cids(old_keyring, keyring)
         self.provider._invalidate(self.environ)
         self.remove_all_properties(recursive=True)
         self.remove_all_locks(recursive=True)

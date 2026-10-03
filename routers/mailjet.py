@@ -1659,8 +1659,13 @@ def _crop_face_jpeg(plaintext: bytes, bbox: Optional[dict]) -> bytes:
     JPEG ≤300px — jamais persisté, juste retourné en mémoire. Lève
     HTTPException si le recadrage échoue (image corrompue, etc.)."""
     try:
-        from PIL import Image
-        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
+        from PIL import Image, ImageOps
+        # exif_transpose AVANT crop : bbox a été calculé par ComfyUI (LoadImage
+        # normalise l'orientation EXIF avant détection), donc sur une image déjà
+        # stockée à plat (photos ingérées avant le correctif cloud_storage.py::
+        # ingest_plaintext du 2026-10-03), recadrer sans retransposer pointait
+        # au mauvais endroit — défensif, no-op sur une image déjà canonique.
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(plaintext))).convert("RGB")
         if bbox:
             w, h = img.size
             x1 = float(bbox.get("x1", 0)); y1 = float(bbox.get("y1", 0))
@@ -1686,8 +1691,8 @@ def _resize_full_jpeg(plaintext: bytes, max_side: int = 1024) -> bytes:
     contrairement à _crop_face_jpeg, pour l'aperçu photo entière au survol
     (vue nébuleuse, cf. ucloud.html). Jamais persisté, juste retourné."""
     try:
-        from PIL import Image
-        img = Image.open(io.BytesIO(plaintext)).convert("RGB")
+        from PIL import Image, ImageOps
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(plaintext))).convert("RGB")
         img.thumbnail((max_side, max_side))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)

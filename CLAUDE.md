@@ -82,8 +82,33 @@ Enrôlement seul : le transfert de fichiers passe par le montage WebDAV `/dav/`
 - `GET  /api/cloud/status` — `{enrolled, dav_url, files, bytes, max_file_size}` — ne révèle jamais le token
 - `POST /api/cloud/reveal` — Retourne le token **EXISTANT** (même réponse qu'`enroll`) sans le renouveler. Même garde NIP-98/NIP-42 que les autres routes : cette preuve de possession de la clé MULTIPASS donne de toute façon un accès complet à `/dav/` en direct (NIP-98 est un des deux mécanismes d'auth acceptés par le montage DAV lui-même), donc révéler le token Basic Auth à ce même appelant n'élargit aucun accès — ça évite juste à l'utilisateur de devoir régénérer (et donc déconnecter ses clients existants) s'il veut juste remonter le disque sur un nouvel appareil
 - `POST /api/cloud/revoke` — Supprime le token (déconnecte les clients montés) ; fichiers et clés intacts
-- `GET  /api/cloud/files` — Liste TOUS les fichiers de `.ucloud/index.json` (pas de filtrage FaceID) : `{files:[{path, mime, size, mtime, tags, readonly}]}`, triés par date décroissante. Alimente la section « Mes fichiers » de FaceCloud (galerie brute du disque, indépendante de ce qui a été catalogué) — ne contient en pratique QUE des photos avec visage (cf. ligne ci-dessous, depuis 2026-10-02)
+- `GET  /api/cloud/files` — Liste TOUS les fichiers de `.ucloud/index.json` (pas de filtrage FaceID) : `{files:[{path, mime, size, mtime, tags, readonly, faceid_status}]}`, triés par date décroissante. `faceid_status` (`"no_face"` ou absent) distingue « analysé, aucun visage » de « pas encore analysé ». Alimente la section « Mes fichiers » de FaceCloud (galerie brute du disque, indépendante de ce qui a été catalogué)
+- `POST /api/cloud/files/delete` — Suppression groupée (multipart `paths`, tableau JSON de chemins, 200 max) depuis la section « Mes fichiers » (cases à cocher + `deleteSelectedGalleryFiles()`). Entrées en lecture seule (partagées) ignorées et renvoyées dans `skipped_readonly`
 - `GET  /api/cloud/thumbnail?path=…` — Miniature JPEG (300×300 max) de N'IMPORTE QUEL fichier image de l'index, déchiffrée à la volée (`ipfs_cat` + `uenc_codec.decrypt_aes256gcm`, jamais persistée en clair). Contrairement à `/mailjet/faces|inventory/thumbnail`, ne requiert aucun catalogage préalable — fonctionne sur toute image présente sur `/dav/`
+
+**Sources WebDAV externes** (depuis 2026-10-03, `services/webdav_client.py` +
+`services/cloud_storage.py::*_webdav_source*`) — importer régulièrement des
+photos depuis un AUTRE serveur WebDAV (NextCloud, ownCloud, une autre
+station Astroport…) vers son propre `.ucloud`, cf. `webdav_import.py` plus
+bas et la section « Importer depuis un autre cloud » de `ucloud.html` :
+- `GET  /api/cloud/webdav-sources` — liste les sources configurées (`id`,
+  `label`, `url`, `username`, `remote_path`, `dest_prefix`, `created_at`,
+  `last_sync`) — le mot de passe n'est **jamais** renvoyé (`_public_source()`)
+- `POST /api/cloud/webdav-browse` — `{url, username, password, path}` →
+  `PROPFIND Depth:1` sur le serveur distant (`webdav_client.list_folder()`),
+  pour le sélecteur de dossier de l'UI. Rien n'est persisté par cet appel
+- `POST /api/cloud/webdav-sources` — `{label, url, username, password,
+  remote_path, dest_prefix}` → revalide la connexion (`check_connection()`)
+  AVANT d'écrire quoi que ce soit (échec immédiat plutôt que silencieux le
+  lendemain en cron), puis persiste (même discipline que `dav_token` : JSON
+  en clair, 0600 — un identifiant vers un service tiers, jamais la clé
+  MULTIPASS)
+- `DELETE /api/cloud/webdav-sources/{id}` — supprime une source (les photos
+  déjà importées restent dans `.ucloud`)
+- `POST /api/cloud/webdav-sources/{id}/sync` — lance `webdav_import.py
+  <email> --source-id <id>` en arrière-plan (`subprocess.Popen`, même
+  discipline fire-and-forget que `_trigger_faceid_analysis()`) ; répond
+  immédiatement, le résultat apparaît dans `last_sync` au prochain `GET`
 
 ### Montage `/dav` — WebDAV chiffré (services/cloud_storage.py)
 `54321.py` monte une app WSGI wsgidav via **a2wsgi** (`WSGIMiddleware`, PAS
@@ -92,10 +117,12 @@ AES-GCM tournent dans un pool de threads, sans figer la boucle uvicorn.
 
 - **PUT** : flux DAV → buffer borné 20 MB → clé AES-256 **aléatoire par fichier** → `uenc_codec.encrypt_aes256gcm()` → `ipfs add` → index + keyring
   - Si image : GPS EXIF extrait ICI (clair encore en main, avant chiffrement — jamais via le Brain) → `entry.geo = {lat, lon, umap_key}` si présent (Pillow, best effort, silencieux sinon)
+  - Si image : orientation EXIF normalisée ICI, AVANT chiffrement (`_normalize_image_orientation()`, depuis 2026-10-05) — ré-encode seulement si un tag `Orientation` ≠ 1 est présent (rotation/miroir), sinon octets inchangés. Sans ça, le pixel stocké restait « à plat » alors que ComfyUI (`LoadImage`) normalise l'orientation avant détection FaceID : `bbox` revenait dans un repère différent de l'image chiffrée, d'où des visages mal recadrés/pivotés sur un import de masse (photos smartphone en paysage/portrait). Défensif en complément : `_crop_face_jpeg()`/`_resize_full_jpeg()` (`routers/mailjet.py`) appliquent aussi `ImageOps.exif_transpose()` pour les photos déjà stockées AVANT ce correctif
   - Si image : déclenche `_trigger_faceid_analysis()` (voir plus bas) — asynchrone, ne bloque jamais la réponse DAV
   - **Enrôlement supervisé** (depuis 2026-09-20) : en-têtes optionnels `X-FaceID-Target-Pubkey` (64 hex, sinon ignoré) / `X-FaceID-Target-Name` lus sur la requête PUT et transmis à `_trigger_faceid_analysis()` → `trigger_bro_vision_analysis.sh` → DM `vision_analysis_job` → `bro_dm_daemon.sh` → `satellite_face_matcher.py`, qui cataloguera alors CHAQUE visage détecté DIRECTEMENT sous cette identité (pas de recherche par similarité, pas de bootstrap `Inconnu_xxx`). Émis par `UPlanet/earth/ucloud.html` pour les flux « Définir mon FaceID » et « Photos d'un ami » (voir plus bas)
-  - **`.ucloud` réservé aux visages** (depuis 2026-10-02) : si `satellite_face_matcher.py` ne détecte AUCUN visage sur l'image, l'entrée (index + clé de keyring) est supprimée immédiatement — pas d'analyse de scène/objet, pas de conservation (`_delete_ucloud_entry()`, appelée depuis le bloc `if not faces:` de `main()`). Le blob IPFS n'est pas dépin (comme pour un DELETE DAV classique), seule la clé de déchiffrement disparaît. L'ancienne fonctionnalité « Objets & lieux détectés » (`_tag_ucloud_scene()`, `/mailjet/inventory*`, §8.5 de `IA/generators/faceid.sh`) a été retirée entièrement — `IA/inventory_recognition.py` reste utilisé par ailleurs pour la commande NOSTR `#inventory` du BRO responder, indépendante de ce pipeline
+  - **Analyse FaceID — conservé même sans visage** : si `satellite_face_matcher.py` ne détecte AUCUN visage sur l'image, l'entrée est désormais CONSERVÉE (depuis 2026-10-04 ; entre 2026-10-02 et 2026-10-04 elle était supprimée — politique abandonnée, voir ci-dessous) et simplement marquée `entry.faceid = {"status":"no_face","checked_at":…}` (`_tag_ucloud_no_face()`, appelée depuis le bloc `if not faces:` de `main()`) — le fichier est déjà sur IPFS à coût marginal, le garder permet un post-traitement ultérieur (nouvelle version du modèle, autre type de reconnaissance). `GET /api/cloud/files` expose ce marqueur (`faceid_status`) pour que `ucloud.html` distingue « analysé, pas de visage » de « pas encore analysé » (absent). L'ancienne fonctionnalité « Objets & lieux détectés » (`_tag_ucloud_scene()`, `/mailjet/inventory*`, §8.5 de `IA/generators/faceid.sh`) reste, elle, retirée entièrement — `IA/inventory_recognition.py` est utilisé par ailleurs pour la commande NOSTR `#inventory` du BRO responder, indépendante de ce pipeline. **Historique** : `cloud_purge_no_face.py` (voir plus bas) a supprimé un petit nombre d'entrées `scene`-taguées de l'ère « inventaire » avant cette politique — ce qu'il a supprimé reste perdu, mais plus aucune nouvelle suppression n'a lieu depuis le 2026-10-04
 - **GET** : index → CID → `ipfs cat` → déchiffrement one-shot → fichier éphémère 0600 → flux HTTP → purge immédiate (+ purge TTL 60 s de secours)
+- **DELETE** (fichier ou dossier) : `remove_subtree()` + `prune_keyring()` (clé détruite) PUIS `unpin_orphaned_cids()` (depuis 2026-10-04) — dépingle le ou les CID devenus orphelins, hors du verrou `index_lock` (I/O réseau IPFS, best-effort : un échec d'unpin ne fait jamais échouer la suppression). Avant cette date, le blob restait épinglé indéfiniment ; `ipfs repo gc` (périodique, hors de ce code) récupère l'espace des blocs non épinglés — jamais déclenché à chaque suppression (opération globale coûteuse). Même discipline pour `POST /api/cloud/files/delete` (suppression groupée JSON, section « Mes fichiers » de `ucloud.html`) et `cloud_purge_no_face.py`
 - **Auth** : `Authorization: Nostr …` (NIP-98 vérifiée par `services/nostr.py`, aucune duplication crypto) OU Basic `email:dav_token`
 - **Isolation** : la racine DAV est résolue depuis l'email authentifié, jamais depuis le chemin
 - `mount_path: "/dav"` est OBLIGATOIRE dans la config wsgidav — sans lui les href générés ignorent le préfixe de montage (PROPFIND cassé, COPY/MOVE en 409)
@@ -106,6 +133,7 @@ Stockage par utilisateur (tout en 0600, écritures atomiques sous `flock`) :
 ~/.zen/game/nostr/{EMAIL}/.ucloud/index.json    chemin DAV ↔ CID ↔ métadonnées
 ~/.zen/game/nostr/{EMAIL}/.ucloud/keyring.json  clé AES-256 par CID (JAMAIS dans l'index)
 ~/.zen/game/nostr/{EMAIL}/.ucloud/dav_token     token Basic Auth opaque (256 bits)
+~/.zen/game/nostr/{EMAIL}/.ucloud/webdav_sources.json  sources WebDAV externes (url/login/mdp/dossier)
 ~/.zen/tmp/ucloud_cache/                        clair éphémère (0700)
 ```
 
@@ -151,14 +179,17 @@ répété sur des dizaines de milliers de photos. Cache perdu/absent → repli s
 `sha256_plain` de l'entrée d'index existante au même chemin (pas de
 ré-import, pas de nouvelle clé/CID/job FaceID pour un fichier déjà importé).
 
-### cloud_purge_no_face.py — Purge rétroactive (script CLI, hors API)
-Complément ponctuel de `.ucloud` réservé aux visages (voir plus haut) : purge
-les entrées DÉJÀ cataloguées par l'ancienne fonctionnalité « Objets & lieux
-détectés » (retirée le 2026-10-02), reconnaissables à leur champ `scene`
-dans `index.json`. Portée volontairement conservatrice — une entrée sans
-`scene` ET sans `tags` est ambiguë (visage jamais partagé, ou jamais
-analysée) et n'est PAS touchée, pour ne jamais risquer de supprimer une
-vraie photo de visage.
+### cloud_purge_no_face.py — Purge rétroactive HISTORIQUE (script CLI, hors API)
+⚠️ Outil ponctuel pour un arriéré qui ne grossit plus : purge les entrées
+cataloguées par l'ancienne fonctionnalité « Objets & lieux détectés »
+(retirée le 2026-10-02), reconnaissables à leur champ `scene` dans
+`index.json`. Depuis le 2026-10-04, aucune nouvelle entrée `scene` n'est
+plus produite ET les photos sans visage ne sont plus supprimées (voir
+ci-dessus) — ce script ne sert donc plus qu'à nettoyer un résidu de l'ère
+pré-2026-10-02, pas à une maintenance courante. Portée volontairement
+conservatrice — une entrée sans `scene` ET sans `tags` est ambiguë (visage
+jamais partagé, ou jamais analysée) et n'est PAS touchée, pour ne jamais
+risquer de supprimer une vraie photo de visage.
 
 ```bash
 python3 cloud_purge_no_face.py [--email EMAIL] [--clean] [--quiet] [--list-ambiguous]
@@ -167,7 +198,9 @@ Sans `--clean` : dry-run (liste les candidats, rien n'est supprimé). Avec
 `--email` : un seul MULTIPASS, sinon tous ceux hébergés sur cette station
 (`~/.zen/game/nostr/*/.ucloud/index.json`). Supprime l'entrée d'index + sa
 clé de keyring (`remove_subtree`/`prune_keyring`, même discipline qu'un
-DELETE DAV) — le blob IPFS n'est pas dépin.
+DELETE DAV) et dépingle le CID devenu orphelin (`unpin_orphaned_cids()`,
+depuis 2026-10-04 — avant cette date, seule la clé était détruite, le blob
+restait épinglé indéfiniment).
 
 `--list-ambiguous` (`find_ambiguous()`) lève partiellement l'ambiguïté des
 entrées sans `scene`/`tags` SANS rien supprimer : croise chaque chemin avec
@@ -177,6 +210,90 @@ depuis 2026-09-20) via un scroll direct (httpx synchrone, même
 tourne hors FastAPI). Une entrée dont le chemin correspond à un point Qdrant
 est un visage confirmé (ignorée) ; sinon elle reste ambiguë et est listée
 pour décision humaine (ré-analyser, ignorer, supprimer à la main).
+
+### webdav_import.py — Import quotidien depuis des sources WebDAV externes
+Consomme `.ucloud/webdav_sources.json` (géré par l'utilisateur depuis
+`ucloud.html`, voir `routers/cloud.py` plus haut) — ne configure rien
+lui-même. Invoqué par `Astroport.ONE/RUNTIME/NOSTRCARD.refresh.sh` une fois
+par jour et par compte (même patron que les scrapers de domaine : fichier
+marqueur `.done`, lancé en arrière-plan), ou directement par
+`POST /api/cloud/webdav-sources/{id}/sync` pour un import immédiat.
+
+```bash
+python3 webdav_import.py <email> [--source-id ID] [--max N] [--dry-run] [--quiet]
+```
+Sans `--source-id` : traite TOUTES les sources de cet email (cas cron) ;
+avec : une seule (cas du bouton « Importer maintenant »).
+
+**Budget adaptatif, pas une constante par compte (le point sensible de
+cette fonctionnalité)** : la sérialisation des jobs FaceID (un seul à la
+fois, flock GPU) est déjà assurée plus loin par `IA/generators/faceid.sh`
+côté Brain — une fois le modèle chargé (ComfyUI « chaud »), traiter un
+visage est rapide. Le vrai risque est le **TTL 30 min** du DM NOSTR
+`vision_analysis_job` (traité strictement en série, sans retry) : si le
+volume CUMULÉ de jobs envoyés par TOUS les comptes de la station dans cette
+fenêtre dépasse ce que le GPU avale en 30 min, les derniers jobs expirent
+silencieusement. Combien CE script peut raisonnablement envoyer dépend donc
+du nombre de MULTIPASS hébergés sur la station — pas d'un chiffre arbitraire
+par compte :
+- `DAILY_STATION_BUDGET = 300` (env `WEBDAV_IMPORT_DAILY_BUDGET`) — photos/jour,
+  **station entière**, toutes sources confondues
+- `_station_multipass_count()` — nombre de comptes `~/.zen/game/nostr/*@*`
+  (même source que `NOSTRCARD.refresh.sh`)
+- `_default_max_import()` = `max(5, DAILY_STATION_BUDGET // nb_comptes)` —
+  le budget du compte courant, lui-même divisé par son propre nombre de
+  sources configurées (un compte avec 3 sources ne triple pas sa part)
+- `IMPORT_DELAY_SECONDS = 2` (env `WEBDAV_IMPORT_DELAY_SECONDS`) — courtoisie
+  envers le relais NOSTR (éviter une rafale d'events dans la même seconde),
+  **pas** un espacement pensé pour le GPU (déjà sérialisé en aval)
+- `--max N` explicite outrepasse ce calcul (ex. import manuel ponctuel)
+
+**Robustesse mémoire/GPU par job (2026-10-05)** : `IA/generators/faceid.sh`
+redimensionne désormais l'image AVANT l'upload ComfyUI si son plus grand côté
+dépasse `_MAX_DETECT_DIM=1600` px (étape 1.5, Pillow `LANCZOS`, JPEG qualité
+90) — aucune image, même 12 Mpx smartphone, n'était réduite avant ce
+correctif : chaque job FaceID chargeait le pixel natif en mémoire ComfyUI,
+coût qui grimpe avec la taille des photos sources — facteur aggravant
+plausible d'un crash machine constaté sur un import WebDAV de masse. `bbox`
+est ensuite reprojeté sur l'image ORIGINALE (facteur `_scale`, étape 8.5,
+`jq`) avant la sortie finale — jamais celui de la copie réduite envoyée à
+ComfyUI, sous peine de recadrages décalés en aval (`_crop_face_jpeg()`).
+Best-effort : un échec de lecture/redimensionnement retombe sur l'image en
+taille native plutôt que d'abandonner le job.
+
+Parcours récursif du dossier distant via `services/webdav_client.py`
+(`walk_files()`, `Depth: 1` niveau par niveau — **jamais** `Depth: infinity`,
+que NextCloud refuse par défaut ; le filtrage des enfants se fait contre le
+chemin du DOSSIER INTERROGÉ, pas contre la racine — bug corrigé le
+2026-10-03 qui renvoyait silencieusement une liste vide pour tout
+sous-dossier).
+
+**Rangement par date** — `{dest_prefix}/YYYY/MM/<nom>` (`_dated_dest()`),
+pas l'arborescence distante préservée (abandonné le 2026-10-04). Année/mois
+tirés du `getlastmodified` PROPFIND distant (RFC 1123) — pas une vraie date
+de prise de vue EXIF, mais disponible sans coût de téléchargement/décodage
+supplémentaire.
+
+Idempotence à TROIS niveaux :
+1. Cache `(mtime, size)` distants dans
+   `~/.zen/game/nostr/{EMAIL}/.ucloud/webdav_import_state_<source_id>.json`
+   — **pas** sous `~/.zen/tmp/`, purgé CHAQUE NUIT par `20h12.process.sh`
+   (ce qui viderait ce cache à chaque passage).
+2. Filet de sécurité SHA256 **global** (`_hash_index()`) : si le cache est
+   absent, le contenu téléchargé est cherché n'importe où dans `index.json`
+   (pas seulement au chemin de destination calculé) — un PUT manuel
+   antérieur ou une autre source WebDAV pointant sur le même contenu est
+   ainsi reconnu comme déjà catalogué, sans quoi il serait réimporté sous un
+   nouveau chemin ET redéclencherait une analyse FaceID GPU inutile.
+3. Désambiguïsation de nom (`_unique_dest()`) : si le chemin daté calculé
+   est déjà occupé par un AUTRE contenu (homonymie — plus probable
+   maintenant qu'un seul mois de photos partage le même dossier), un
+   suffixe `-2`, `-3`… est ajouté plutôt que d'écraser silencieusement
+   l'entrée existante (CID/clé orphelins, invisibles).
+
+Résultat de chaque passage écrit dans `webdav_sources.json` via
+`cloud_storage.record_webdav_sync()` (`{at, imported, skipped, errors}`),
+lu par `ucloud.html` sans ré-exécuter l'import.
 
 ### system.py
 - `GET  /` — Statut station UPlanet (avec lat/lon/deg pour grille UMAP)
@@ -224,7 +341,14 @@ pour décision humaine (ré-analyser, ignorer, supprimer à la main).
 **FaceID — catalogue de visages** (Qdrant `faces_{hex}`, alimenté par
 `Astroport.ONE/IA/bro/satellite_face_matcher.py`, payload
 `{name, pubkey, timestamp, source_path, bbox}` — les deux derniers champs
-depuis 2026-09-20, absents sur les points catalogués avant) :
+depuis 2026-09-20, absents sur les points catalogués avant). Chaque
+détection candidate du node ComfyUI porte un `det_score` (confiance
+InsightFace) ; depuis 2026-10-05, `satellite_face_matcher.DET_SCORE_THRESHOLD
+= 0.60` écarte avant tout traitement (catalogage OU enrôlement supervisé)
+celles en-dessous — auparavant ignoré, ce qui laissait passer des faux
+positifs (ex. `Inconnu_xxx` sur un détail d'image sans visage réel) lors
+d'un import de masse. Une image dont TOUTES les détections tombent
+sous le seuil suit le même chemin que « zéro visage détecté » (`_tag_ucloud_no_face()`) :
 - `GET  /mailjet/faces` — Liste
   `[{id, name, pubkey, timestamp, has_photo, maybe, group_id, group_size, x, y}]`.
   `maybe` (depuis 2026-09-25, pour les archives longue durée) : sur une entrée
