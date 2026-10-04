@@ -249,10 +249,13 @@ def start_shot_render(ref: str, index: int) -> Dict[str, Any]:
                 f"shot_{n}.sig"):
         for p in work.glob(pat):
             p.unlink(missing_ok=True)
+    # Graine décalée à chaque nouvelle prise : même graine + mêmes paramètres = même plan, une relance sans changement
+    # de prompt ne produirait qu'un doublon de la prise précédente. Première prise : graine d'origine (décalage 0).
+    seed_shift = 7919 * len(shot_takes(entry["cid"], index))
     job: Dict[str, Any] = {"id": uuid.uuid4().hex[:12], "kind": "shot", "status": "queued", "cid": entry["cid"],
                            "name": manifest["name"], "version": entry.get("version", 1), "scope": entry.get("scope", "private"),
                            "mine": not entry.get("foreign"), "queued": int(time.time()), "src": str(src), "workdir": str(work),
-                           "root": str(root), "log": str(root / "job.log"), "shots": 1, "shot_index": index,
+                           "root": str(root), "log": str(root / "job.log"), "shots": 1, "shot_index": index, "seed_shift": seed_shift,
                            "cmd": [str(GEN_DIR / "generate_scene.sh"), "-w", str(work), "-i", str(index), str(src / "storyboard.json")]}
     (work / "progress.json").unlink(missing_ok=True)
     with _lock:
@@ -354,6 +357,8 @@ def _pump() -> None:
 
 def _launch(job: Dict[str, Any]) -> None:
     env = dict(os.environ, SCENES_DIR=job["src"], CAST_BANK=str(Path(job["root"]) / "bank"))
+    if job.get("seed_shift"):
+        env["SHOT_SEED_SHIFT"] = str(job["seed_shift"])
     if job["scope"] != "coop" or not job["mine"]:
         env["STORY_NO_IPFS"] = "1"  # rendu privé : la vidéo ne part pas sur IPFS
     log = open(job["log"], "ab")
