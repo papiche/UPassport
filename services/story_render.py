@@ -262,24 +262,55 @@ def start_shot_render(ref: str, index: int) -> Dict[str, Any]:
     return job_status(job["id"])
 
 
+def _takes_dirs(entry: Dict[str, Any], index: int) -> List[Path]:
+    """Dossiers de prises d'un plan : le catalogue courant (work/takes/NN, écrit par generate_scene.sh :
+    fiches JSON + CID IPFS) puis l'ancien archivage (v/<cid>/shots/NN, sans fiche)."""
+    root = RENDERS_DIR / _asset_key(entry)
+    n = f"{index:02d}"
+    return [root / "work" / "takes" / n, root / "v" / entry["cid"] / "shots" / n]
+
+
 def shot_takes(ref: str, index: int) -> List[Dict[str, Any]]:
-    """Prises archivées d'un plan (hors la courante), de la plus récente à la plus ancienne."""
+    """Toutes les prises d'un plan, de la plus récente à la plus ancienne : brouillon, normal, relance
+    après changement de prompt… Chaque prise porte sa fiche (qualité, steps, prompt, CID IPFS) ;
+    `current` marque celle qui correspond au plan actuellement utilisé pour l'assemblage."""
     entry = story_asset.find_entry(ref)
-    takes_dir = RENDERS_DIR / _asset_key(entry) / "v" / entry["cid"] / "shots" / f"{index:02d}"
-    if not takes_dir.is_dir():
-        return []
-    out = [{"id": p.stem, "created": int(p.stat().st_mtime)} for p in takes_dir.glob("*.mp4")]
-    return sorted(out, key=lambda t: t["created"], reverse=True)
+    cur_dir, legacy_dir = _takes_dirs(entry, index)
+    work = cur_dir.parent.parent
+    try:
+        cur_sig = (work / f"shot_{index:02d}.sig").read_text().strip()
+    except OSError:
+        cur_sig = ""
+    out: Dict[str, Dict[str, Any]] = {}
+    if cur_dir.is_dir():
+        for mp4 in cur_dir.glob("*.mp4"):
+            meta: Dict[str, Any] = {}
+            try:
+                meta = json.loads(mp4.with_suffix(".json").read_text())
+            except (OSError, ValueError):
+                pass
+            try:  # fichier « current » (prises importées d'un rendu CLI) : id de la prise utilisée au montage
+                marked = (cur_dir / "current").read_text().strip() == mp4.stem
+            except OSError:
+                marked = False
+            meta.update(id=mp4.stem, created=meta.get("created") or int(mp4.stat().st_mtime),
+                        current=marked or bool(cur_sig and meta.get("sig") == cur_sig))
+            out[mp4.stem] = meta
+    if legacy_dir.is_dir():  # prises antérieures à la fiche : date seulement
+        for mp4 in legacy_dir.glob("*.mp4"):
+            out.setdefault(mp4.stem, {"id": mp4.stem, "created": int(mp4.stat().st_mtime), "legacy": True})
+    return sorted(out.values(), key=lambda t: t["created"], reverse=True)
 
 
 def shot_take_file(ref: str, index: int, take: str) -> Path:
     if not re.fullmatch(r"\d{1,12}", take):
         raise story_asset.AssetError("identifiant de prise invalide")
     entry = story_asset.find_entry(ref)
-    p = RENDERS_DIR / _asset_key(entry) / "v" / entry["cid"] / "shots" / f"{index:02d}" / f"{take}.mp4"
-    if not p.is_file():
-        raise story_asset.AssetError("prise introuvable")
-    return p
+    for d in _takes_dirs(entry, index):
+        p = d / f"{take}.mp4"
+        if p.is_file():
+            return p
+    raise story_asset.AssetError("prise introuvable")
 
 
 def _ensure_pump() -> None:
@@ -404,6 +435,12 @@ def _archive_scene(job: Dict[str, Any], work: Path) -> Dict[str, Any]:
     rec = {"id": job["id"], "created": int(time.time()), "duration": _duration(arch / "scene.mp4"),
            "shots": [n for n in names if n.startswith("part_")], "voices": [n for n in names if n.startswith("vo_")],
            "public": public, "dir": str(arch)}
+    if public:  # CID IPFS des plans finis (écrits par generate_scene.sh) : partageables avec la scène
+        try:
+            plans = json.loads((work / "plans.json").read_text())
+            rec["plans"] = [{"file": n, "cid": plans[n]} for n in rec["shots"] if plans.get(n)]
+        except (OSError, ValueError):
+            pass
     if public:
         p = subprocess.run(["ipfs", "add", "-q", str(arch / "scene.mp4")], capture_output=True, text=True)
         rec["mp4_cid"] = p.stdout.strip().splitlines()[-1] if p.returncode == 0 and p.stdout.strip() else None
