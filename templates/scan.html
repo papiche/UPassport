@@ -610,10 +610,39 @@
 
   // ── Étape ③ — destination ; les parts P1/P2 sont gérées par l'étape ② ───
   var destInput = $('dest-g1pub');
+  var destPrimalOk = null; // null = pas encore vérifié, true/false = résultat
+
+  // Règle primale unique UPlanet (cf. UPassport routers/qr.py::
+  // _destination_primal_ok et Astroport.ONE/tools/primal_wallet_control.sh) :
+  // vérifiée ICI, dès la saisie/scan, pour refuser immédiatement un
+  // portefeuille non reconnu — avant même de tenter l'encaissement (qui
+  // revérifie de toute façon la même règle côté serveur ; sans ce contrôle
+  // précoce, un encaissement vers une destination invalide viderait quand
+  // même le billet, avec les Ẑen bloqués sur UPLANETNAME_G1 sans recours).
+  var destCheckSeq = 0;
+  async function checkDestPrimal() {
+    var g1pub = (destInput.value || '').trim();
+    var mySeq = ++destCheckSeq;
+    if (g1pub.length < 8) { destPrimalOk = null; updateRedeemButton(); return; }
+    setState($('state-dest'), '⏳ Vérification du portefeuille…', 'pending', true);
+    try {
+      var resp = await fetch('/qr/billet/check_primal?g1pub=' + encodeURIComponent(g1pub));
+      var data = await resp.json();
+      if (mySeq !== destCheckSeq) return; // une saisie plus récente a pris le relais
+      destPrimalOk = !!(resp.ok && data.ok);
+      setState($('state-dest'),
+        destPrimalOk ? '✅ Portefeuille reconnu par UPlanet.' : '❌ Portefeuille non reconnu par UPlanet (primal incorrect).',
+        destPrimalOk ? 'ok' : 'err');
+    } catch (e) {
+      if (mySeq !== destCheckSeq) return;
+      destPrimalOk = false;
+      setState($('state-dest'), '❌ Vérification impossible — réessayez.', 'err');
+    }
+    updateRedeemButton();
+  }
   function setDest(text) {
     destInput.value = extractG1pub(text);
-    setState($('state-dest'), '✅ Portefeuille scanné.', 'ok');
-    updateRedeemButton();
+    checkDestPrimal();
   }
   document.querySelectorAll('[data-scan-target]').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -627,7 +656,8 @@
     if (!file) return;
     decodeImageFile(file, setDest, function (msg) { setState($('state-dest'), msg, 'err'); });
   });
-  destInput.addEventListener('input', updateRedeemButton);
+  destInput.addEventListener('input', function () { destPrimalOk = null; updateRedeemButton(); });
+  destInput.addEventListener('blur', checkDestPrimal);
 
   function setSlotState(slot, bytes, msg, cls) {
     shares[slot] = bytes;
@@ -687,9 +717,8 @@
   }
 
   function updateRedeemButton() {
-    var destOk = (destInput.value || '').trim().length >= 8;
     var reconOk = !!lastReconstructed && billet && (billet.g1pub === lastReconstructed.g1pub || billet.g1pub === lastReconstructed.ss58);
-    var ready = destOk && reconOk;
+    var ready = destPrimalOk === true && reconOk;
     $('btn-redeem').disabled = !ready;
     $('redeem-warn').style.display = ready ? 'flex' : 'none';
   }

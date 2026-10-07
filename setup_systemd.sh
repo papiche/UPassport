@@ -6,7 +6,8 @@ PYTHON="$(which python)"
 cat upassport.service.tpl \
     | sed "s~_USER_~$USER~g" \
     | sed "s~_PYTHON_~$PYTHON~g" \
-    | sed "s~_MY_PATH_~$(pwd)~" > /tmp/upassport.service
+    | sed "s~_MY_PATH_~$(pwd)~" \
+    | sed "s~_HOME_~$HOME~g" > /tmp/upassport.service
 
 cat /tmp/upassport.service
 sudo cp /tmp/upassport.service /etc/systemd/system/upassport.service

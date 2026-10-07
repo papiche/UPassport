@@ -1,4 +1,26 @@
 import os
+
+# ── Garde-fou PATH ────────────────────────────────────────────────────────
+# Les unités systemd système (User=<non-root>) ne résolvent pas forcément le
+# spécificateur %h vers le HOME de cet utilisateur : bug constaté en
+# production (systemd 255/Ubuntu) où %h dans Environment= se résout dans le
+# contexte du GESTIONNAIRE systemd (root), même quand User=<x> est bien
+# appliqué au process lui-même (cf. upassport.service.tpl, corrigé pour ne
+# plus utiliser %h — mais les stations déjà déployées avec l'ancien gabarit
+# restent affectées tant qu'elles ne relancent pas setup_systemd.sh). Sans
+# ~/.local/bin ni ~/.astro/bin dans PATH, gcli et les outils de l'environnement
+# ~/.astro/ (keygen, PAYforSURE.sh, nostr_send_note.py…) sont introuvables par
+# TOUS les subprocess de l'API — paiements Ğ1 et dérivations de clé échouent
+# silencieusement (ex: "Commande requise manquante : gcli"). Forcé ici, en
+# tête de PATH, AVANT tout import pouvant un jour lancer un subprocess —
+# protège toute station, même déployée avec l'ancien gabarit systemd.
+_home = os.path.expanduser("~")
+_extra_paths = [os.path.join(_home, ".local", "bin"), os.path.join(_home, ".astro", "bin")]
+_current_path_entries = os.environ.get("PATH", "").split(os.pathsep)
+_missing_paths = [p for p in _extra_paths if p not in _current_path_entries]
+if _missing_paths:
+    os.environ["PATH"] = os.pathsep.join(_missing_paths + _current_path_entries)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

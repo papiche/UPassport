@@ -831,3 +831,46 @@ async def _get_g1_balance_g1check_fallback(g1pub: str) -> dict:
     except Exception as exc:
         logger.error("G1balance G1check.sh échec pour %s… : %s", g1pub[:12], exc)
         return _empty
+
+
+# ── Primal source (règle unique UPlanet) ────────────────────────────────────
+# Port Python de get_primal_source_squid() — Astroport.ONE/tools/
+# primal_wallet_control.sh. Le "primal" d'un wallet = l'émetteur (fromId) de
+# sa TOUTE PREMIÈRE transaction reçue. La règle coopérative unique est :
+# seule une source dont le primal EST UPLANETNAME_G1 (ou qui EST
+# UPLANETNAME_G1 elle-même) est reconnue comme légitime (cf. commentaire
+# control_primal_transactions). Utilisé par UPassport routers/qr.py::
+# redeem_billet pour refuser d'encaisser un Ğ1Billet vers une destination
+# étrangère à UPlanet AVANT de déclencher le moindre virement.
+_PRIMAL_QUERY = """
+query($w: String!) {
+  transfers(condition: {toId: $w}, orderBy: BLOCK_NUMBER_ASC, first: 1) {
+    nodes { fromId blockNumber }
+  }
+}
+"""
+
+
+async def get_g1_primal_source(g1pub: str) -> Optional[str]:
+    """Retourne le fromId (SS58) de la toute première transaction REÇUE par
+    `g1pub`, ou None si introuvable (wallet jamais crédité, ou tous les
+    squids injoignables). Essaie SS58 puis la pubkey brute, comme
+    get_g1_balance_native."""
+    if not g1pub:
+        return None
+    ss58 = g1pub_to_ss58(g1pub)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for url in get_squid_urls():
+            for addr in (ss58, g1pub):
+                try:
+                    resp = await client.post(url, json={"query": _PRIMAL_QUERY, "variables": {"w": addr}})
+                    if resp.status_code != 200:
+                        continue
+                    data = resp.json()
+                    nodes = ((data.get("data") or {}).get("transfers") or {}).get("nodes") or []
+                    if nodes and nodes[0].get("fromId"):
+                        return nodes[0]["fromId"]
+                except Exception as exc:
+                    logger.debug("get_g1_primal_source: échec sur %s (%s): %s", url, addr[:12], exc)
+    logger.warning("get_g1_primal_source: aucun squid n'a répondu pour %s…", g1pub[:12])
+    return None

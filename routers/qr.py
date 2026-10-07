@@ -78,17 +78,21 @@ import logging
 import tempfile
 import shutil
 import urllib.parse
+import uuid
 from pathlib import Path
 from typing import Optional
 
 import httpx
+import websockets
 
 from fastapi import APIRouter, Request, BackgroundTasks, Query, HTTPException, Depends
 from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResponse
 
 from core.config import settings
-from services.nostr import verify_nip98_auth
-from utils.security import is_safe_g1pub
+from services.nostr import verify_nip98_auth, get_nostr_relay_url
+from services.g1_squid import get_g1_balance_native, get_g1_primal_source, g1pub_to_ss58
+from utils.security import is_safe_g1pub, find_user_directory_by_hex, is_multipass_user
+from utils.helpers import get_env_from_mysh
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -467,6 +471,7 @@ _BILLET_A4_PAGE = """<!doctype html>
 </style>
 </head>
 <body>
+<script>window.__G1BILLETS__ = __G1BILLETS_JSON__;</script>
 
 <div class="warn no-print">
   🔒 Pour chaque billet, son secret est scindé en 3 parts (Shamir, 2 sur 3) : P1 (QR
@@ -610,6 +615,7 @@ def _billet_tint_vars(amount: float) -> tuple[str, str]:
 def _render_billet_a4_html(
     amount: float,
     cells: list[dict],
+    unit: str = "zen",
     unit_label: str = "Ẑen",
     fond_url: Optional[str] = None,
     logo_url: Optional[str] = None,
@@ -617,7 +623,12 @@ def _render_billet_a4_html(
 ) -> str:
     """Compose la planche A4 paysage — 6 billets recto seul (2 colonnes × 3
     lignes), part P2 (Shamir 2-sur-3) en vertical sur le bord gauche
-    (à replier/scotcher)."""
+    (à replier/scotcher). Embarque aussi `window.__G1BILLETS__` (g1pub +
+    montant/unité par billet) : billet.html (même origine — onglet ouvert
+    via window.open puis document.write, cf. generate.addEventListener dans
+    UPlanet/earth/billet.html) lit ce global juste après l'écriture de la
+    page pour construire son panneau de financement (6 contrôles), sans
+    avoir à reparser le HTML imprimable ni à régénérer les clés."""
     esc = html_lib.escape
     fond = _sanitize_image_url(fond_url)
     logo = _sanitize_image_url(logo_url)
@@ -660,12 +671,16 @@ def _render_billet_a4_html(
         )
 
     verso_button = '<button onclick="printSide(\'verso\')">🖨️ Imprimer le Verso</button>' if verso_html else ""
+    billets_json = json.dumps([
+        {"g1pub": c["g1pub"], "amount": amount, "unit": unit} for c in cells
+    ])
     return (
         _BILLET_A4_PAGE
         .replace("__COUNT__", str(len(cells)))
         .replace("__CELLS__", "\n".join(cell_blocks))
         .replace("__VERSO__", verso_html)
         .replace("__VERSO_BUTTON__", verso_button)
+        .replace("__G1BILLETS_JSON__", billets_json)
     )
 
 
@@ -832,6 +847,7 @@ async def _gen_billet_key() -> dict:
 
 
 _BILLET_WITNESS_KEYFILE = Path.home() / ".zen" / "game" / "uplanet.G1.nostr"
+_BILLET_WITNESS_TTL_S = 180 * 86400  # NIP-40 expiration — cf. _publish_billet_witness
 
 
 async def _encrypt_with_uplanetname(plaintext_hex: str) -> Optional[str]:
@@ -880,6 +896,20 @@ async def _publish_billet_witness(
 
     Best-effort : un échec ne doit jamais faire échouer la génération du
     billet. Retourne True si la publication a réussi.
+
+    Tag NIP-40 `expiration` à _BILLET_WITNESS_TTL_S (180 jours) : la P3
+    n'existe qu'une fois, au moment de CET appel (jamais régénérable), donc
+    ce témoin doit être publié à CHAQUE génération, financée ou non — sans
+    ça, un MULTIPASS réel qui génère des planches "pour essayer" sans les
+    financer laisserait des témoins orphelins s'accumuler indéfiniment sur
+    le relay (is_multipass_user, cf. generate_billet, ne bloque que les
+    comptes jamais inscrits, pas les essais d'un compte réel). Un relay qui
+    honore NIP-40 purge automatiquement les témoins expirés : la fenêtre de
+    180 jours couvre largement le temps normal entre génération et dépense
+    d'un billet physique, sans faire grossir le relay indéfiniment pour les
+    planches jamais financées. N'affecte QUE le recours P3 (sauvegarde en
+    cas de P1 ou P2 perdue/abîmée) : la reconstruction normale (P1+P2 via
+    /scan) ne dépend jamais de ce témoin ni de sa durée de vie.
     """
     encrypted = await _encrypt_with_uplanetname(p3_hex)
     if not encrypted:
@@ -894,6 +924,7 @@ async def _publish_billet_witness(
             "python3", str(settings.TOOLS_PATH / "nostr_send_note.py"),
             "--keyfile", str(_BILLET_WITNESS_KEYFILE), "--content", content,
             "--kind", "30078", "--tags", tags, "--relays", settings.myRELAY,
+            "--ephemeral", str(_BILLET_WITNESS_TTL_S),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
@@ -1115,10 +1146,18 @@ async def generate_billet(
     portefeuille Ğ1.
 
     Auth NIP-98 OBLIGATOIRE (Authorization: Nostr <event>, kind 27235) — même
-    mécanisme que /api/cloud/enroll, /api/fileupload, /api/calendar/email :
-    seul un MULTIPASS connecté peut créer un Ğ1Billet. Le pubkey authentifié
-    (`creator_hex`) est associé au témoin NOSTR de chaque billet (tag `p`,
-    cf. _publish_billet_witness) — traçabilité de l'émission, pas une
+    mécanisme que /api/cloud/enroll, /api/fileupload, /api/calendar/email.
+    Mais une signature NIP-98 valide prouve seulement la possession d'UNE
+    clé NOSTR — pas que ce soit un MULTIPASS réellement enregistré (compte
+    créé via UPassport /g1nostr, dossier ~/.zen/game/nostr/{email}/). Sans
+    second contrôle, n'importe qui avec une extension NOSTR fraîchement
+    installée (gratuit, 10 secondes, jamais inscrit) pourrait générer des
+    planches à volonté — 6 témoins NOSTR publiés (cf. _publish_billet_witness)
+    par appel, quasi jamais financés : pollution du relay sans aucun coût.
+    `is_multipass_user(creator_hex)` ferme ce trou : seul un compte RÉELLEMENT
+    enregistré peut générer. Le pubkey authentifié (`creator_hex`) est aussi
+    associé au témoin NOSTR de chaque billet (tag `p`, cf.
+    _publish_billet_witness) — traçabilité de l'émission, pas une
     restriction d'usage du billet lui-même (toujours un bearer Ğ1 classique).
 
     unit : zen|g1 (défaut zen) — unité du montant annoncé (affichage seul,
@@ -1131,6 +1170,12 @@ async def generate_billet(
     "contrat" court (~550 car. max, imprimé petit, horizontal) + QR de soutien
     OpenCollective. `verso_text` (optionnel) remplace le texte par défaut.
     """
+    if not is_multipass_user(creator_hex):
+        raise HTTPException(
+            status_code=403,
+            detail="Seul un MULTIPASS enregistré peut générer un Ğ1Billet (pas une simple clé NOSTR connectée)",
+        )
+
     if request.method == "POST":
         form = await request.form()
 
@@ -1230,23 +1275,293 @@ async def generate_billet(
         )
 
     page = _render_billet_a4_html(
-        amount=amount, cells=cells, unit_label=unit_label, fond_url=fond_url, logo_url=logo_url,
+        amount=amount, cells=cells, unit=unit, unit_label=unit_label, fond_url=fond_url, logo_url=logo_url,
         verso_html=verso_html,
     )
     cells = None
     return HTMLResponse(page)
 
 
+# ── Portefeuille coopératif UPLANETNAME_G1 ───────────────────────────────────
+# Règle primale unique à TOUS les portefeuilles UPlanet (cf. Astroport.ONE/
+# tools/primal_wallet_control.sh::control_primal_transactions) : la source
+# primale d'un wallet = l'émetteur de sa toute première transaction reçue ;
+# seule une source dont le primal est UPLANETNAME_G1 (ou UPLANETNAME_G1
+# lui-même) est reconnue comme légitime — toute autre source entrante est
+# traitée comme une INTRUSION et redirigée/vidée. Le financement ET
+# l'encaissement d'un Ğ1Billet doivent donc, l'un comme l'autre, transiter
+# par ce portefeuille pour rester cohérents avec cette règle si elle est un
+# jour étendue aux billets (actuellement non surveillés : pas de player_email
+# associé, cf. ci-dessous).
+_BILLET_PRIMO_G1 = 1.0    # dépôt d'activation (existential deposit Duniter)
+_BILLET_FUND_EPS = 0.01   # tolérance flottante sur les comparaisons de solde G1
+
+
+async def _run_payforsure(key_or_vault: str, amount: str, dest_g1pub: str, comment: str, timeout: int = 90) -> tuple[bool, str]:
+    """Exécute PAYforSURE.sh, retourne (succès, log stdout+stderr tronqué)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(settings.TOOLS_PATH / "PAYforSURE.sh"), key_or_vault, amount, dest_g1pub, comment,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        return False, "délai dépassé"
+    ok = proc.returncode == 0
+    return ok, (stdout.decode(errors="replace") + stderr.decode(errors="replace"))[-2000:]
+
+
+def _read_dunikey_pubkey(dunikey_path: str) -> str:
+    """Lit la ligne `pub:` d'un fichier dunikey (format pubsec) — même
+    convention que billet_gen.sh. Pas de conversion SS58 : get_g1_balance_native
+    essaie déjà les deux formats (cf. services/g1_squid.py)."""
+    try:
+        with open(dunikey_path) as f:
+            for line in f:
+                if line.startswith("pub:"):
+                    return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
+async def _resolve_uplanet_g1() -> tuple[Path, str]:
+    """Résout le portefeuille coopératif UPLANETNAME_G1 (dunikey + pubkey).
+    Source `my.sh` via get_env_from_mysh : crée le fichier dunikey au passage
+    s'il n'existe pas encore (cf. tools/my.sh::init_and_cache_wallet)."""
+    dunikey = Path.home() / ".zen" / "game" / "uplanet.G1.dunikey"
+    pub = await get_env_from_mysh("UPLANETNAME_G1")
+    if not pub or not dunikey.is_file():
+        raise HTTPException(status_code=500, detail="Portefeuille coopératif UPLANETNAME_G1 indisponible")
+    return dunikey, pub
+
+
+async def _destination_primal_ok(dest_g1pub: str, uplanet_g1_pub: str) -> bool:
+    """Règle primale unique à tous les portefeuilles UPlanet (cf.
+    Astroport.ONE/tools/primal_wallet_control.sh::control_primal_transactions) :
+    le "primal" d'un wallet = l'émetteur de sa TOUTE PREMIÈRE transaction
+    reçue. Une destination n'est légitime que si elle EST UPLANETNAME_G1, ou
+    si son primal L'EST — sinon les Ẑen forwardés par /qr/billet/redeem
+    sortiraient définitivement du circuit coopératif vers une adresse sans
+    aucun lien avec UPlanet. Un wallet jamais crédité (aucune transaction
+    reçue, primal introuvable) est refusé par prudence : il n'a par
+    définition pas pu recevoir sa primo transaction de UPLANETNAME_G1."""
+    dest_ss58 = g1pub_to_ss58(dest_g1pub)
+    uplanet_ss58 = g1pub_to_ss58(uplanet_g1_pub)
+    if dest_ss58 == uplanet_ss58:
+        return True
+    primal = await get_g1_primal_source(dest_g1pub)
+    return bool(primal) and g1pub_to_ss58(primal) == uplanet_ss58
+
+
+def _read_nostr_hex_pubkey(keyfile: Path) -> str:
+    """Lit le HEX d'un fichier .secret.nostr (format `NSEC=...; NPUB=...; HEX=...;`,
+    cf. nostr_send_note.py)."""
+    try:
+        content = keyfile.read_text()
+    except OSError:
+        return ""
+    m = re.search(r"HEX=([0-9a-f]{64})", content)
+    return m.group(1) if m else ""
+
+
+async def _fetch_billet_witness(g1pub: str) -> Optional[dict]:
+    """Interroge le relay local pour retrouver le témoin NOSTR (kind 30078,
+    `d=g1billet:{g1pub}`, cf. _publish_billet_witness) d'un Ğ1Billet.
+
+    GARDE-FOU DE SÉCURITÉ pour fund_billet : sans cette vérification,
+    n'IMPORTE QUEL MULTIPASS authentifié pourrait appeler /qr/billet/fund
+    avec un g1pub de son choix (une adresse qu'il contrôle, jamais générée
+    par /qr/billet) et se faire créditer 1 Ğ1 GRATUIT depuis le portefeuille
+    coopératif UPLANETNAME_G1 (la "primo transaction" n'est déclenchée que
+    si le solde est < 1 Ğ1, ce qui est vrai de n'importe quelle adresse
+    neuve) — un puits sans fond pour vider la trésorerie commune, 1 Ğ1 à la
+    fois. Le témoin est signé par l'identité coopérative de la STATION
+    elle-même (_BILLET_WITNESS_KEYFILE, jamais accessible à un MULTIPASS) :
+    un attaquant ne peut pas le forger. fund_billet exige en plus que son
+    tag `p` (creator_hex) corresponde à l'appelant authentifié — on ne peut
+    financer que les billets qu'on a soi-même générés.
+
+    Retourne les tags sous forme de dict (`{"p": "...", "amount": "...", ...}`)
+    ou None si introuvable (relay injoignable, ou billet inconnu)."""
+    witness_hex = _read_nostr_hex_pubkey(_BILLET_WITNESS_KEYFILE)
+    if not witness_hex:
+        return None
+    d_tag = f"g1billet:{g1pub}"
+    found = None
+    try:
+        async with websockets.connect(get_nostr_relay_url(), open_timeout=5) as ws:
+            sub_id = "billetwit" + uuid.uuid4().hex[:10]
+            await ws.send(json.dumps(["REQ", sub_id, {
+                "kinds": [30078], "authors": [witness_hex], "#d": [d_tag], "limit": 1,
+            }]))
+            try:
+                while True:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=5)
+                    msg = json.loads(raw)
+                    if msg[0] == "EVENT" and len(msg) >= 3:
+                        found = msg[2]
+                    elif msg[0] == "EOSE":
+                        break
+            except asyncio.TimeoutError:
+                pass
+            try:
+                await ws.send(json.dumps(["CLOSE", sub_id]))
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning("fetch_billet_witness: relay injoignable — %s", e)
+        return None
+    if not found:
+        return None
+    return {t[0]: t[1] for t in found.get("tags", []) if len(t) >= 2}
+
+
+@router.post("/qr/billet/fund")
+async def fund_billet(request: Request, creator_hex: str = Depends(verify_nip98_auth)):
+    """Financement MANUEL, billet par billet, d'une planche déjà imprimée —
+    panneau "6 contrôles" de billet.html (cf. `window.__G1BILLETS__` embarqué
+    dans la planche par generate_billet). Remplace l'ancien mode `auto`
+    (retiré le 2026-09-24, cf. git log : 6 paiements enchaînés en aveugle
+    dans UNE SEULE requête HTTP, aucun retry isolé possible, peu fiable en
+    pratique). Ici chaque billet se finance via son propre appel HTTP,
+    indépendant, avec son propre statut — un échec n'affecte pas les 5 autres.
+
+    Deux virements successifs, pour respecter la règle primale unique à tous
+    les portefeuilles UPlanet (cf. commentaire au-dessus de _BILLET_PRIMO_G1) :
+      1. Si le billet n'a encore rien reçu (solde < 1 Ğ1), on lui envoie
+         D'ABORD 1 Ğ1 depuis UPLANETNAME_G1 — "primo transaction" : établit
+         UPLANETNAME_G1 comme primal du billet (dépôt d'activation Duniter).
+      2. On envoie ENSUITE le montant annoncé (converti en Ğ1) depuis le
+         MULTIPASS connecté (`creator_hex`) — son propre primal étant déjà
+         UPLANETNAME_G1 (onboarding standard UPlanet), cette 2ᵉ transaction
+         reste valide pour un éventuel contrôle primal ultérieur.
+    Idempotent : si le billet a déjà le solde attendu (1 Ğ1 + montant), ne
+    renvoie rien — sûr à rappeler plusieurs fois (retry manuel depuis le
+    panneau de financement)."""
+    data = await request.json()
+    g1pub = str(data.get("g1pub", "")).strip()
+    try:
+        amount = float(data.get("amount", 0))
+    except (TypeError, ValueError):
+        amount = 0.0
+    unit = str(data.get("unit", "zen")).strip().lower()
+    if unit not in ("zen", "g1"):
+        unit = "zen"
+
+    if not is_safe_g1pub(g1pub):
+        raise HTTPException(status_code=400, detail="g1pub invalide")
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Montant invalide (0 = billet vierge, rien à financer)")
+
+    # Garde-fou de sécurité : seul un g1pub RÉELLEMENT émis par /qr/billet,
+    # par CE créateur précis, peut déclencher la primo transaction gratuite
+    # (1 Ğ1 depuis la trésorerie commune UPLANETNAME_G1) — cf. docstring de
+    # _fetch_billet_witness. Sans ce contrôle, n'importe quel MULTIPASS
+    # authentifié pourrait vider la trésorerie 1 Ğ1 à la fois vers une
+    # adresse de son choix.
+    witness = await _fetch_billet_witness(g1pub)
+    if not witness or witness.get("p") != creator_hex:
+        raise HTTPException(
+            status_code=403,
+            detail="Ce G1PUB ne correspond à aucun Ğ1Billet émis par vous",
+        )
+
+    user_dir = find_user_directory_by_hex(creator_hex)  # lève déjà HTTPException 404
+    captain_keyfile = user_dir / ".secret.dunikey"
+    if not captain_keyfile.is_file():
+        raise HTTPException(status_code=404, detail="Clé du MULTIPASS introuvable")
+
+    uplanet_g1_dunikey, _uplanet_g1_pub = await _resolve_uplanet_g1()
+
+    g1_amount = amount if unit == "g1" else amount / 10
+    target_g1 = _BILLET_PRIMO_G1 + g1_amount
+
+    async def _balance() -> float:
+        bal = await get_g1_balance_native(g1pub)
+        return (bal.get("balances", {}).get("total", 0) or 0) / 100
+
+    balance = await _balance()
+    if balance >= target_g1 - _BILLET_FUND_EPS:
+        return JSONResponse({"ok": True, "already": True, "balance": balance})
+
+    logs = []
+    if balance < _BILLET_PRIMO_G1 - _BILLET_FUND_EPS:
+        ok, log = await _run_payforsure(
+            str(uplanet_g1_dunikey), f"{_BILLET_PRIMO_G1:.2f}", g1pub, "UPLANET:BILLET:PRIMO",
+        )
+        logs.append("primo: " + log)
+        if not ok:
+            logger.error("fund_billet: primo échoué pour %s… — %s", g1pub[:12], log)
+            return JSONResponse(
+                {"ok": False, "detail": "Échec du dépôt d'activation (1 Ğ1)", "log": "\n".join(logs)},
+                status_code=502,
+            )
+
+    ok, log = await _run_payforsure(
+        str(captain_keyfile), f"{g1_amount:.4f}", g1pub, f"UPLANET:BILLET:{amount:g}{unit.upper()}",
+    )
+    logs.append("financement: " + log)
+    if not ok:
+        logger.error("fund_billet: financement échoué pour %s… — %s", g1pub[:12], log)
+        return JSONResponse(
+            {"ok": False, "detail": "Échec du financement", "log": "\n".join(logs)}, status_code=502,
+        )
+
+    return JSONResponse({"ok": True, "balance": await _balance(), "log": "\n".join(logs)})
+
+
+@router.get("/qr/billet/check_primal")
+async def check_billet_primal(g1pub: str = Query(...)):
+    """Contrôle public, en lecture seule, de la règle primale unique (cf.
+    _destination_primal_ok) — PAS d'authentification : interrogé par /scan
+    dès que le portefeuille de destination est saisi/scanné (étape ③), pour
+    refuser immédiatement un portefeuille non reconnu par UPlanet AVANT la
+    tentative d'encaissement elle-même (qui revérifie de toute façon la
+    même règle côté serveur, cf. /qr/billet/redeem — ce endpoint n'est qu'un
+    confort d'UX pour échouer tôt plutôt qu'à la toute dernière étape)."""
+    if not is_safe_g1pub(g1pub):
+        raise HTTPException(status_code=400, detail="g1pub invalide")
+    _, uplanet_g1_pub = await _resolve_uplanet_g1()
+    ok = await _destination_primal_ok(g1pub, uplanet_g1_pub)
+    return JSONResponse({"ok": ok})
+
+
 @router.post("/qr/billet/redeem")
 async def redeem_billet(request: Request):
     """Encaisse un Ğ1Billet : reçoit le seed reconstruit côté client (2 parts
     Shamir sur 3 réunies — cf. billet_redeem.html / le nouveau /scan) et un
-    G1PUB de destination, puis exécute un virement réel (PAYforSURE.sh DRAIN)
-    du solde du billet vers cette destination. Pas d'authentification requise :
-    le billet est un instrument au porteur — qui réunit 2 des 3 parts a déjà,
-    de fait, le pouvoir de le dépenser (même modèle de confiance qu'un billet
-    de banque physique). Le seed ne transite qu'une fois, en HTTPS, jamais
-    journalisé ni persisté — même discipline /dev/shm que billet_gen.sh."""
+    G1PUB de destination. Pas d'authentification requise : le billet est un
+    instrument au porteur — qui réunit 2 des 3 parts a déjà, de fait, le
+    pouvoir de le dépenser (même modèle de confiance qu'un billet de banque
+    physique). Le seed ne transite qu'une fois, en HTTPS, jamais journalisé
+    ni persisté — même discipline /dev/shm que billet_gen.sh.
+
+    DEUX virements chaînés — jamais un DRAIN direct vers la destination —
+    pour respecter la même règle primale que le financement (cf.
+    /qr/billet/fund et le commentaire au-dessus de _BILLET_PRIMO_G1) :
+      1. DRAIN total (PAYforSURE.sh, vide même le dépôt existentiel) du
+         billet vers UPLANETNAME_G1 — ferme la boucle : UPLANETNAME_G1
+         récupère à la fois son dépôt d'activation (1 Ğ1) ET la valeur Ẑen
+         déposée par le MULTIPASS émetteur lors du financement.
+      2. UPLANETNAME_G1 renvoie (solde drainé − 1 Ğ1) vers la destination
+         fournie. Ce "− 1 Ğ1" n'est PAS une commission prélevée au porteur :
+         c'est exactement le dépôt d'activation que UPLANETNAME_G1 avait
+         lui-même avancé à l'étape 1 du financement — il le récupère ici,
+         bouclant son propre bilan à zéro sur le cycle complet du billet
+         (financement → encaissement). Le porteur reçoit l'intégralité du
+         montant annoncé sur le billet, ni plus ni moins.
+    Si l'étape 2 échoue après que l'étape 1 a réussi, les fonds ne sont PAS
+    perdus : ils restent sur UPLANETNAME_G1 (portefeuille coopératif connu
+    et persistant), pas sur la clé jetable du billet qui vient d'être vidée —
+    un nouvel essai ou un envoi manuel reste possible.
+
+    La destination est vérifiée AVANT tout virement (règle primale unique,
+    cf. _destination_primal_ok) : si elle échoue, le billet n'est PAS touché
+    (P1+P2 restent valides, un nouvel essai avec une autre destination reste
+    possible) — plutôt que de drainer d'abord et découvrir le problème
+    ensuite (ce qui bloquerait les fonds sur UPLANETNAME_G1 sans recours
+    pour le porteur)."""
     data = await request.json()
     seed_hex = str(data.get("seed_hex", "")).strip().lower()
     dest_g1pub = str(data.get("dest_g1pub", "")).strip()
@@ -1255,6 +1570,14 @@ async def redeem_billet(request: Request):
         raise HTTPException(status_code=400, detail="seed_hex invalide")
     if not is_safe_g1pub(dest_g1pub):
         raise HTTPException(status_code=400, detail="dest_g1pub invalide")
+
+    uplanet_g1_dunikey, uplanet_g1_pub = await _resolve_uplanet_g1()
+
+    if not await _destination_primal_ok(dest_g1pub, uplanet_g1_pub):
+        raise HTTPException(
+            status_code=403,
+            detail="Ce portefeuille de destination n'est pas reconnu par UPlanet (primal incorrect) — le billet n'a pas été touché.",
+        )
 
     shm_dir = "/dev/shm" if os.path.isdir("/dev/shm") else None
     cred_path = tempfile.mktemp(dir=shm_dir)
@@ -1273,16 +1596,36 @@ async def redeem_billet(request: Request):
             logger.error("redeem_billet: keygen échoué — %s", stderr.decode(errors="replace")[:500])
             raise HTTPException(status_code=500, detail="Dérivation de clé échouée")
 
-        proc = await asyncio.create_subprocess_exec(
-            str(settings.TOOLS_PATH / "PAYforSURE.sh"), dunikey_path, "DRAIN", dest_g1pub, "G1Billet redeem",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        billet_g1pub = _read_dunikey_pubkey(dunikey_path)
+        if not billet_g1pub:
+            raise HTTPException(status_code=500, detail="Lecture du G1PUB du billet impossible")
+
+        bal = await get_g1_balance_native(billet_g1pub)
+        total_g1 = (bal.get("balances", {}).get("total", 0) or 0) / 100
+        amount_to_forward = total_g1 - _BILLET_PRIMO_G1
+        if amount_to_forward <= _BILLET_FUND_EPS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Billet insuffisant pour être encaissé (solde {total_g1:.2f} Ğ1 ≤ dépôt d'activation)",
+            )
+
+        ok1, log1 = await _run_payforsure(dunikey_path, "DRAIN", uplanet_g1_pub, "UPLANET:BILLET:REDEEM:DRAIN")
+        if not ok1:
+            logger.error("redeem_billet: DRAIN échoué — %s", log1)
+            return JSONResponse({"ok": False, "detail": "Le vidage du billet a échoué.", "log": log1}, status_code=502)
+
+        ok2, log2 = await _run_payforsure(
+            str(uplanet_g1_dunikey), f"{amount_to_forward:.4f}", dest_g1pub, "UPLANET:BILLET:REDEEM:FORWARD",
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90)
-        ok = proc.returncode == 0
-        log_tail = (stdout.decode(errors="replace") + stderr.decode(errors="replace"))[-2000:]
-        if not ok:
-            logger.error("redeem_billet: PAYforSURE.sh échoué — %s", log_tail)
-        return JSONResponse({"ok": ok, "log": log_tail})
+        if not ok2:
+            logger.error("redeem_billet: FORWARD échoué — %s", log2)
+            return JSONResponse({
+                "ok": False,
+                "detail": "Le billet a été vidé mais le transfert final a échoué — les fonds sont saufs sur le portefeuille coopératif, contactez le support.",
+                "log": log1 + "\n" + log2,
+            }, status_code=502)
+
+        return JSONResponse({"ok": True, "amount": round(amount_to_forward, 4), "log": log1 + "\n" + log2})
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Délai dépassé lors du virement")
     finally:
