@@ -5,7 +5,9 @@ import json
 import time
 import base64
 import asyncio
+import fcntl
 import hashlib
+import hmac
 import logging
 import tempfile
 logger = logging.getLogger(__name__)
@@ -180,6 +182,84 @@ def _pass_disabled_flag(email: str) -> Path:
 
 def _is_pass_restore_disabled(email: str) -> bool:
     return _pass_disabled_flag(email).is_file()
+
+
+# ── Anti-bruteforce PASS côté SERVEUR ─────────────────────────────────────────
+# Le PASS n'a que 10 000 valeurs : le compteur "3 échecs → /g1nostr/alert"
+# des clients (zelkova, coracle) ne protège rien face à un script qui appelle
+# /g1nostr directement. Le compteur vit donc ici, dans le dossier du compte
+# (pas ~/.zen/tmp, purgé chaque nuit par 20h12.process.sh) ; une erreur
+# isolée s'oublie après PASS_FAILS_WINDOW, un succès remet à zéro.
+MAX_PASS_FAILS = 3
+PASS_FAILS_WINDOW = 24 * 3600
+
+
+def _pass_fails_file(email: str) -> Path:
+    return settings.GAME_PATH / "nostr" / email / ".pass.fails"
+
+
+def _check_pass(email: str, pass_code: str, context: str, ip: str = "?") -> Optional[JSONResponse]:
+    """Vérification UNIQUE d'un code PASS (/g1nostr, /g1/onboard,
+    /atom4love/*). Retourne None si le PASS est bon, sinon la JSONResponse
+    d'erreur. Au MAX_PASS_FAILS-ième échec : PASS invalidé (toutes copies) et
+    Capitaine prévenu — le blocage ne dépend plus du bon vouloir du client."""
+    if _is_pass_restore_disabled(email):
+        logger.warning(f"{context}: PASS restore disabled by user for {email}")
+        return JSONResponse(status_code=403, content={
+            "error": "PASS_DISABLED",
+            "message": "La récupération par code PASS a été désactivée pour ce compte. Contactez le support."})
+
+    pass_file = _resolve_pass_file(email)
+    if not pass_file:
+        logger.warning(f"{context}: PASS file missing for {email}")
+        return JSONResponse(status_code=503, content={
+            "error": "PASS_UNAVAILABLE",
+            "message": "Code PASS indisponible (bloqué après erreurs répétées ou jamais créé). "
+                       "Contactez le Capitaine de votre station."})
+
+    fails_path = _pass_fails_file(email)
+    with open(fails_path, "a+") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        fh.seek(0)
+        try:
+            state = json.loads(fh.read() or "{}")
+        except json.JSONDecodeError:
+            state = {}
+        now = time.time()
+        count = int(state.get("count", 0)) if now - float(state.get("last", 0)) < PASS_FAILS_WINDOW else 0
+
+        if hmac.compare_digest(pass_code.encode(), pass_file.read_text().strip().encode()):
+            fh.seek(0)
+            fh.truncate()
+            return None
+
+        count += 1
+        fh.seek(0)
+        fh.truncate()
+        fh.write(json.dumps({"count": count, "last": now}))
+    os.chmod(fails_path, 0o600)
+
+    log_user_event(email, "multipass", "pass_fail", False, extra={"count": count, "context": context})
+    if count < MAX_PASS_FAILS:
+        left = MAX_PASS_FAILS - count
+        logger.warning(f"{context}: wrong PASS for {email} ({count}/{MAX_PASS_FAILS}) from {ip}")
+        return JSONResponse(status_code=401, content={
+            "error": "INVALID_PASS", "attempts_left": left,
+            "message": f"Code PASS incorrect ({left} essai{'s' if left > 1 else ''} restant{'s' if left > 1 else ''})."})
+
+    invalidated = _invalidate_pass_files(email)
+    fails_path.unlink(missing_ok=True)
+    logger.warning(f"{context}: PASS invalidé pour {email} après {count} échecs depuis {ip}")
+    log_node_event("pass_alert", invalidated, category="multipass_security",
+                   extra={"attempts": count, "ip": ip, "context": context})
+    try:
+        asyncio.get_running_loop().create_task(_notify_pass_alert(email, count, ip))
+    except RuntimeError:
+        logger.error(f"PASS alert non envoyée pour {email} : pas de boucle asyncio")
+    return JSONResponse(status_code=401, content={
+        "error": "INVALID_PASS", "attempts_left": 0, "locked": True,
+        "message": "Code PASS incorrect. Récupération bloquée après 3 erreurs : "
+                   "votre Capitaine a été prévenu."})
 
 
 # Double-soumission : un seul appel /g1nostr actif par email (partagé avec
@@ -358,7 +438,6 @@ async def _scan_qr_impl(
     # ── Cas 2 & 3 : email existant + format JSON ──────────────────────────────
     if email_exists and format == "json":
         multipass_json = nostr_dir / ".multipass.json"
-        pass_file      = _resolve_pass_file(email)
 
         # Récupération silencieuse : même email + même npub dérivé → pas de PASS requis
         if derived_npub and not pass_code:
@@ -404,27 +483,11 @@ async def _scan_qr_impl(
                 }
             )
 
-        # Cas 3 — vérifier le PASS
-        if not pass_file:
-            logger.warning(f"PASS file missing for {email}")
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "error": "PASS_UNAVAILABLE",
-                    "message": "Code PASS non disponible sur ce nœud. Contactez le support."
-                }
-            )
-
-        stored_pass = pass_file.read_text().strip()
-        if pass_code != stored_pass:
-            logger.warning(f"Wrong PASS attempt for {email}")
-            return JSONResponse(
-                status_code=401,
-                content={
-                    "error": "INVALID_PASS",
-                    "message": "Code PASS incorrect."
-                }
-            )
+        # Cas 3 — vérifier le PASS (compteur d'échecs serveur, cf. _check_pass)
+        pass_error = _check_pass(email, pass_code, "g1nostr",
+                                 request.client.host if request.client else "?")
+        if pass_error:
+            return pass_error
 
         # PASS correct — regénérer .multipass.json si absent puis retourner
         if not multipass_json.exists():
@@ -597,21 +660,7 @@ def _check_atom4love_auth(email: str, pass_code: str, auth_event_raw: str) -> Op
         return None
 
     if pass_code:
-        if _is_pass_restore_disabled(email):
-            logger.warning(f"ATOM4LOVE: PASS restore disabled by user for {email}")
-            return JSONResponse(status_code=403, content={
-                "error": "PASS_DISABLED",
-                "message": "La récupération par code PASS a été désactivée pour ce compte. Contactez le support."})
-        pass_file = _resolve_pass_file(email)
-        if not pass_file:
-            return JSONResponse(status_code=503, content={
-                "error": "PASS_UNAVAILABLE",
-                "message": "Code PASS non disponible sur ce nœud. Contactez le support."})
-        if pass_code != pass_file.read_text().strip():
-            logger.warning(f"ATOM4LOVE: wrong PASS attempt for {email}")
-            return JSONResponse(status_code=401, content={
-                "error": "INVALID_PASS", "message": "Code PASS incorrect."})
-        return None
+        return _check_pass(email, pass_code, "atom4love")
 
     return JSONResponse(status_code=401, content={
         "error": "AUTH_REQUIRED",
@@ -1409,50 +1458,37 @@ async def _notify_pass_alert(email: str, attempts: int, ip: str) -> None:
 
 @router.post("/g1nostr/alert")
 async def pass_attempts_alert(request: Request, data: PassAlertBody) -> JSONResponse:
-    """Invalide le PASS et notifie le capitaine après 3 échecs consécutifs."""
+    """Signalement client (zelkova, coracle) après 3 échecs PASS — désormais
+    INFORMATIF uniquement. Le blocage et l'alerte Capitaine sont faits par
+    _check_pass dès le MAX_PASS_FAILS-ième échec réellement constaté par le
+    serveur. Cet endpoint n'étant pas authentifié, il ne doit plus pouvoir
+    invalider le PASS de n'importe quel email sur simple POST (déni de
+    service sur la récupération d'un tiers)."""
     email = data.email.strip().lower()
-
-    # Supprimer TOUTES les copies du PASS (nostr/ ET players/) pour bloquer
-    # toute nouvelle tentative — voir _invalidate_pass_files.
-    invalidated = _invalidate_pass_files(email)
-    if invalidated:
-        logger.warning("PASS invalidé pour %s après %d tentatives depuis %s",
-                       email, data.attempts, request.client.host if request.client else "?")
-
     ip = request.client.host if request.client else "inconnu"
-    await _notify_pass_alert(email, data.attempts, ip)
-
-    # Observabilité additive : tentatives PASS échouées répétées = signal fort
-    # pour BRO/capitaine (bruteforce potentiel ou utilisateur bloqué légitime).
-    log_node_event("pass_alert", invalidated, category="multipass_security",
-                    extra={"attempts": data.attempts, "ip": ip})
-    log_user_event(email, "multipass", "pass_alert", invalidated,
-                   extra={"attempts": data.attempts})
-
-    return JSONResponse({"status": "alerted", "invalidated": invalidated})
+    locked = is_safe_email(email) and _resolve_pass_file(email) is None
+    logger.info("PASS alert client pour %s (%d tentatives, ip %s) — verrouillé serveur : %s",
+                email, data.attempts, ip, locked)
+    log_node_event("pass_alert_client", locked, category="multipass_security",
+                   extra={"attempts": data.attempts, "ip": ip})
+    return JSONResponse({"status": "locked" if locked else "noted", "invalidated": locked})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ONBOARDING /g1  —  Point d'entrée public (OpenCollective optionnel)
 #
 # Politique spécifique à CETTE page (u.DOMAIN/g1, templates/g1nostr.html) :
-# la création d'un MULTIPASS n'est PLUS conditionnée à une adhésion
-# OpenCollective. L'appartenance OC (si l'email est déjà membre) est
-# simplement remontée à titre informatif dans la réponse (tier/statut
-# sociétaire), sans jamais bloquer la création. zelkova / atomic.html /
-# miz.html continuent d'utiliser /g1nostr directement, contrat inchangé.
+# formulaire minimal — email + localisation. La création d'un MULTIPASS n'est
+# PAS conditionnée à une adhésion OpenCollective : l'appartenance OC (si
+# l'email est déjà membre) est remontée à titre informatif (tier/statut
+# sociétaire), sans jamais bloquer. zelkova / atomic.html / miz.html
+# utilisent /g1nostr directement, contrat inchangé.
 #
-# Permet en option de faire don d'un ancien portefeuille Ğ1 v1 (Cesium) à la
-# coopérative : le solde est vidé vers UPLANETNAME_G1 et crédité en ẐEN
-# (floor(Ğ1_donnés / 10)) sur le MULTIPASS — dont la clé est TOUJOURS générée
-# aléatoirement côté serveur, indépendamment du wallet donné.
-#
-# Ordre des opérations (irréversible en dernier — voir memory
-# feedback_g1_financial_ops_safety) :
-#   1. Vérification (best-effort, non bloquante) de l'adhésion OpenCollective.
-#   2. Création du MULTIPASS (clé aléatoire).
-#   3. Seulement si 2 a réussi : don du wallet v1 (best-effort).
-#   4. Seulement si 3 a réussi (donated=true, credited_zen>0) : crédit ẐEN.
+# La réponse alimente le "billet MULTIPASS" affiché par la page (P1 + email +
+# PASS, même contenu que l'email envoyé par make_NOSTRCARD.sh) : `p1_qr`
+# (data-URL PNG du QR de la part SSSS joueur) y est ajouté ici.
+# Email déjà inscrit : 409 need_pass, la page demande alors le PASS
+# (`pass_code`) et réaffiche le billet (`recovered: true`).
 # ═══════════════════════════════════════════════════════════════════════════
 
 @as_form
@@ -1461,72 +1497,7 @@ class G1OnboardForm(BaseModel):
     lang: str
     lat: str
     lon: str
-    v1_login: str = ""
-    v1_password: str = ""
-    confirm_donation: bool = False
-
-    @field_validator('v1_login', 'v1_password', mode='before')
-    @classmethod
-    def validate_no_shell_injection(cls, v: str) -> str:
-        """Mêmes règles que G1NostrForm.salt/pepper — ces valeurs transitent
-        vers un fichier JSON, jamais un argument shell, mais on reste strict."""
-        if v and not _SAFE_CREDENTIAL_RE.match(v):
-            raise ValueError(
-                'Caractères non autorisés (exclus : guillemets " \' ` $ \\ et caractères de contrôle ; max 56 chars)'
-            )
-        return v
-
-
-async def _donate_g1v1_and_credit(email: str, v1_login: str, v1_password: str) -> dict:
-    """Écrit les credentials v1 dans un fichier 0600 sous /dev/shm (jamais en
-    argument de ligne de commande — voir memory feedback_g1_financial_ops_safety),
-    appelle donate_g1v1_wallet.sh (drain vers UPLANETNAME_G1), puis crédite le
-    ẐEN correspondant via UPLANET.official.sh.
-
-    Best-effort : un échec ici n'invalide jamais le MULTIPASS déjà créé —
-    l'appelant doit avoir déjà confirmé la création avant d'appeler ceci.
-    """
-    credfile = Path(f"/dev/shm/.g1v1_onboard_{secrets.token_hex(8)}")
-    try:
-        credfile.write_text(json.dumps({"salt": v1_login, "password": v1_password}))
-        credfile.chmod(0o600)
-        script = str(settings.TOOLS_PATH / "donate_g1v1_wallet.sh")
-        return_code, last_line = await run_script(
-            script, str(credfile), settings.UPLANETNAME_G1, f"UPLANET:DON_LEGACY:{email}"
-        )
-    except Exception as e:
-        logger.error(f"donate_g1v1_wallet.sh launch failed for {email}: {e}")
-        return {"donated": False, "error": "DONATION_SCRIPT_FAILED"}
-    finally:
-        # Double sécurité : le script bash supprime déjà CREDFILE (trap EXIT),
-        # on s'assure qu'il ne traîne pas si le lancement lui-même a échoué.
-        credfile.unlink(missing_ok=True)
-
-    try:
-        donation = json.loads(last_line.strip())
-    except (json.JSONDecodeError, AttributeError):
-        logger.warning(f"donate_g1v1_wallet.sh unparsable output for {email}: {last_line}")
-        return {"donated": False, "error": "DONATION_OUTPUT_UNPARSABLE"}
-
-    if return_code != 0 or not donation.get("donated"):
-        logger.info(f"Donation not applied for {email}: {donation}")
-        return donation
-
-    credited_zen = int(donation.get("credited_zen") or 0)
-    donation["zen_credited"] = False
-    if credited_zen > 0:
-        try:
-            await run_script(
-                str(settings.ZEN_PATH / "Astroport.ONE" / "UPLANET.official.sh"),
-                "-l", email, "-m", str(credited_zen),
-            )
-            donation["zen_credited"] = True
-            logger.info(f"Credited {credited_zen} Ẑ to {email} for legacy G1v1 donation")
-        except Exception as e:
-            logger.error(f"UPLANET.official.sh credit failed for {email} ({credited_zen} Ẑ): {e}")
-            donation["credit_error"] = str(e)
-
-    return donation
+    pass_code: str = ""
 
 
 @router.post("/g1/onboard")
@@ -1534,12 +1505,12 @@ async def g1_onboard(
     request: Request,
     form_data: G1OnboardForm = Depends(G1OnboardForm.as_form)
 ):
-    """Onboarding MULTIPASS gate OpenCollective + don optionnel de wallet Ğ1 v1.
+    """Onboarding MULTIPASS (email + localisation), OpenCollective informatif.
 
     Réutilise entièrement _scan_qr_impl (via un G1NostrForm construit ici, avec
     salt/pepper vides — donc générés aléatoirement côté serveur) pour la
-    création elle-même : pas de duplication de la logique g1.sh / anti double-
-    soumission / enrichissement JSON, déjà éprouvée sur /g1nostr.
+    création comme pour la récupération par PASS : pas de duplication de la
+    logique g1.sh / anti double-soumission / compteur d'échecs PASS.
     """
     email = (form_data.email or "").strip().lower()
     if not is_safe_email(email):
@@ -1565,7 +1536,7 @@ async def g1_onboard(
     # ── Création (ou récupération) — délègue entièrement à /g1nostr ─────────
     g1nostr_form = G1NostrForm(
         email=email, lang=form_data.lang, lat=form_data.lat, lon=form_data.lon,
-        format="json",
+        format="json", pass_code=(form_data.pass_code or "").strip(),
     )
     result = await _scan_qr_impl(request, g1nostr_form)
 
@@ -1578,14 +1549,20 @@ async def g1_onboard(
     # ── Statut OpenCollective — informatif uniquement (tier/sociétaire) ─────
     if oc_info and oc_info.get("is_member"):
         data["oc_member"] = oc_info
+    if email_exists:
+        data["recovered"] = True
 
-    # ── Don optionnel du wallet Ğ1 v1 — SEULEMENT après création réussie ────
-    # (email_exists était False au moment du gate : c'est donc une création
-    # neuve, jamais une récupération d'un compte déjà existant.)
-    if (not email_exists and form_data.confirm_donation
-            and form_data.v1_login and form_data.v1_password):
-        data["donation"] = await _donate_g1v1_and_credit(
-            email, form_data.v1_login, form_data.v1_password
-        )
+    # ── QR P1 (part SSSS joueur "M-…") pour le billet MULTIPASS affiché par
+    # templates/g1nostr.html — même rendu que l'email (zine). Best-effort :
+    # sans QR, la page affiche quand même email + PASS.
+    ssss = data.get("ssss") or ""
+    if ssss:
+        from routers.qr import _generate_qr_png
+        try:
+            png, _engine = await asyncio.to_thread(_generate_qr_png, ssss, 1, "M")
+            if png:
+                data["p1_qr"] = "data:image/png;base64," + base64.b64encode(png).decode()
+        except Exception as e:
+            logger.warning(f"QR P1 non généré pour {email}: {e}")
 
     return JSONResponse(data)

@@ -34,6 +34,25 @@
   .trust-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.22);
         animation:pulse-dot 2s ease-in-out infinite}
   @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* ── Statut réseau Duniter/Squid — bouton discret en bas de page, pour
+     diagnostiquer (quel nœud sert, latence, fraîcheur du cache) sans
+     polluer le parcours normal de scan/encaissement. */
+  .network-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;
+        background:rgba(255,255,255,.04);border:1px solid var(--card-line);color:var(--muted);
+        font-size:.7rem;font-weight:600;cursor:pointer}
+  .network-pill:active{transform:scale(.97)}
+  .network-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--muted2);flex-shrink:0}
+  .network-pill .dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.18)}
+  .network-pill .dot.warn{background:var(--gold);box-shadow:0 0 0 3px rgba(227,194,122,.18)}
+  .network-pill .dot.err{background:var(--err);box-shadow:0 0 0 3px rgba(251,113,133,.18)}
+  .network-panel{max-width:320px;margin:8px auto 0;background:var(--card);border:1px solid var(--card-line);
+        border-radius:var(--radius-md);padding:12px 14px;font-size:.78rem}
+  .network-row{display:flex;justify-content:space-between;gap:10px;padding:4px 0;color:var(--muted);
+        border-bottom:1px solid var(--card-line)}
+  .network-row:last-child{border-bottom:none}
+  .network-row span:last-child{color:var(--ink);font-family:ui-monospace,monospace;font-size:.72rem;
+        text-align:right;word-break:break-all}
   header h1{font-size:1.32rem;font-weight:800;margin:0 0 6px;letter-spacing:-.01em;
         display:flex;align-items:center;justify-content:center;gap:9px}
   header h1 .ic{width:30px;height:30px;border-radius:9px;flex-shrink:0;
@@ -130,6 +149,10 @@
   .billet-result.empty{background:linear-gradient(135deg,#191d2a,#0d1120 70%)}
   .billet-result.empty .amount{color:var(--muted)}
   .billet-result.err{border-color:rgba(251,113,133,.4)}
+  .chain-link{display:none;align-items:center;gap:4px;font-size:.72rem;color:var(--gold);
+        text-decoration:none;font-weight:600;margin-top:5px}
+  .chain-link:active{opacity:.7}
+  .billet-result .chain-link{justify-content:flex-end}
 
   .match{font-size:.81rem;margin-top:8px;display:flex;align-items:center;gap:7px}
   .match.ok{color:var(--ok)}
@@ -245,7 +268,10 @@
       <div class="chip"></div>
       <div class="row">
         <div class="amount" id="billet-amount">—</div>
-        <div class="g1" id="billet-g1-short"></div>
+        <div>
+          <div class="g1" id="billet-g1-short"></div>
+          <a class="chain-link" id="billet-chain-link" href="#" target="_blank" rel="noopener">📊 Voir l'historique</a>
+        </div>
       </div>
     </div>
 
@@ -312,6 +338,7 @@
       <input type="file" id="file-dest" accept="image/*">
     </div>
     <div class="state" id="state-dest"></div>
+    <a class="chain-link" id="dest-chain-link" href="#" target="_blank" rel="noopener">📊 Voir l'historique</a>
 
     <div class="warn" id="redeem-warn" style="display:none;margin-top:12px;margin-bottom:0">
       <span class="ic">🔒</span><span>Le transfert est définitif et vide entièrement le billet. Vérifiez le portefeuille de destination avant de confirmer.</span>
@@ -328,6 +355,17 @@
   <p class="note">
     Pas de caméra sous la main ? <a href="/earth/billet_redeem.html" target="_blank" rel="noopener">reconstruction manuelle guidée →</a>
   </p>
+
+  <div style="display:flex;justify-content:center;margin-top:10px">
+    <button type="button" id="network-status-btn" class="network-pill" title="Statut du réseau Duniter/Squid">
+      <span class="dot" id="network-dot"></span><span id="network-status-text">Réseau…</span>
+    </button>
+  </div>
+  <div id="network-status-panel" class="network-panel" style="display:none">
+    <div class="network-row"><span>Squid</span><span id="ns-squid">—</span></div>
+    <div class="network-row"><span>RPC</span><span id="ns-rpc">—</span></div>
+    <div class="network-row"><span>Cache</span><span id="ns-cache">—</span></div>
+  </div>
 </main>
 
 <!-- Modal caméra plein écran, réutilisé pour tous les champs -->
@@ -363,6 +401,18 @@
 
   function $(id) { return document.getElementById(id); }
   function short(s) { return s && s.length > 16 ? s.slice(0, 8) + '…' + s.slice(-8) : (s || ''); }
+
+  // ── Lien vers notre propre application (PAS Cesium : Cesium compte en
+  // Ğ1, pas en Ẑen, trompeur pour un billet annoncé en Ẑen) — multipass.html
+  // accepte un g1pub direct dans l'URL (cf. UPlanet/earth/multipass.html,
+  // p.get('g1pub') → loadHistory() immédiat) et affiche solde + historique
+  // via /check_balance, le même endpoint Ẑen-aware que cette page. ────────
+  function multipassUrl(g1pub) { return '/earth/multipass.html?g1pub=' + encodeURIComponent(g1pub); }
+  function showChainLink(linkEl, g1pub) {
+    if (!g1pub) { linkEl.style.display = 'none'; return; }
+    linkEl.href = multipassUrl(g1pub);
+    linkEl.style.display = 'inline-flex';
+  }
   function setState(el, msg, cls, spin) {
     el.innerHTML = (spin ? '<div class="spin"></div>' : '') + '<span>' + (msg || '') + '</span>';
     el.className = 'state' + (cls ? ' ' + cls : '');
@@ -560,6 +610,7 @@
     g1pub = extractG1pub(g1pub);
     if (!g1pub) return;
     billetInput.value = g1pub;
+    showChainLink($('billet-chain-link'), g1pub);
     setState($('state-billet'), 'Vérification du solde…', 'pending', true);
     billetResult.style.display = 'none';
     cardRecon.classList.add('locked');
@@ -623,6 +674,7 @@
   async function checkDestPrimal() {
     var g1pub = (destInput.value || '').trim();
     var mySeq = ++destCheckSeq;
+    showChainLink($('dest-chain-link'), g1pub.length >= 8 ? g1pub : null);
     if (g1pub.length < 8) { destPrimalOk = null; updateRedeemButton(); return; }
     setState($('state-dest'), '⏳ Vérification du portefeuille…', 'pending', true);
     try {
@@ -656,7 +708,11 @@
     if (!file) return;
     decodeImageFile(file, setDest, function (msg) { setState($('state-dest'), msg, 'err'); });
   });
-  destInput.addEventListener('input', function () { destPrimalOk = null; updateRedeemButton(); });
+  destInput.addEventListener('input', function () {
+    destPrimalOk = null;
+    showChainLink($('dest-chain-link'), destInput.value.trim().length >= 8 ? destInput.value.trim() : null);
+    updateRedeemButton();
+  });
   destInput.addEventListener('blur', checkDestPrimal);
 
   function setSlotState(slot, bytes, msg, cls) {
@@ -668,7 +724,7 @@
   function acceptHex(slot, hex, source) {
     hex = (hex || '').trim().replace(/\s+/g, '');
     if (!HEX64.test(hex)) { setSlotState(slot, null, 'Format invalide (attendu 64 caractères hexadécimaux).', 'err'); return; }
-    $('input-' + slot) && ($('input-' + slot).value = hex);
+    $('input-p' + slot) && ($('input-p' + slot).value = hex);
     setSlotState(slot, hexToBytes(hex), '✅ P' + slot + ' chargée (' + source + ').', 'ok');
     tryReconstruct();
   }
@@ -680,8 +736,8 @@
       decodeImageFile(file, function (text) { acceptHex(slot, text, 'image importée'); },
         function (msg) { setSlotState(slot, null, msg, 'err'); });
     });
-    $('input-' + slot).addEventListener('input', function () {
-      var v = $('input-' + slot).value;
+    $('input-p' + slot).addEventListener('input', function () {
+      var v = $('input-p' + slot).value;
       if (!v.trim()) { setSlotState(slot, null, '', ''); return; }
       acceptHex(slot, v, 'saisie manuelle');
     });
@@ -775,6 +831,49 @@
       if (g1pub) checkBillet(g1pub);
     } catch (e) { /* pas bloquant */ }
   })();
+
+  // ── Statut réseau Duniter/Squid — lecture du cache déjà entretenu côté
+  // serveur (duniter_getnode.sh), pas un ping en direct depuis le
+  // navigateur : quel nœud sert actuellement, latence, fraîcheur. ────────
+  var networkBtn = $('network-status-btn');
+  var networkPanel = $('network-status-panel');
+
+  function fmtAge(s) {
+    if (s === null || s === undefined) return '—';
+    if (s < 60) return s + ' s';
+    if (s < 3600) return Math.floor(s / 60) + ' min';
+    return Math.floor(s / 3600) + ' h';
+  }
+
+  async function loadNetworkStatus() {
+    var dot = $('network-dot'), text = $('network-status-text');
+    try {
+      var resp = await fetch('/qr/billet/network_status');
+      var data = await resp.json();
+      var squid = data.best_squid, rpc = data.best_rpc;
+
+      dot.className = 'dot ' + (!data.cache_ok ? 'err' : (squid && rpc ? 'ok' : 'warn'));
+      text.textContent = data.cache_ok
+        ? (squid ? squid.latency + ' ms' : '?') + ' · ' + (rpc ? rpc.latency + ' ms' : '?')
+        : 'cache expiré';
+
+      $('ns-squid').textContent = squid ? squid.url + ' (' + squid.latency + ' ms, bloc ' + squid.height + ')' : 'indisponible';
+      $('ns-rpc').textContent = rpc ? rpc.url + ' (' + rpc.latency + ' ms, bloc ' + rpc.block + ')' : 'indisponible';
+      $('ns-cache').textContent = data.cache_ok
+        ? 'à jour (' + fmtAge(data.cache_age_s) + ') — ' + data.squid_count + ' squids, ' + data.rpc_count + ' RPC connus'
+        : 'expiré ou absent (' + fmtAge(data.cache_age_s) + ')';
+    } catch (e) {
+      dot.className = 'dot err';
+      text.textContent = 'indisponible';
+    }
+  }
+
+  networkBtn.addEventListener('click', function () {
+    var show = networkPanel.style.display === 'none';
+    networkPanel.style.display = show ? 'block' : 'none';
+    if (show) loadNetworkStatus(); // rafraîchit à chaque ouverture
+  });
+  loadNetworkStatus(); // statut initial (pill) dès le chargement de la page
 })();
 </script>
 </body>

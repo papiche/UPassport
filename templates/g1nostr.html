@@ -163,6 +163,7 @@
         }
         
         input[type="text"],
+        input[type="email"],
         input[type="password"] {
             width: 100%;
             padding: 12px;
@@ -177,6 +178,7 @@
         }
         
         input[type="text"]:focus,
+        input[type="email"]:focus,
         input[type="password"]:focus {
             border-color: #4CAF50;
             outline: none;
@@ -383,92 +385,115 @@
             text-decoration: underline;
         }
 
-        /* Credentials accordion styles */
-        .credentials-accordion {
-            margin-bottom: 20px;
-            border: 1px solid #444;
-            border-radius: 8px;
+        /* Billet MULTIPASS — même habillage que le Ğ1Billet (earth/billet.html,
+           routers/qr.py) et que l'email envoyé (Astroport.ONE
+           templates/NOSTR/zine/nostr.html) : P1 + email + PASS uniquement. */
+        .mp-billet {
+            background: #f5f0e8;
+            color: #222;
+            border: 2px solid #c8a83c;
+            border-radius: 10px;
             overflow: hidden;
-            background-color: #333;
-        }
-        
-        .accordion-toggle {
-            width: 100%;
-            padding: 15px 20px;
-            background-color: #383838;
-            color: #e0e0e0;
-            border: none;
+            font-family: Georgia, serif;
             text-align: left;
-            cursor: pointer;
-            font-size: clamp(16px, 4vw, 18px);
+            box-shadow: 0 4px 16px rgba(0,0,0,.45);
+        }
+        .mp-billet .mp-head {
+            background: #2d5a1b;
+            color: #c8a83c;
+            font-family: Arial, sans-serif;
+            font-size: 13px;
             font-weight: bold;
+            letter-spacing: 2px;
+            padding: 8px 14px;
+        }
+        .mp-billet .mp-main {
             display: flex;
-            justify-content: space-between;
+            gap: 14px;
             align-items: center;
-            transition: background-color 0.3s ease;
+            padding: 16px 14px 12px;
         }
-        
-        .accordion-toggle:hover {
-            background-color: #444;
+        .mp-billet .mp-p1 { flex: 0 0 auto; text-align: center; }
+        .mp-billet .mp-p1 img {
+            display: block;
+            width: 140px;
+            height: 140px;
+            background: #fff;
+            padding: 4px;
+            border: 1px solid #c8a83c;
+            border-radius: 4px;
+            image-rendering: pixelated;
         }
-        
-        .toggle-icon {
-            font-size: 12px;
-            transition: transform 0.3s ease;
+        .mp-billet .mp-p1 .mp-p1-missing {
+            width: 140px;
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed #c8a83c;
+            border-radius: 4px;
+            font: 11px Arial, sans-serif;
+            color: #666;
+            padding: 8px;
         }
-        
-        .accordion-toggle.active .toggle-icon {
-            transform: rotate(180deg);
+        .mp-billet .mp-p1 b {
+            display: block;
+            margin-top: 6px;
+            font: bold 12px Arial, sans-serif;
+            color: #8b1a1a;
+            letter-spacing: 1px;
         }
-        
-        .accordion-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-            background-color: #2a2a2a;
+        .mp-billet .mp-ids { flex: 1; min-width: 0; }
+        .mp-billet .mp-label {
+            font: 10px Arial, sans-serif;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #666;
         }
-        
-        .accordion-content.active {
-            max-height: 500px;
+        .mp-billet .mp-email {
+            font-size: 16px;
+            font-weight: bold;
+            word-break: break-all;
+            margin-bottom: 14px;
         }
-
-        .credentials-info {
-            padding: 15px 20px;
-            background-color: #2a2a2a;
-            border-bottom: 1px solid #444;
+        .mp-billet .mp-pass {
+            display: inline-block;
+            margin-top: 2px;
+            padding: 4px 14px;
+            background: #fff;
+            border: 1.5px solid #c8a83c;
+            border-radius: 6px;
+            font: bold 30px "Courier New", monospace;
+            letter-spacing: 6px;
+            color: #8b1a1a;
         }
-        
-        .credentials-info p {
-            margin: 0 0 15px 0;
+        .mp-billet .mp-foot {
+            border-top: 1px dashed #c8a83c;
+            padding: 6px 14px 10px;
+            font: 10px Arial, sans-serif;
+            color: #666;
+            text-align: right;
+        }
+        .pass-hint {
+            margin: 0 0 8px;
+            font-size: 14px;
+            color: #ffa500;
+        }
+        #pass_code {
+            font-family: "Courier New", monospace;
+            font-size: 22px;
+            letter-spacing: 6px;
+            text-align: center;
+        }
+        .mp-help {
+            margin-top: 16px;
+            font-size: 14px;
+            line-height: 1.55;
             color: #cccccc;
-            font-size: clamp(14px, 3vw, 16px);
-            line-height: 1.4;
+            text-align: left;
         }
-        
-        .generate-credentials-btn {
-            padding: 10px 15px;
-            background-color: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: clamp(14px, 3vw, 16px);
-            transition: background-color 0.3s ease;
-            margin-bottom: 10px;
-        }
-        
-        .generate-credentials-btn:hover {
-            background-color: #1976D2;
-        }
-        
-        .accordion-content label {
-            padding: 0 20px;
-            margin-top: 15px;
-        }
-        
-        .accordion-content input {
-            margin: 0 20px 15px 20px;
-            width: calc(100% - 40px);
+        @media (max-width: 420px) {
+            .mp-billet .mp-main { flex-direction: column; align-items: flex-start; }
         }
 
         /* Warning banner styles */
@@ -630,6 +655,7 @@
             }
             
             input[type="text"],
+            input[type="email"],
             input[type="password"] {
                 min-height: 44px;
                 font-size: 16px;
@@ -677,40 +703,17 @@
             <input type="hidden" id="lon" name="lon" value="0.00">
 
         <h2>📧 Email</h2>
-            <input type="text" id="email" name="email" placeholder="email@example.com" required>
+            <input type="email" id="email" name="email" placeholder="email@example.com" required>
 
-        <div class="credentials-accordion">
-            <button type="button" class="accordion-toggle" id="donation-toggle">
-                <span>🎁 Transférer un ancien portefeuille Ğ1</span>
-                <span class="toggle-icon">▼</span>
-            </button>
-            <div class="accordion-content" id="donation-content">
-                <div class="credentials-info">
-                    <p>🎁 <strong>Offrez des Ğ1 à UPlanet :</strong> elles serviront à emettre les Ẑen de la coopérative.
-                       en retour de votre don, nous vous offrons 1 Ẑen pour chaque tranche de 10 Ğ1.</p>
-                </div>
-                <label for="v1_login">Identifiant du portefeuille Ğ1 v1</label>
-                <input type="text" id="v1_login" name="v1_login" placeholder="identifiant Cesium" autocomplete="off">
-                <label for="v1_password">Mot de passe du portefeuille Ğ1 v1</label>
-                <input type="password" id="v1_password" name="v1_password" placeholder="mot de passe Cesium" autocomplete="off">
-                <label style="display:flex;align-items:flex-start;gap:8px;padding:0 20px 15px 20px;font-weight:normal;">
-                    <input type="checkbox" id="confirm_donation" name="confirm_donation" value="true" style="width:auto;margin:4px 0 0 0;flex-shrink:0;">
-                    <span>Je comprends que mon portefeuille sera vidé et que mon MULTIPASS utilisera une clé indépendante générée aléatoirement.</span>
-                </label>
-            </div>
+        <!-- Email déjà inscrit (409 need_pass) : demande le PASS pour réafficher le billet -->
+        <div id="pass-block" style="display:none">
+        <h2>🔢 PASS</h2>
+            <input type="text" id="pass_code" name="pass_code" inputmode="numeric" maxlength="4"
+                   autocomplete="one-time-code" placeholder="4 chiffres">
+            <p class="pass-hint">Ce MULTIPASS existe déjà : saisissez le PASS reçu par email pour réafficher votre billet.</p>
         </div>
-
-            <input type="submit" value="📝 INSCRIPTION">
         </form>
 
-        <div id="error-message" class="error"></div>
-        <div id="geo-error" class="error"></div>
-
-        <div class="loader-container" id="loader-container">
-            <div class="loader"></div>
-            <div class="loader-text">Génération de votre MULTIPASS</div>
-            <div class="loader-subtext">Veuillez patienter, cette opération peut prendre une minute...</div>
-        </div>
         <!-- Map Section -->
         <div class="map-section">
             <div class="map-header">
@@ -733,6 +736,16 @@
             <div class="map-info">
                 💡 Cliquez sur la carte pour ajuster votre position.
             </div>
+        </div>
+
+        <div id="geo-error" class="error"></div>
+        <input type="submit" form="nostr-form" value="📝 INSCRIPTION">
+        <div id="error-message" class="error"></div>
+
+        <div class="loader-container" id="loader-container">
+            <div class="loader"></div>
+            <div class="loader-text">Génération de votre MULTIPASS</div>
+            <div class="loader-subtext">Veuillez patienter, cette opération peut prendre une minute...</div>
         </div>
 
 
@@ -785,16 +798,6 @@
                 if (_emailEl) { _emailEl.value = _preEmail; _emailEl.focus(); }
             }
 
-            // Accordion don wallet Ğ1 v1
-            const donationToggle = document.getElementById('donation-toggle');
-            const donationContent = document.getElementById('donation-content');
-            if (donationToggle && donationContent) {
-                donationToggle.addEventListener('click', function() {
-                    donationToggle.classList.toggle('active');
-                    donationContent.classList.toggle('active');
-                });
-            }
-
             const form = document.getElementById('nostr-form');
             const errorMessageDiv = document.getElementById('error-message');
             const geoErrorDiv = document.getElementById('geo-error');
@@ -843,7 +846,14 @@
             }
 
             // Update coordinates in all places
+            // Localisation obligatoire : passe à true dès qu'une position
+            // est fixée (géoloc, clic/drag carte, saisie, ?zlat=&zlon=) —
+            // le 0.00/0.00 initial n'est qu'un placeholder.
+            let locationChosen = false;
+
             function updateCoordinates(lat, lon) {
+                locationChosen = true;
+                geoErrorDiv.style.display = 'none';
                 const roundedLat = Math.round(lat * 100) / 100;
                 const roundedLon = Math.round(lon * 100) / 100;
 
@@ -944,65 +954,86 @@
                 }
             }
 
-            const v1LoginInput      = document.getElementById('v1_login');
-            const v1PasswordInput   = document.getElementById('v1_password');
-            const confirmDonationCb = document.getElementById('confirm_donation');
             const resultPanel       = document.getElementById('result-panel');
+            const passBlock         = document.getElementById('pass-block');
+            const passInput         = document.getElementById('pass_code');
+            const emailInput        = document.getElementById('email');
+
+            // Changer d'email = repartir d'une création (le PASS ne vaut que pour l'email testé)
+            emailInput.addEventListener('input', function() {
+                passBlock.style.display = 'none';
+                passInput.value = '';
+                passInput.disabled = false;
+            });
+
+            function escHtml(v) {
+                return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({
+                    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+                }[c]));
+            }
+
+            // Billet MULTIPASS : P1 (part SSSS joueur, QR fourni par
+            // /g1/onboard en data-URL), email, PASS — rien d'autre. Même
+            // contenu que l'email envoyé (Astroport.ONE templates/NOSTR/zine/nostr.html).
+            function billetHtml(data) {
+                const p1 = data.p1_qr
+                    ? `<img src="${escHtml(data.p1_qr)}" alt="QR P1">`
+                    : `<div class="mp-p1-missing">QR P1 dans l'email reçu</div>`;
+                const pass = data.pass
+                    ? escHtml(data.pass)
+                    : '<span style="font-size:14px;letter-spacing:0">voir email</span>';
+                return `
+                    <div class="mp-billet" id="mp-billet">
+                        <div class="mp-head">🔑 MULTIPASS &nbsp;·&nbsp; UPLANET</div>
+                        <div class="mp-main">
+                            <div class="mp-p1">${p1}<b>P1</b></div>
+                            <div class="mp-ids">
+                                <div class="mp-label">Email</div>
+                                <div class="mp-email">${escHtml(data.email)}</div>
+                                <div class="mp-label">PASS</div>
+                                <div class="mp-pass">${pass}</div>
+                            </div>
+                        </div>
+                        <div class="mp-foot">${escHtml(new Date().toLocaleDateString('fr-FR'))}</div>
+                    </div>`;
+            }
+
+            function printBillet() {
+                const billet = document.getElementById('mp-billet');
+                if (!billet) return;
+                const css = Array.from(document.querySelectorAll('style')).map(st => st.textContent).join('\n');
+                const w = window.open('', '_blank');
+                if (!w) { window.print(); return; }
+                w.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Billet MULTIPASS</title><style>'
+                    + css + ' body{background:#fff;display:block;padding:20px} .mp-billet{max-width:520px;margin:0 auto;box-shadow:none}'
+                    + '</style></head><body>' + billet.outerHTML + '</body></html>');
+                w.document.close();
+                w.onload = () => { w.focus(); w.print(); };
+            }
 
             function renderMultipassResult(data) {
-                const donation = data.donation || null;
-                let donationHtml = '';
-                if (donation) {
-                    donationHtml = donation.donated
-                        ? `<div style="margin-top:15px;padding:12px;background:rgba(76,175,80,.12);border:1px solid rgba(76,175,80,.4);border-radius:8px;">
-                               🎁 Don reçu : <strong>${donation.balance_g1} Ğ1</strong> — crédit de <strong>${donation.credited_zen} Ẑ</strong>
-                               ${donation.zen_credited ? '(crédité sur votre MULTIPASS)' : '(crédit en attente — contactez le support)'}
-                           </div>`
-                        : `<div style="margin-top:15px;padding:12px;background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);border-radius:8px;">
-                               ⚠️ Le don du portefeuille Ğ1 v1 n'a pas pu être traité (${donation.error || 'raison inconnue'}). Votre MULTIPASS a bien été créé.
-                           </div>`;
-                }
                 const ocMember = data.oc_member || null;
                 const ocHtml = (ocMember && ocMember.is_member)
                     ? `<div style="margin-top:15px;padding:12px;background:rgba(0,201,104,.1);border:1px solid rgba(0,201,104,.35);border-radius:8px;">
-                           🌐️ Sociétaire OpenCollective reconnu${ocMember.tier_name ? ` — <strong>${ocMember.tier_name}</strong>` : ''}
+                           🌐️ Sociétaire OpenCollective reconnu${ocMember.tier_name ? ` — <strong>${escHtml(ocMember.tier_name)}</strong>` : ''}
                        </div>`
                     : '';
                 resultPanel.innerHTML = `
-                    <h2 style="margin-top:0;">✅ Votre MULTIPASS est prêt</h2>
-                    <p><strong>Clé publique NOSTR (npub) :</strong><br><code style="word-break:break-all;">${data.npub || ''}</code></p>
-                    <p><strong>🔑 Clé privée NOSTR (nsec) — à conserver précieusement :</strong></p>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <input type="text" readonly value="${data.nsec || ''}" id="nsec-field" style="flex:1;font-family:monospace;">
-                        <button type="button" class="map-button" id="copy-nsec-btn">📋 Copier</button>
+                    <h2 style="margin-top:0;">✅ ${data.recovered ? 'Votre MULTIPASS' : 'Votre MULTIPASS est prêt'}</h2>
+                    ${billetHtml(data)}
+                    <div style="text-align:center;margin-top:14px;">
+                        <button type="button" class="map-button" id="print-billet-btn">🖨️ Imprimer le billet</button>
                     </div>
-                    <div style="margin-top:15px;padding:12px;background:rgba(33,150,243,.1);border:1px solid rgba(33,150,243,.35);border-radius:8px;">
-                        <strong>📲 Pour vous connecter aux applications NOSTR (coracle, etc.) :</strong>
-                        <ol style="margin:8px 0 0 20px;padding:0;">
-                            <li>Installez l'extension <strong>nos2x</strong> (Chrome/Brave) ou <strong>nos2x-fox</strong> (Firefox).</li>
-                            <li>Ouvrez l'extension, choisissez « Importer une clé existante ».</li>
-                            <li>Collez votre <strong>nsec</strong> ci-dessus, puis validez.</li>
-                            <li>Les sites NOSTR pourront désormais signer en votre nom, sans jamais revoir votre clé.</li>
-                        </ol>
+                    <div class="mp-help">
+                        ${data.recovered ? '♻️ Billet réaffiché pour votre MULTIPASS existant.' : '📧 Ce billet vous a aussi été envoyé par email.'}<br>
+                        🔓 <strong>Email + PASS</strong> suffisent pour vous connecter à Ẑelkova et Coracle.
+                        Gardez le PASS pour vous : 3 erreurs bloquent la récupération et alertent votre Capitaine.<br>
+                        🧩 <strong>P1</strong> est une des trois parts de votre clé : seule, elle ne permet rien.
                     </div>
                     ${ocHtml}
-                    ${donationHtml}
                 `;
                 resultModal.style.display = 'flex';
-                const copyBtn = document.getElementById('copy-nsec-btn');
-                if (copyBtn) {
-                    copyBtn.addEventListener('click', function() {
-                        const field = document.getElementById('nsec-field');
-                        field.select();
-                        if (navigator.clipboard) {
-                            navigator.clipboard.writeText(field.value).catch(() => document.execCommand('copy'));
-                        } else {
-                            document.execCommand('copy');
-                        }
-                        copyBtn.textContent = '✅ Copié !';
-                        setTimeout(() => { copyBtn.textContent = '📋 Copier'; }, 2000);
-                    });
-                }
+                document.getElementById('print-billet-btn').addEventListener('click', printBillet);
             }
 
             form.addEventListener('submit', function(event) {
@@ -1012,15 +1043,19 @@
                 errorMessageDiv.style.display = 'none';
                 errorMessageDiv.innerText = '';
 
-                // Don wallet Ğ1 v1 : la checkbox est obligatoire si des identifiants sont saisis
-                const wantsDonation = v1LoginInput.value.trim() && v1PasswordInput.value;
-                if (wantsDonation && !confirmDonationCb.checked) {
-                    errorMessageDiv.innerText = "⚠️ Cochez la case de confirmation pour faire don de votre ancien portefeuille Ğ1.";
+                const recovering = passBlock.style.display !== 'none';
+                if (recovering && !/^[0-9]{4}$/.test(passInput.value.trim())) {
+                    errorMessageDiv.innerText = "Saisissez votre PASS (4 chiffres).";
                     errorMessageDiv.style.display = 'block';
+                    passInput.focus();
                     return;
                 }
-                if (!wantsDonation) {
-                    confirmDonationCb.checked = false;
+                // La localisation ne sert qu'à la création (pas à la récupération par PASS)
+                if (!recovering && !locationChosen) {
+                    geoErrorDiv.innerText = "📍 Indiquez votre position sur la carte (ou « Ma position ») avant de vous inscrire.";
+                    geoErrorDiv.style.display = 'block';
+                    geoErrorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
                 }
 
                 loaderContainer.style.display = 'flex';
@@ -1036,8 +1071,14 @@
                 .then(({ status, data }) => {
                     loaderContainer.style.display = 'none';
 
+                    if (status === 409 && data.need_pass) {
+                        passBlock.style.display = 'block';
+                        passInput.focus();
+                        return;
+                    }
                     if (status !== 200) {
-                        errorMessageDiv.innerText = 'Erreur: ' + (data.message || data.error || `Server error: ${status}`);
+                        if (data.locked) passInput.disabled = true;
+                        errorMessageDiv.innerText = 'Erreur: ' + (data.message || data.error || data.detail || `Server error: ${status}`);
                         errorMessageDiv.style.display = 'block';
                         return;
                     }

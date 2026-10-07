@@ -514,8 +514,16 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
 async def check_g1history_route(g1pub: str, limit: int = 100):
     """Historique des transactions G1 d'un portefeuille MULTIPASS.
     Accepte un g1pub SS58/Base58 ou un email (résolution locale puis swarm).
-    Retourne {"history": [...], "g1pub": "...", "total": N}
+    Retourne {"history": [...], "g1pub": "...", "total": N, "npub": "..."?}
+
+    `npub` n'est inclus QUE si l'appelant a fourni un EMAIL (pas une g1pub
+    brute) : c'est la même résolution déjà faite ci-dessous pour trouver le
+    g1pub, pas un endpoint dédié — volontairement, pour ne pas créer un
+    oracle d'énumération email→npub séparé. Il n'existe de toute façon
+    aucun moyen fiable de retrouver un npub à partir d'une SIMPLE g1pub : un
+    MULTIPASS porte plusieurs clés G1 distinctes (Ğ1-Duniter, Ğ1-N2/Nostr).
     """
+    npub = None
     try:
         if '@' in g1pub:
             email = g1pub
@@ -535,12 +543,24 @@ async def check_g1history_route(g1pub: str, limit: int = 100):
                 raise HTTPException(status_code=404, detail="g1pub introuvable pour cet email")
             g1pub = resolved
 
+            secret_path = get_safe_user_path("nostr", email, ".secret.nostr")
+            if secret_path and os.path.exists(secret_path):
+                try:
+                    m = re.search(r"NPUB=(npub1[0-9a-z]+)", open(secret_path).read())
+                    if m:
+                        npub = m.group(1)
+                except Exception:
+                    pass
+
         if not is_safe_g1pub(g1pub):
             raise HTTPException(status_code=400, detail="Format g1pub invalide")
 
         data = await get_g1_history_native(g1pub, limit)
         history = data.get("history", [])
-        return {"history": history, "g1pub": g1pub, "total": len(history)}
+        result = {"history": history, "g1pub": g1pub, "total": len(history)}
+        if npub:
+            result["npub"] = npub
+        return result
 
     except HTTPException:
         raise

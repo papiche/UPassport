@@ -874,3 +874,49 @@ async def get_g1_primal_source(g1pub: str) -> Optional[str]:
                     logger.debug("get_g1_primal_source: échec sur %s (%s): %s", url, addr[:12], exc)
     logger.warning("get_g1_primal_source: aucun squid n'a répondu pour %s…", g1pub[:12])
     return None
+
+
+# ── Statut réseau (pour affichage UI) ────────────────────────────────────────
+def get_network_status() -> dict:
+    """État du cache duniter_getnode.sh pour affichage (quel nœud Squid/RPC
+    sert actuellement, santé/fraîcheur du cache) — PAS un ping en direct,
+    juste une lecture du fichier déjà entretenu par duniter_getnode.sh (même
+    source que get_squid_urls()/get_rpc_nodes()), pour rester instantané.
+
+    Retourne {"cache_ok": bool, "cache_age_s": int|None,
+    "best_squid": {"url","latency","height"}|None,
+    "best_rpc": {"url","latency","block"}|None,
+    "squid_count": int, "rpc_count": int}."""
+    try:
+        if not _CACHE_FILE.exists():
+            return {"cache_ok": False, "cache_age_s": None, "best_squid": None,
+                     "best_rpc": None, "squid_count": 0, "rpc_count": 0}
+        with open(_CACHE_FILE, "r") as fh:
+            data = json.load(fh)
+        ts = int(data.get("timestamp", 0))
+        age = int(time.time()) - ts
+        cache_ok = age <= _CACHE_TTL
+
+        def _best(nodes):
+            if not nodes:
+                return None
+            return min(nodes, key=lambda n: n.get("latency", 9999))
+
+        squids = data.get("squid", [])
+        rpcs = data.get("rpc", [])
+        best_squid = _best(squids)
+        best_rpc = _best(rpcs)
+        return {
+            "cache_ok": cache_ok,
+            "cache_age_s": age,
+            "best_squid": ({"url": best_squid["url"], "latency": best_squid.get("latency"),
+                             "height": best_squid.get("height")} if best_squid else None),
+            "best_rpc": ({"url": best_rpc["url"], "latency": best_rpc.get("latency"),
+                          "block": best_rpc.get("block")} if best_rpc else None),
+            "squid_count": len(squids),
+            "rpc_count": len(rpcs),
+        }
+    except Exception as exc:
+        logger.warning("get_network_status: erreur lecture cache — %s", exc)
+        return {"cache_ok": False, "cache_age_s": None, "best_squid": None,
+                 "best_rpc": None, "squid_count": 0, "rpc_count": 0}

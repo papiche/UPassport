@@ -90,7 +90,7 @@ from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResp
 
 from core.config import settings
 from services.nostr import verify_nip98_auth, get_nostr_relay_url
-from services.g1_squid import get_g1_balance_native, get_g1_primal_source, g1pub_to_ss58
+from services.g1_squid import get_g1_balance_native, get_g1_primal_source, g1pub_to_ss58, get_network_status
 from utils.security import is_safe_g1pub, find_user_directory_by_hex, is_multipass_user
 from utils.helpers import get_env_from_mysh
 
@@ -1509,6 +1509,16 @@ async def fund_billet(request: Request, creator_hex: str = Depends(verify_nip98_
         )
 
     return JSONResponse({"ok": True, "balance": await _balance(), "log": "\n".join(logs)})
+
+
+@router.get("/qr/billet/network_status")
+async def billet_network_status():
+    """Statut du réseau Duniter/Squid pour affichage UI (cf. /scan) : quel
+    nœud sert actuellement, latence, fraîcheur du cache — PAS un ping en
+    direct, lecture du cache déjà entretenu par duniter_getnode.sh (même
+    source que PAYforSURE.sh et get_g1_balance_native). Public, lecture
+    seule, aucune donnée sensible."""
+    return JSONResponse(get_network_status())
 
 
 @router.get("/qr/billet/check_primal")
