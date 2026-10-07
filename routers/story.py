@@ -19,7 +19,7 @@ suivi par `services/story_render.py`.
     POST /api/story/import                               {file} → installe un paquet exporté dans ma bibliothèque
     DELETE /api/story/asset/{cid}                         retire le paquet (toute sa lignée) de ma bibliothèque
     POST /api/story/asset/{cid}/render                  {regen?} → job (scène : vidéo ; personnage : portrait + voix)
-    POST /api/story/asset/{cid}/render-shot              {index} → job (un seul plan d'une scène)
+    POST /api/story/asset/{cid}/render-shot              {index, storyboard?} → job (un seul plan ; storyboard = définition courante non enregistrée)
     GET  /api/story/asset/{cid}/shot/{index}/takes       prises archivées de ce plan (hors la courante)
     GET  …/shot/{index}/takes/{take}/file                 fichier d'une prise archivée
     GET  /api/story/jobs · /api/story/jobs/{id}         suivi de progression
@@ -244,7 +244,10 @@ async def story_render_shot(cid: str, request: Request, npub: str = Depends(requ
     index = b.get("index")
     if not isinstance(index, int) or index < 0:
         raise HTTPException(status_code=400, detail="index de plan invalide")
-    return await _run(story_render.start_shot_render, cid, index)
+    sb = b.get("storyboard")
+    if sb is not None and not isinstance(sb, dict):
+        raise HTTPException(status_code=400, detail="storyboard invalide")
+    return await _run(story_render.start_shot_render, cid, index, sb)
 
 
 @router.get("/api/story/asset/{cid}/shot/{index}/takes", summary="Prises archivées d'un plan")

@@ -210,7 +210,20 @@ def _asset_has_active_job(work: Path) -> bool:
     return False
 
 
-def start_shot_render(ref: str, index: int) -> Dict[str, Any]:
+def _write_override(src: Path, storyboard: Optional[Dict[str, Any]]) -> None:
+    """Rendu d'un plan avec la définition COURANTE de l'éditeur, sans enregistrer de version : le storyboard reçu
+    (validé comme à l'enregistrement) remplace src/storyboard.json pour ce rendu seulement. Les prises gardent leur
+    fiche (prompt, graine), donc rien n'est faussé ; un rendu de scène complet repart toujours du paquet enregistré."""
+    if storyboard is None:
+        return
+    raw = json.dumps(storyboard, ensure_ascii=False).encode()
+    if len(raw) > 2 * 1024 * 1024:
+        raise story_asset.AssetError("storyboard trop gros")
+    story_asset.validate_storyboard(raw)
+    (src / "storyboard.json").write_bytes(raw)
+
+
+def start_shot_render(ref: str, index: int, storyboard: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Rend UN SEUL plan d'une scène déjà publiée, dans le même répertoire de travail qu'un
     rendu complet (les autres plans déjà calculés ne sont pas retouchés — cache partagé). La
     prise précédente de ce plan, si elle existe, est archivée sous v/<cid>/shots/<index>/ (jamais
@@ -220,7 +233,7 @@ def start_shot_render(ref: str, index: int) -> Dict[str, Any]:
         raise story_asset.AssetError("seule une scène a des plans à générer séparément")
     if "storyboard.json" not in files:
         raise story_asset.AssetError("ce paquet n'a pas de storyboard")
-    sb = json.loads(files["storyboard.json"])
+    sb = storyboard if storyboard is not None else json.loads(files["storyboard.json"])
     nb = len(sb.get("shots", []))
     if not (0 <= index < nb):
         raise story_asset.AssetError(f"plan {index} hors plage (0-{nb - 1})")
@@ -235,6 +248,7 @@ def start_shot_render(ref: str, index: int) -> Dict[str, Any]:
             dest = src / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(data)
+    _write_override(src, storyboard)
     work.mkdir(parents=True, exist_ok=True)
     n = f"{index:02d}"
     old = work / f"shot_{n}.mp4"
@@ -462,7 +476,11 @@ def _finish_shot(job: Dict[str, Any], work: Path) -> Dict[str, Any]:
     name = f"shot_{idx:02d}.mp4"
     if not (work / name).exists():
         raise story_asset.AssetError(f"{name} absent après le rendu")
-    return {"index": idx, "file": name, "duration": _duration(work / name)}
+    rec = {"index": idx, "file": name, "duration": _duration(work / name)}
+    part = work / f"part_{idx:02d}.mp4"
+    if part.exists():  # plan FINI (voix-off, volume, titre) : c'est lui qu'on juge dans l'éditeur
+        rec.update(part=part.name, part_duration=_duration(part))
+    return rec
 
 
 def _apply_character(job: Dict[str, Any], work: Path) -> Dict[str, Any]:

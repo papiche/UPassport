@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ğ1Billet — Scanner</title>
+<link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+<style>
+  :root{--ink:#1a1a2e;--accent:#c8a83c;--green:#2d5a1b;--bg:#0f1220;--card:#181c30;--card2:#10132880;
+        --muted:#9aa0b4;--err:#ff8080;--ok:#8ee08e;--line:rgba(255,255,255,.08)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{height:100%}
+  body{margin:0;min-height:100%;background:var(--bg);color:#f0f0f5;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       padding:max(18px,env(safe-area-inset-top)) 16px 48px;display:flex;flex-direction:column;align-items:center}
+  main{max-width:520px;width:100%}
+
+  header{text-align:center;margin-bottom:18px}
+  header h1{font-size:1.3rem;margin:0 0 4px;display:flex;align-items:center;justify-content:center;gap:8px}
+  header p{color:var(--muted);font-size:.86rem;line-height:1.5;margin:0}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+        padding:18px;margin-bottom:14px;transition:opacity .25s ease,transform .25s ease}
+  .card.locked{opacity:.4;pointer-events:none;filter:grayscale(.4)}
+  .card.hidden{display:none}
+  .step-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .step-badge{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#1a1209;
+        font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step-title{font-weight:700;font-size:1rem}
+  .step-sub{color:var(--muted);font-size:.78rem;margin:2px 0 0}
+
+  .scan-row{display:flex;gap:8px;margin-bottom:8px}
+  input[type=text]{flex:1;min-width:0;padding:12px 13px;border-radius:10px;border:1px solid var(--line);
+        background:#0d0f1c;color:#fff;font-size:.9rem;font-family:ui-monospace,Menlo,monospace}
+  input[type=text]::placeholder{color:#565c74;font-family:-apple-system,sans-serif}
+  .icon-btn{flex-shrink:0;width:46px;height:46px;border-radius:10px;border:1px solid var(--line);
+        background:#0d0f1c;color:#fff;font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .icon-btn:active{transform:scale(.94)}
+  input[type=file]{display:none}
+
+  button.primary{width:100%;padding:14px 16px;border:none;border-radius:12px;background:var(--accent);
+        color:#1a1209;font-weight:800;font-size:.98rem;cursor:pointer;margin-top:4px}
+  button.primary:disabled{opacity:.35;cursor:not-allowed}
+  button.primary:active:not(:disabled){transform:scale(.98)}
+  button.ghost{width:100%;padding:11px 14px;border-radius:12px;border:1px solid var(--line);
+        background:transparent;color:var(--muted);font-weight:600;font-size:.86rem;cursor:pointer;margin-top:8px}
+
+  .state{font-size:.82rem;margin-top:8px;min-height:1.1em;display:flex;align-items:center;gap:6px}
+  .state.ok{color:var(--ok)}
+  .state.err{color:var(--err)}
+  .state.pending{color:var(--accent)}
+
+  .slot{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+  .slot.filled{border-color:rgba(142,224,142,.5);background:rgba(142,224,142,.05)}
+  .slot .t{font-weight:700;font-size:.88rem;display:flex;align-items:center;gap:7px;margin-bottom:6px}
+  .slot .t .n{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.1);
+        font-size:.72rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .slot.filled .t .n{background:var(--ok);color:#0a1a0a}
+
+  /* Billet validé — affichage solde */
+  .billet-result{display:flex;align-items:center;justify-content:space-between;gap:12px;
+        background:#0d0f1c;border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px}
+  .billet-result .amount{font-size:1.9rem;font-weight:800;line-height:1}
+  .billet-result .amount .unit{font-size:.7rem;font-weight:700;color:var(--muted);margin-left:5px}
+  .billet-result .g1{font-family:ui-monospace,monospace;font-size:.68rem;color:var(--muted);
+        word-break:break-all;max-width:150px;text-align:right}
+  .billet-result.empty .amount{color:var(--muted)}
+  .billet-result.err{border-color:rgba(255,128,128,.4)}
+
+  .match{font-size:.82rem;margin-top:6px;display:flex;align-items:center;gap:6px}
+  .match.ok{color:var(--ok)}
+  .match.err{color:var(--err)}
+
+  .warn{background:rgba(255,128,128,.1);border:1px solid rgba(255,128,128,.35);border-radius:12px;
+        padding:12px 14px;font-size:.8rem;line-height:1.5;margin-bottom:14px;color:#ffb3b3}
+  .note{font-size:.76rem;color:var(--muted);line-height:1.55;margin-top:14px;text-align:center}
+  .note a{color:var(--accent);text-decoration:none}
+  .note a:active{opacity:.7}
+
+  .result-screen{text-align:center;padding:10px 4px}
+  .result-screen .emoji{font-size:2.6rem;line-height:1;margin-bottom:10px}
+  .result-screen h2{font-size:1.1rem;margin:0 0 6px}
+  .result-screen p{color:var(--muted);font-size:.85rem;line-height:1.5;margin:0 0 14px}
+  details.log{text-align:left;font-size:.72rem;color:var(--muted);margin-top:10px}
+  details.log pre{white-space:pre-wrap;word-break:break-all;background:#0d0f1c;border-radius:8px;
+        padding:10px;border:1px solid var(--line);max-height:160px;overflow:auto}
+
+  .spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.25);
+        border-top-color:var(--accent);animation:spin .7s linear infinite;flex-shrink:0}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Modal caméra plein écran — un seul scanner réutilisé pour tous les champs */
+  #cam-modal{position:fixed;inset:0;background:#000;z-index:50;display:none;flex-direction:column}
+  #cam-modal.show{display:flex}
+  #cam-modal video{flex:1;width:100%;height:100%;object-fit:cover;background:#000}
+  #cam-modal .cam-frame{position:absolute;top:50%;left:50%;width:min(72vw,320px);height:min(72vw,320px);
+        transform:translate(-50%,-50%);border:3px solid var(--accent);border-radius:18px;
+        box-shadow:0 0 0 2000px rgba(0,0,0,.45)}
+  #cam-modal .cam-bar{position:absolute;top:max(14px,env(safe-area-inset-top));left:0;right:0;
+        display:flex;align-items:center;justify-content:space-between;padding:0 14px}
+  #cam-modal .cam-label{color:#fff;font-size:.85rem;background:rgba(0,0,0,.55);padding:7px 12px;border-radius:20px}
+  #cam-modal .cam-close{width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;
+        border:none;font-size:1.1rem;cursor:pointer}
+  #cam-modal .cam-bottom{position:absolute;bottom:max(20px,env(safe-area-inset-bottom));left:0;right:0;
+        display:flex;justify-content:center}
+  #cam-modal .cam-upload{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);
+        padding:10px 16px;border-radius:24px;font-size:.84rem;cursor:pointer}
+  #cam-modal .cam-err{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:84%;
+        text-align:center;color:#ffb3b3;font-size:.85rem;line-height:1.5}
+  canvas{display:none}
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <h1>🔍 Scanner un Ğ1Billet</h1>
+    <p>Vérifiez la valeur d'un billet papier, puis encaissez-le en un geste — tout se passe dans ce navigateur.</p>
+  </header>
+
+  <!-- ① Identification du billet -->
+  <div class="card" id="card-identify">
+    <div class="step-head">
+      <div class="step-badge">1</div>
+      <div>
+        <div class="step-title">Identifier le billet</div>
+        <p class="step-sub">Scannez le QR « Solde » du billet (ou collez son G1PUB).</p>
+      </div>
+    </div>
+    <div class="scan-row">
+      <input type="text" id="billet-g1pub" placeholder="g1… (G1PUB du billet)" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="icon-btn" id="btn-scan-billet" title="Scanner le QR">📷</button>
+      <input type="file" id="file-billet" accept="image/*">
+    </div>
+    <div class="state" id="state-billet"></div>
+    <div class="billet-result" id="billet-result" style="display:none">
+      <div>
+        <div class="amount" id="billet-amount">—</div>
+      </div>
+      <div class="g1" id="billet-g1-short"></div>
+    </div>
+  </div>
+
+  <!-- ② Reconstitution de la clé -->
+  <div class="card locked" id="card-recon">
+    <div class="step-head">
+      <div class="step-badge">2</div>
+      <div>
+        <div class="step-title">Reconstituer la clé</div>
+        <p class="step-sub">Réunissez 2 des 3 parts du billet — la clé se reconstruit automatiquement.</p>
+      </div>
+    </div>
+
+    <div class="slot" id="slot-p1">
+      <div class="t"><span class="n">1</span> P1 — QR imprimé en clair</div>
+      <div class="scan-row">
+        <input type="text" id="input-p1" placeholder="…ou collez l'hexadécimal (64 car.)" autocomplete="off" spellcheck="false">
+        <button class="icon-btn" data-scan-target="1" title="Scanner le QR">📷</button>
+        <input type="file" id="file-1" accept="image/*">
+      </div>
+      <div class="state" id="state-1"></div>
+    </div>
+
+    <div class="slot" id="slot-p2">
+      <div class="t"><span class="n">2</span> P2 — sous la bande repliée</div>
+      <div class="scan-row">
+        <input type="text" id="input-p2" placeholder="…ou collez l'hexadécimal (64 car.)" autocomplete="off" spellcheck="false">
+        <button class="icon-btn" data-scan-target="2" title="Scanner le QR">📷</button>
+        <input type="file" id="file-2" accept="image/*">
+      </div>
+      <div class="state" id="state-2"></div>
+    </div>
+
+    <div class="match" id="recon-match"></div>
+  </div>
+
+  <!-- ③ Destination + confirmation -->
+  <div class="card locked" id="card-redeem">
+    <div class="step-head">
+      <div class="step-badge">3</div>
+      <div>
+        <div class="step-title">Encaisser</div>
+        <p class="step-sub">Indiquez le portefeuille à créditer, puis confirmez le transfert.</p>
+      </div>
+    </div>
+
+    <label style="display:block;font-size:.8rem;color:var(--muted);margin-bottom:6px">Portefeuille à créditer (le vôtre)</label>
+    <div class="scan-row">
+      <input type="text" id="dest-g1pub" placeholder="g1… (votre G1PUB)" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="icon-btn" data-scan-target="dest" title="Scanner le QR">📷</button>
+      <input type="file" id="file-dest" accept="image/*">
+    </div>
+    <div class="state" id="state-dest"></div>
+
+    <div class="warn" id="redeem-warn" style="display:none;margin-top:12px;margin-bottom:0">
+      🔒 Le transfert est définitif et vide entièrement le billet. Vérifiez le portefeuille de
+      destination avant de confirmer.
+    </div>
+
+    <button class="primary" id="btn-redeem" disabled style="margin-top:12px">💰 Encaisser le billet</button>
+  </div>
+
+  <!-- Écran de résultat (remplace la carte ③) -->
+  <div class="card hidden" id="card-done">
+    <div class="result-screen" id="result-screen"></div>
+  </div>
+
+  <p class="note">
+    Pas de caméra sous la main ? <a href="/earth/billet_redeem.html" target="_blank" rel="noopener">reconstruction manuelle guidée →</a>
+  </p>
+</main>
+
+<!-- Modal caméra plein écran, réutilisé pour tous les champs -->
+<div id="cam-modal">
+  <video id="cam-video" playsinline muted autoplay></video>
+  <div class="cam-frame"></div>
+  <div class="cam-bar">
+    <span class="cam-label" id="cam-label">Visez le QR code</span>
+    <button class="cam-close" id="cam-close">✕</button>
+  </div>
+  <div class="cam-bottom">
+    <label class="cam-upload" for="cam-upload-fallback">📁 Importer une image</label>
+    <input type="file" id="cam-upload-fallback" accept="image/*" style="display:none">
+  </div>
+</div>
+<canvas id="qr-canvas"></canvas>
+
+<script src="/earth/jsQR.min.js"></script>
+<script src="/earth/nacl-fast.min.js"></script>
+<script src="/earth/blake2b_browser.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var HEX64 = /^[0-9a-f]{64}$/i;
+  var shares = {1: null, 2: null, 3: null};
+  var billet = null;        // {g1pub}
+  var lastReconstructed = null; // {seedHex, g1pub, ss58}
+
+  function $(id) { return document.getElementById(id); }
+  function short(s) { return s && s.length > 16 ? s.slice(0, 8) + '…' + s.slice(-8) : (s || ''); }
+  function setState(el, msg, cls, spin) {
+    el.innerHTML = (spin ? '<div class="spin"></div>' : '') + '<span>' + (msg || '') + '</span>';
+    el.className = 'state' + (cls ? ' ' + cls : '');
+  }
+  function hexToBytes(hex) {
+    var out = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    return out;
+  }
+  function bytesToHex(bytes) {
+    var s = ''; for (var i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, '0');
+    return s;
+  }
+
+  // ── GF(256) Shamir combine (2 parts, seuil 2) — même algèbre que TrocZen /
+  // billet_redeem.html, vérifiée par round-trip croisé Python/JS. ──────────
+  function gf256Mul(a, b) {
+    var p = 0;
+    for (var i = 0; i < 8; i++) {
+      if (b & 1) p ^= a;
+      var hi = a & 0x80;
+      a = (a << 1) & 0xFF;
+      if (hi) a ^= 0x1B;
+      b >>= 1;
+    }
+    return p;
+  }
+  function gf256Pow(a, n) { var r = 1; for (var i = 0; i < n; i++) r = gf256Mul(r, a); return r; }
+  function gf256Inv(a) { return gf256Pow(a, 254); }
+  function gf256Div(a, b) { return gf256Mul(a, gf256Inv(b)); }
+  function combine(x1, y1, x2, y2) {
+    var denom = x1 ^ x2;
+    if (denom === 0) throw new Error('Parts identiques ou corrompues.');
+    var l1 = gf256Div(x2, denom), l2 = gf256Div(x1, denom);
+    var out = new Uint8Array(32);
+    for (var i = 0; i < 32; i++) out[i] = gf256Mul(y1[i], l1) ^ gf256Mul(y2[i], l2);
+    return out;
+  }
+
+  var BS58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function bs58encode(buf) {
+    if (!buf.length) return '';
+    var i, j, digits = [0];
+    for (i = 0; i < buf.length; i++) {
+      for (j = 0; j < digits.length; j++) digits[j] <<= 8;
+      digits[0] += buf[i];
+      var carry = 0;
+      for (j = 0; j < digits.length; j++) { digits[j] += carry; carry = (digits[j] / 58) | 0; digits[j] %= 58; }
+      while (carry) { digits.push(carry % 58); carry = (carry / 58) | 0; }
+    }
+    for (i = 0; i < buf.length && buf[i] === 0; i++) digits.push(0);
+    return digits.reverse().map(function (d) { return BS58_ALPHABET[d]; }).join('');
+  }
+  function deriveG1(seed) {
+    var edKeyPair = nacl.sign.keyPair.fromSeed(seed);
+    var pubKeyBytes = edKeyPair.publicKey;
+    var g1pub = bs58encode(pubKeyBytes);
+    var SS58_PREFIX = 4450;
+    var first = ((SS58_PREFIX & 0xFC) >> 2) | 0x40;
+    var second = (SS58_PREFIX >> 8) | ((SS58_PREFIX & 0x03) << 6);
+    var payload = new Uint8Array(2 + pubKeyBytes.length);
+    payload[0] = first; payload[1] = second; payload.set(pubKeyBytes, 2);
+    var prefixBytes = new TextEncoder().encode('SS58PRE');
+    var checksumInput = new Uint8Array(prefixBytes.length + payload.length);
+    checksumInput.set(prefixBytes, 0); checksumInput.set(payload, prefixBytes.length);
+    var checksum = window.blake2b.blake2b(checksumInput, null, 64).slice(0, 2);
+    var ss58Bytes = new Uint8Array(payload.length + checksum.length);
+    ss58Bytes.set(payload, 0); ss58Bytes.set(checksum, payload.length);
+    return { g1pub: g1pub, ss58: bs58encode(ss58Bytes) };
+  }
+
+  // ── Décodage QR depuis un fichier image (upload ou capture caméra) ───────
+  var canvas = $('qr-canvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  function decodeImageData(imgData) { return window.jsQR(imgData.data, imgData.width, imgData.height); }
+  function decodeImageFile(file, onResult, onError) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      canvas.width = img.width; canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      var code = decodeImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      URL.revokeObjectURL(url);
+      if (!code || !code.data) { onError('❌ Aucun QR détecté dans cette image.'); return; }
+      onResult(code.data);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); onError('❌ Image illisible.'); };
+    img.src = url;
+  }
+
+  // ── Scanner caméra plein écran, réutilisé pour tous les champs. ─────────
+  var camModal = $('cam-modal'), camVideo = $('cam-video'), camLabel = $('cam-label');
+  var camStream = null, camRAF = null, camActive = false;
+
+  function stopCamera() {
+    camActive = false;
+    if (camRAF) cancelAnimationFrame(camRAF);
+    if (camStream) { camStream.getTracks().forEach(function (t) { t.stop(); }); camStream = null; }
+    camModal.classList.remove('show');
+    var errEl = camModal.querySelector('.cam-err');
+    if (errEl) errEl.remove();
+  }
+
+  function openScanner(label, onResult) {
+    camLabel.textContent = label || 'Visez le QR code';
+    camModal.classList.add('show');
+    $('cam-upload-fallback').onchange = function (ev) {
+      var file = ev.target.files && ev.target.files[0];
+      ev.target.value = '';
+      if (!file) return;
+      decodeImageFile(file, function (text) { stopCamera(); onResult(text); }, function (msg) { showCamError(msg); });
+    };
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(function (stream) {
+        camStream = stream;
+        camVideo.srcObject = stream;
+        camActive = true;
+        requestAnimationFrame(tick);
+      })
+      .catch(function () {
+        showCamError('📵 Caméra inaccessible (permission refusée, ou aucune caméra). Utilisez « Importer une image ».');
+      });
+
+    function tick() {
+      if (!camActive) return;
+      if (camVideo.readyState === camVideo.HAVE_ENOUGH_DATA) {
+        canvas.width = camVideo.videoWidth; canvas.height = camVideo.videoHeight;
+        ctx.drawImage(camVideo, 0, 0, canvas.width, canvas.height);
+        var code = decodeImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+        if (code && code.data) { stopCamera(); onResult(code.data); return; }
+      }
+      camRAF = requestAnimationFrame(tick);
+    }
+  }
+  function showCamError(msg) {
+    var errEl = camModal.querySelector('.cam-err');
+    if (!errEl) { errEl = document.createElement('div'); errEl.className = 'cam-err'; camModal.appendChild(errEl); }
+    errEl.textContent = msg;
+  }
+  $('cam-close').addEventListener('click', stopCamera);
+
+  // ── Un QR « Solde » encode désormais une URL /scan?g1pub=... (pas le g1pub
+  // brut) : on en extrait le g1pub qu'il s'agisse d'une URL ou d'une chaîne
+  // brute, pour rester compatible avec d'anciens billets déjà imprimés. ───
+  function extractG1pub(text) {
+    text = (text || '').trim();
+    try {
+      var u = new URL(text);
+      var fromQuery = u.searchParams.get('g1pub');
+      if (fromQuery) return fromQuery.trim();
+    } catch (e) { /* pas une URL — texte brut */ }
+    return text;
+  }
+
+  // ── Étape ① — identifier le billet ───────────────────────────────────────
+  var billetInput = $('billet-g1pub');
+  var billetResult = $('billet-result');
+  var cardRecon = $('card-recon');
+  var cardRedeem = $('card-redeem');
+
+  async function checkBillet(g1pub) {
+    g1pub = extractG1pub(g1pub);
+    if (!g1pub) return;
+    billetInput.value = g1pub;
+    setState($('state-billet'), 'Vérification du solde…', 'pending', true);
+    billetResult.style.display = 'none';
+    cardRecon.classList.add('locked');
+    cardRedeem.classList.add('locked');
+    try {
+      var resp = await fetch('/check_balance?g1pub=' + encodeURIComponent(g1pub));
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || ('HTTP ' + resp.status));
+      var zen = data.zen !== undefined ? data.zen : data.balance;
+      var unit = data.zen !== undefined ? 'Ẑen' : 'G1';
+      billet = { g1pub: g1pub };
+      $('billet-amount').innerHTML = (zen || '0') + ' <span class="unit">' + unit + '</span>';
+      $('billet-g1-short').textContent = short(g1pub);
+      billetResult.className = 'billet-result' + (Number(zen) > 0 ? '' : ' empty');
+      billetResult.style.display = 'flex';
+      if (Number(zen) > 0) {
+        setState($('state-billet'), '✅ Billet valide.', 'ok');
+        cardRecon.classList.remove('locked');
+      } else {
+        setState($('state-billet'), '⚠️ Ce billet est vide (déjà encaissé, ou pas encore approvisionné).', 'err');
+      }
+      checkReconMatch();
+    } catch (e) {
+      billet = null;
+      billetResult.className = 'billet-result err';
+      billetResult.style.display = 'flex';
+      $('billet-amount').textContent = '—';
+      $('billet-g1-short').textContent = '';
+      setState($('state-billet'), '❌ ' + (e && e.message ? e.message : 'G1PUB introuvable.'), 'err');
+      checkReconMatch();
+    }
+  }
+  $('btn-scan-billet').addEventListener('click', function () {
+    openScanner('Visez le QR « Solde » du billet', checkBillet);
+  });
+  $('file-billet').addEventListener('change', function (ev) {
+    var file = ev.target.files && ev.target.files[0]; ev.target.value = '';
+    if (!file) return;
+    decodeImageFile(file, checkBillet, function (msg) { setState($('state-billet'), msg, 'err'); });
+  });
+  billetInput.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') checkBillet(billetInput.value); });
+  billetInput.addEventListener('blur', function () { if (billetInput.value.trim()) checkBillet(billetInput.value); });
+
+  // ── Étape ③ — destination ; les parts P1/P2 sont gérées par l'étape ② ───
+  var destInput = $('dest-g1pub');
+  function setDest(text) {
+    destInput.value = extractG1pub(text);
+    setState($('state-dest'), '✅ Portefeuille scanné.', 'ok');
+    updateRedeemButton();
+  }
+  document.querySelectorAll('[data-scan-target]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-scan-target');
+      if (target === 'dest') { openScanner('Scannez VOTRE QR (portefeuille)', setDest); return; }
+      openScanner('Scannez le QR P' + target + ' du billet', function (text) { acceptHex(parseInt(target, 10), text, 'scanné'); });
+    });
+  });
+  $('file-dest').addEventListener('change', function (ev) {
+    var file = ev.target.files && ev.target.files[0]; ev.target.value = '';
+    if (!file) return;
+    decodeImageFile(file, setDest, function (msg) { setState($('state-dest'), msg, 'err'); });
+  });
+  destInput.addEventListener('input', updateRedeemButton);
+
+  function setSlotState(slot, bytes, msg, cls) {
+    shares[slot] = bytes;
+    setState($('state-' + slot), msg, cls);
+    $('slot-p' + slot).classList.toggle('filled', !!bytes);
+    updateRedeemButton();
+  }
+  function acceptHex(slot, hex, source) {
+    hex = (hex || '').trim().replace(/\s+/g, '');
+    if (!HEX64.test(hex)) { setSlotState(slot, null, 'Format invalide (attendu 64 caractères hexadécimaux).', 'err'); return; }
+    $('input-' + slot) && ($('input-' + slot).value = hex);
+    setSlotState(slot, hexToBytes(hex), '✅ P' + slot + ' chargée (' + source + ').', 'ok');
+    tryReconstruct();
+  }
+  ['1', '2'].forEach(function (slot) {
+    $('file-' + slot).addEventListener('change', function (ev) {
+      var file = ev.target.files && ev.target.files[0]; ev.target.value = '';
+      if (!file) return;
+      setSlotState(slot, null, '⏳ Décodage…', '');
+      decodeImageFile(file, function (text) { acceptHex(slot, text, 'image importée'); },
+        function (msg) { setSlotState(slot, null, msg, 'err'); });
+    });
+    $('input-' + slot).addEventListener('input', function () {
+      var v = $('input-' + slot).value;
+      if (!v.trim()) { setSlotState(slot, null, '', ''); return; }
+      acceptHex(slot, v, 'saisie manuelle');
+    });
+  });
+
+  function tryReconstruct() {
+    var filled = [1, 2, 3].filter(function (s) { return !!shares[s]; });
+    if (filled.length < 2) { lastReconstructed = null; checkReconMatch(); return; }
+    var a = filled[0], b = filled[1];
+    try {
+      var seed = combine(a, shares[a], b, shares[b]);
+      var derived = deriveG1(seed);
+      lastReconstructed = { seedHex: bytesToHex(seed), g1pub: derived.g1pub, ss58: derived.ss58 };
+    } catch (e) {
+      lastReconstructed = null;
+    }
+    checkReconMatch();
+    updateRedeemButton();
+  }
+
+  function checkReconMatch() {
+    var el = $('recon-match');
+    var ok = !!lastReconstructed && !!billet && (billet.g1pub === lastReconstructed.g1pub || billet.g1pub === lastReconstructed.ss58);
+    if (!lastReconstructed || !billet) { el.textContent = ''; el.className = 'match'; }
+    else {
+      el.textContent = ok
+        ? '✅ Les parts correspondent bien à ce billet.'
+        : '❌ Ces parts NE correspondent PAS au billet identifié à l\'étape 1 (mauvais billet, ou part corrompue).';
+      el.className = 'match ' + (ok ? 'ok' : 'err');
+    }
+    cardRedeem.classList.toggle('locked', !ok);
+  }
+
+  function updateRedeemButton() {
+    var destOk = (destInput.value || '').trim().length >= 8;
+    var reconOk = !!lastReconstructed && billet && (billet.g1pub === lastReconstructed.g1pub || billet.g1pub === lastReconstructed.ss58);
+    var ready = destOk && reconOk;
+    $('btn-redeem').disabled = !ready;
+    $('redeem-warn').style.display = ready ? 'block' : 'none';
+  }
+
+  // ── Confirmation de l'encaissement ──────────────────────────────────────
+  $('btn-redeem').addEventListener('click', async function () {
+    if (!lastReconstructed) return;
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '⏳ Virement en cours…';
+    try {
+      var resp = await fetch('/qr/billet/redeem', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seed_hex: lastReconstructed.seedHex, dest_g1pub: destInput.value.trim() }),
+      });
+      var data = await resp.json();
+      wipeSecrets();
+      if (!resp.ok || !data.ok) throw new Error(data.detail || 'Le virement a échoué.');
+      showResult(true, '✅ Billet encaissé !', 'Les fonds ont été transférés vers votre portefeuille.', data.log);
+    } catch (e) {
+      showResult(false, '❌ Échec de l\'encaissement', (e && e.message) || 'Une erreur est survenue.', null);
+    }
+  });
+
+  function wipeSecrets() {
+    shares = {1: null, 2: null, 3: null};
+    lastReconstructed = null;
+    ['1', '2'].forEach(function (s) { $('input-' + s).value = ''; });
+  }
+
+  function showResult(success, title, msg, log) {
+    $('card-redeem').classList.add('hidden');
+    var el = $('result-screen');
+    el.innerHTML =
+      '<div class="emoji">' + (success ? '🎉' : '⚠️') + '</div>' +
+      '<h2>' + title + '</h2>' +
+      '<p>' + msg + '</p>' +
+      (log ? '<details class="log"><summary>Détails techniques</summary><pre>' + log.replace(/</g, '&lt;') + '</pre></details>' : '') +
+      '<button class="ghost" id="btn-restart">' + (success ? 'Scanner un autre billet' : 'Réessayer') + '</button>';
+    $('card-done').classList.remove('hidden');
+    $('btn-restart').addEventListener('click', function () { window.location.reload(); });
+  }
+
+  // ── Pré-remplissage depuis le QR « Solde » (/scan?g1pub=...) ────────────
+  (function prefillFromQuery() {
+    try {
+      var g1pub = new URL(window.location.href).searchParams.get('g1pub');
+      if (g1pub) checkBillet(g1pub);
+    } catch (e) { /* pas bloquant */ }
+  })();
+})();
+</script>
+</body>
+</html>

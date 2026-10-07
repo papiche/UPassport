@@ -17,7 +17,7 @@ SIMPLE_UI_ROUTES = {
     # (FaceCloud), servi sous /earth/ucloud.html, et s'appuie sur /api/cloud/*.
     "/dev": "dev.html",
     "/g1": "g1nostr.html",
-    "/scan": "scan_new.html",
+    "/scan": "scan.html",
     "/upload": "upload2ipfs.html",
     "/scan_multipass_payment.html": "scan_multipass_payment.html",
     "/vocals": "vocals.html",

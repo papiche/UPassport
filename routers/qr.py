@@ -49,7 +49,8 @@ POST /qr/billet  (multipart, mêmes champs)
       minimum) se fait hors-ligne, côté client, via
       `UPlanet/earth/billet_redeem.html`. RECTO SEUL : P2 est imprimé en
       bande verticale sur le bord gauche de chaque billet — à replier vers
-      l'arrière et scotcher avant distribution. Portefeuilles TOUJOURS
+      l'avant et scotcher avant distribution (P2 se retrouve ainsi caché
+      derrière P1). Portefeuilles TOUJOURS
       vierges à la génération (pas de débit automatique — mode `auto`
       retiré le 2026-09-24, peu fiable en pratique) : financement manuel
       après coup, par qui veut, vers les G1PUB imprimés.
@@ -70,6 +71,7 @@ POST /qr/billet  (multipart, mêmes champs)
 import base64
 import html as html_lib
 import os
+import re
 import asyncio
 import json
 import logging
@@ -86,6 +88,7 @@ from fastapi.responses import Response, JSONResponse, HTMLResponse, RedirectResp
 
 from core.config import settings
 from services.nostr import verify_nip98_auth
+from utils.security import is_safe_g1pub
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -329,41 +332,53 @@ _BILLET_A4_PAGE = """<!doctype html>
   .cell .body.has-fond::before{content:'';position:absolute;inset:0;
               background:var(--tint-overlay,rgba(245,240,232,.74))}
   .cell .body>*{position:relative}
-  .cell .brand{font-size:7.5pt;letter-spacing:1.5px;color:var(--green);
-              text-transform:uppercase;font-weight:700}
 
-  /* Coin haut-droit : logo du profil (si connecté) PUIS, juste dessous,
-     le QR P1 — regroupés pour laisser la ligne principale (montant+solde)
-     respirer à gauche. */
+  /* Coin haut-droit : logo du profil (si connecté) PUIS, juste dessous, le
+     QR de vérification du solde (anciennement dans .main-row — regroupé
+     ici avec le logo, qui sert de même repère "identité de ce billet"). */
   .cell .corner-stack{position:absolute;top:2mm;right:2mm;display:flex;
-              flex-direction:column;align-items:center;gap:1mm}
-  .cell .corner-stack .logo-mark{width:16mm;height:16mm;border-radius:50%;
+              flex-direction:column;align-items:center;gap:1mm;width:20mm}
+  .cell .corner-stack .logo-mark{width:20mm;height:20mm;border-radius:50%;
               object-fit:cover;border:1px solid var(--gold);
               box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  /* QR de vérification agrandi (20mm, contre 17mm pour P1) — c'est le QR
+     destiné à n'importe quel inconnu scannant le billet au hasard (cf.
+     /scan?g1pub=...) : priorité à la lisibilité/robustesse du scan plutôt
+     qu'à la compacité. Même largeur que logo-mark (20mm) pour que les deux
+     éléments du coin soient bien alignés (bords à bords, colonne nette). */
+  .cell .corner-stack .qr-item img{width:20mm;height:20mm}
 
-  /* Montant + QR solde EN COLONNE (le solde se lit juste sous le montant,
-     sans sous-titre — le contexte suffit). P1 est dans le coin
-     (.corner-stack) et "Encaisser" est passé au verso (cf.
-     _render_billet_verso_html), ce qui laisse assez de hauteur pour cette
-     seule colonne sans repousser g1pub/statut hors de la cellule (c'est
-     l'empilement de TROIS éléments — montant, QR, ET une légende — qui
-     avait causé l'overflow:hidden silencieux corrigé précédemment ; une
-     colonne à deux éléments, tailles réduites, tient dans les 60mm). */
-  .cell .main-row{display:flex;margin-top:1mm}
-  .cell .amount-qr-col{display:flex;flex-direction:column;align-items:center;gap:1mm}
+  /* P1 en position ABSOLUE (et non plus dans le flux de .main-row) : laisse
+     .main-row entièrement libre pour centrer le montant, SANS perdre le
+     positionnement voulu pour P1 — juste à côté du pli (.fold, bord gauche,
+     replié vers l'AVANT le long de son bord droit). Un pli à 180° sur cet
+     axe vertical reporte le contenu du volet, en miroir, de l'autre côté de
+     la charnière, à la même hauteur : P1 sert ainsi de repère visuel juste
+     au-dessus de l'endroit où P2 (qui vit dans ce même pli) se cache une
+     fois la bande rabattue et scotchée. Précision au mm près non requise —
+     le pliage reste manuel — seule la PROXIMITÉ immédiate avec le pli
+     compte. Même taille que P2 (17mm, cf. .fold .secret img) pour renforcer
+     visuellement que les deux QR forment la même paire. */
+  .cell .p1-corner{position:absolute;top:3.5mm;left:2mm}
+
+  /* Montant SEUL, centré dans tout l'espace restant du corps (entre le
+     pli/P1 à gauche, le logo/QR solde à droite, et le bloc g1pub en bas) —
+     flex:1 sur .main-row absorbe l'espace vertical libéré par la
+     suppression du bandeau "Ğ1BILLET" et du QR solde (déplacé dans le
+     coin). "Encaisser" est toujours au verso (cf.
+     _render_billet_verso_html). */
+  .cell .main-row{flex:1;display:flex;align-items:center;justify-content:center}
   .cell .amount-badge{display:inline-flex;flex-direction:column;align-items:center;
               line-height:1;background:#fff;color:var(--red);font-weight:800;
-              padding:1.2mm 3mm;border-radius:2mm;border:1.5px solid var(--gold);
-              box-shadow:0 1px 3px rgba(0,0,0,.35);flex-shrink:0}
-  .cell .amount-badge .num{font-size:19pt;min-width:12mm;min-height:1em;
+              padding:2mm 5mm;border-radius:3mm;border:1.5px solid var(--gold);
+              box-shadow:0 1px 4px rgba(0,0,0,.35);flex-shrink:0}
+  .cell .amount-badge .num{font-size:28pt;min-width:16mm;min-height:1em;
               display:inline-block;text-align:center}
-  .cell .amount-badge .num.blank{min-width:17mm;border-bottom:1.5px dashed var(--gold)}
-  .cell .amount-badge .unit{font-size:6.5pt;font-weight:700;color:var(--ink);
+  .cell .amount-badge .num.blank{min-width:22mm;border-bottom:2px dashed var(--gold)}
+  .cell .amount-badge .unit{font-size:8pt;font-weight:700;color:var(--ink);
               letter-spacing:1px;text-transform:uppercase;margin-top:.5mm}
-  .cell .solde-qr{width:18mm;height:18mm;image-rendering:pixelated;
-              background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
   .cell .qr-item{display:flex;flex-direction:column;align-items:center;gap:.5mm;flex-shrink:0}
-  .cell .qr-item img{width:20mm;height:20mm;image-rendering:pixelated;
+  .cell .qr-item img{width:17mm;height:17mm;image-rendering:pixelated;
               background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
   /* Fond photo possible derrière (profil NOSTR connecté) : les légendes et le
      bloc g1pub/statut ont besoin de leur PROPRE contraste, pas seulement du
@@ -374,7 +389,8 @@ _BILLET_A4_PAGE = """<!doctype html>
               background:rgba(255,255,255,.88);padding:.3mm 1.2mm;border-radius:.8mm}
 
   .cell .info-block{background:rgba(255,255,255,.82);border-radius:1.2mm;
-              padding:1mm 1.5mm;margin-top:auto;display:flex;flex-direction:column;gap:.3mm}
+              padding:1mm 1.5mm;margin-top:auto;display:flex;flex-direction:column;
+              gap:.3mm;align-items:flex-end;text-align:right}
   .cell .g1pub{font-family:monospace;font-size:5pt;color:#444;word-break:break-all}
   .cell .expiry{font-family:sans-serif;font-size:4.6pt;color:#666}
   .cell .status{font-family:sans-serif;font-size:5.5pt;color:var(--green);font-weight:700}
@@ -384,22 +400,57 @@ _BILLET_A4_PAGE = """<!doctype html>
      (même largeur de colonne/hauteur de ligne/espacement) : une fois la
      feuille imprimée en duplex et découpée, le même texte se retrouve au
      dos de CHAQUE billet, quel que soit le sens du retournement duplex
-     (contenu identique dans les 6 cellules → l'alignement exact importe peu).
-     Texte horizontal (la rotation -90° testée était moins lisible), pas de
-     fond coloré derrière le texte. */
-  .vcell{display:flex;flex-direction:column;align-items:center;justify-content:center;
-              height:60mm;border:1px dashed #999;overflow:hidden;position:relative;
-              background:#fff;padding:3mm 11mm;text-align:center;gap:1.5mm}
+     (contenu identique dans les 6 cellules → quelle paire recto/verso
+     exacte n'importe pas). Texte horizontal (la rotation -90° testée
+     était moins lisible), pas de fond coloré derrière le texte.
+
+     MAIS la correspondance LOCALE (à l'intérieur d'un même billet découpé)
+     entre recto et verso, elle, est parfaitement fixe : le verso est
+     imprimé au dos de CE papier, donc directement derrière le recto, à la
+     même position locale. Et une fois le pli (bord gauche, 21mm) rabattu
+     vers l'avant et scotché, P2 vient se plaquer, en MIROIR par rapport
+     à la charnière (x=21mm), sur le verso entre 21 et 42mm — recouvrant
+     tout ce qui y est imprimé là (cf. .p1-corner plus haut : c'est
+     d'ailleurs tout l'intérêt, puisque ça place P2 pile derrière P1).
+
+     Zone 0-21mm (.vflap) : c'est le dos du pli lui-même — AUTANT L'UTILISER
+     (texte + QR, même trick de rotation -90° que .fold .secret au recto)
+     plutôt que la laisser vide, puisqu'elle n'est jamais recouverte par
+     quoi que ce soit (c'est elle qui bouge, pas l'inverse). QR "Encaisser"
+     déplacé ici depuis .vsupport : c'est le repère naturel pour qui
+     manipule déjà cette languette.
+     Zone 21-42mm (.vgap) : VIDE, volontairement — c'est l'endroit précis
+     où P2 vient se plaquer une fois le pli refermé ; tout texte/QR laissé
+     là serait recouvert.
+     Zone 42mm+ (.vmain) : contenu principal, à l'abri du pli — texte
+     contrat + QR OpenCollective/Zelkova, qui restent ENTIÈREMENT visibles
+     quel que soit l'état du pli. */
+  .vcell{display:flex;align-items:stretch;height:60mm;border:1px dashed #999;
+              overflow:hidden;position:relative;background:#fff}
+  .vcell .vflap{width:21mm;flex:0 0 21mm;position:relative;overflow:hidden;
+              border-right:1px dashed var(--red);
+              background:repeating-linear-gradient(45deg,#fffaf0,#fffaf0 2mm,#f2dcdc 2mm,#f2dcdc 4mm)}
+  .vcell .vflap-inner{position:absolute;top:50%;left:50%;width:56mm;
+              transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center center;
+              display:flex;flex-direction:row;align-items:center;justify-content:center;gap:1.5mm;
+              font-family:sans-serif;font-size:5pt;line-height:1.25;color:#333;
+              background:#fffaf0;padding:1mm 2mm;border-radius:1mm}
+  .vcell .vflap-inner b{display:block;color:var(--red);font-weight:700;font-size:5.5pt;margin-bottom:.4mm}
+  .vcell .vflap-inner img{width:17mm;height:17mm;image-rendering:pixelated;
+              background:#fff;padding:.5mm;border-radius:.6mm;border:1px solid var(--gold);flex-shrink:0}
+  .vcell .vgap{width:21mm;flex:0 0 21mm}
+  .vcell .vmain{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;
+              justify-content:center;padding:3mm 8mm;text-align:center;gap:1.5mm}
   .vcell .vstamp{font-family:Georgia,serif;font-weight:800;font-size:8pt;
               color:var(--green);letter-spacing:1.5px;text-transform:uppercase}
-  .vcell .vtext{font-family:Georgia,serif;font-size:6.3pt;line-height:1.45;
-              color:#444;max-width:112mm}
-  .vcell .vsupport{display:flex;align-items:flex-start;justify-content:center;gap:5mm;margin-top:.5mm}
+  .vcell .vtext{font-family:Georgia,serif;font-size:6pt;line-height:1.4;
+              color:#444;max-width:86mm}
+  .vcell .vsupport{display:flex;align-items:flex-start;justify-content:center;gap:4mm;margin-top:.5mm;width:100%}
   .vcell .vsupport-item{display:flex;flex-direction:column;align-items:center;gap:.6mm}
   .vcell .vsupport-item img{width:20mm;height:20mm;image-rendering:pixelated;background:#fff;
               padding:.6mm;border-radius:.8mm;border:1px solid var(--gold)}
   .vcell .vsupport-item span{font-family:monospace;font-size:4.3pt;color:#777;
-              max-width:30mm;line-height:1.25;display:inline-block}
+              max-width:26mm;line-height:1.25;display:inline-block}
 
   @media print{
     .no-print{display:none!important}
@@ -418,12 +469,12 @@ _BILLET_A4_PAGE = """<!doctype html>
 <body>
 
 <div class="warn no-print">
-  🔒 Chaque billet n'a qu'un recto. Le secret est scindé en 3 parts (Shamir 2-sur-3) : P1 (QR en
-  clair, à droite) + P2, imprimée en <b>vertical sur le bord gauche</b> — repliez cette bande vers
-  l'arrière le long du trait pointillé et scotchez-la avant de distribuer les billets. Aucune des
-  deux parts imprimées ne permet, seule, de dépenser le billet : voir <code>billet_redeem.html</code>
-  pour la reconstruction. Cette page ne pourra pas être régénérée à l'identique : imprimez avant de
-  fermer cet onglet.
+  🔒 Pour chaque billet, son secret est scindé en 3 parts (Shamir, 2 sur 3) : P1 (QR
+  visible, à côté du montant) et P2 (<b>bande verticale sur le bord gauche</b>). Repliez cette bande
+  vers l'avant le long du pointillé et scotchez-la avant de distribuer les billets : P2 se
+  retrouve ainsi caché derrière P1. Aucune des deux parts ne suffit seule à dépenser le billet — la
+  reconstruction se fait sur <code>SCAN</code>. Cette page ne se régénère pas à
+  l'identique : imprimez avant de fermer l'onglet.
 </div>
 
 <div class="bar no-print">
@@ -456,23 +507,25 @@ __VERSO__
 # Open Source (opensource.html) : le choix de licence est le socle légal de
 # toute la coopérative, pas seulement de Made In Zion.
 _BILLET_VERSO_DEFAULT_TEXT = (
-    "Le Ẑen n'est pas une monnaie spéculative : c'est l'unité de compte "
-    "d'un bien commun, celui du laboratoire Web3 Made In Zion. Chaque "
-    "Astroport installé, chaque ressource inscrite au cadastre commun, y "
-    "est mesurée et gouvernée collectivement via les toiles de confiance "
-    "UPlanet. Ce billet est un fragment d'un chantier ouvert — rejoignez-le. "
-    "Aucune invention n'y est brevetée : code, documentation et recettes "
-    "restent ouverts (AGPL-3.0 / CC BY / CC BY-SA) — la Charte Open Source "
-    "est le socle de toute la coopérative."
+    "G1FabLab : un Internet qui vous appartient, pas un cloud qui vous "
+    "facture. Ce billet est plus sûr qu'un billet classique : sa clé est "
+    "coupée en 3 morceaux — un seul ne vaut rien, et on vérifie sa valeur "
+    "d'un simple scan, sans UV ni loupe. Le Ẑen n'est pas spéculatif : "
+    "c'est la monnaie d'un bien commun, gérée par ses membres, pas par "
+    "une banque centrale. Logiciel libre, bien commun (AGPL-3.0 / CC "
+    "BY-SA) : rejoignez le mouvement sur astroport.one"
 )
 
 _BILLET_VERSO_CELL = """<div class="vcell">
-  <div class="vstamp">☀️ Monnaie Libre</div>
-  <div class="vtext">__TEXT__</div>
-  <div class="vsupport">
-    <div class="vsupport-item"><img src="__OC_QR__" alt="QR OpenCollective"><span>opencollective.com/monnaie-libre</span></div>
-    <div class="vsupport-item"><img src="__ZELKOVA_QR__" alt="QR Zelkova"><span>z.astroport.one</span></div>
-    <div class="vsupport-item"><img src="__REDEEM_QR__" alt="QR reconstruction"><span>Encaisser (P1+P2)</span></div>
+  <div class="vflap"><div class="vflap-inner"><b>Encaisser</b><img src="__REDEEM_QR__" alt="QR reconstruction"></div></div>
+  <div class="vgap"></div>
+  <div class="vmain">
+    <div class="vstamp">☀️ Monnaie Libre</div>
+    <div class="vtext">__TEXT__</div>
+    <div class="vsupport">
+      <div class="vsupport-item"><img src="__OC_QR__" alt="QR OpenCollective"><span>opencollective.com/monnaie-libre</span></div>
+      <div class="vsupport-item"><img src="__ZELKOVA_QR__" alt="QR Zelkova"><span>z.astroport.one</span></div>
+    </div>
   </div>
 </div>"""
 
@@ -482,8 +535,10 @@ def _render_billet_verso_html(text: str, qr_url: str, zelkova_qr_url: str, redee
     que la planche recto, texte "contrat" identique répété dans les 6
     cellules : une fois imprimée en duplex et découpée, chaque billet porte
     ce texte au dos, quel que soit le sens du retournement duplex. Trois QR
-    de soutien : OpenCollective (financer le G1FabLab), Zelkova (le wallet
-    Ẑen — z.astroport.one) et billet_redeem.html (reconstruction P1+P2).
+    de soutien : OpenCollective (financer le G1FabLab) et Zelkova (le wallet
+    Ẑen — z.astroport.one) dans .vmain, à l'abri du pli ; reconstruction
+    (billet_redeem.html / SCAN) dans .vflap — au dos du pli lui-même (cf.
+    commentaire CSS .vflap ci-dessus).
 
     `redeem_qr_url` est volontairement le même lien GÉNÉRIQUE
     (SANS ?g1pub=...) sur les 6 cellules : un lien par billet serait faux
@@ -509,17 +564,17 @@ _BILLET_A4_CELL = """<div class="cell">
     <div class="corner-stack">
       __LOGO_IMG__
       <div class="qr-item">
-        <img src="__PROFILE_QR__" alt="QR P1">
-        <span>P1</span>
+        <img src="__PUB_QR__" alt="QR solde">
+        <span>🔍 Vérifier</span>
       </div>
     </div>
-    <div class="brand">Ğ1BILLET</div>
+    <div class="p1-corner qr-item">
+      <img src="__PROFILE_QR__" alt="QR P1">
+      <span>P1</span>
+    </div>
     <div class="main-row">
-      <div class="amount-qr-col">
-        <div class="amount-badge">
-          <span class="num __AMOUNT_CLASS__">__AMOUNT_TEXT__</span><span class="unit">__UNIT_LABEL__</span>
-        </div>
-        <img class="solde-qr" src="__PUB_QR__" alt="QR solde">
+      <div class="amount-badge">
+        <span class="num __AMOUNT_CLASS__">__AMOUNT_TEXT__</span><span class="unit">__UNIT_LABEL__</span>
       </div>
     </div>
     <div class="info-block">
@@ -599,7 +654,7 @@ def _render_billet_a4_html(
             .replace("__PUB_QR__", c["pub_qr_url"])
             .replace("__PROFILE_QR__", c.get("p1_qr_url", ""))
             .replace("__G1PUB__", esc(c["g1pub"]))
-            .replace("__EXPIRES__", "Réunir 2 parts sur 3 (QR + bande) pour dépenser")
+            .replace("__EXPIRES__", "Scan P1 &amp; P2 pour dépenser")
             .replace("__STATUS__", status)
             .replace("__STATUS_CLASS__", status_class)
         )
@@ -1053,7 +1108,7 @@ async def generate_billet(
     """Planche A4 paysage de 6 Ğ1Billets papier imprimables — remplace le
     moteur graphique G1BILLET. RECTO SEUL : 6 clés jetables indépendantes,
     secret en vertical sur le bord gauche de chaque billet (à replier vers
-    l'arrière et scotcher). Portefeuilles TOUJOURS vierges à la génération —
+    l'avant et scotcher). Portefeuilles TOUJOURS vierges à la génération —
     pas de débit automatique depuis un MULTIPASS (mode `auto` retiré :
     peu fiable en pratique, cf. échecs constatés en production le 2026-09-24).
     Financement manuel après coup, par qui veut, comme pour n'importe quel
@@ -1120,7 +1175,13 @@ async def generate_billet(
         await _publish_billet_witness(p3, g1pub, amount, unit_label, creator_hex)
         p3 = None
 
-        pub_png, _ = await asyncio.to_thread(_generate_qr_png, g1pub, 3, "M")
+        # QR "Solde" = lien de vérification (PAS le g1pub brut) : un g1pub seul,
+        # scanné par l'appareil photo d'un inconnu, n'affiche qu'une chaîne
+        # inexploitable. Un lien /scan?g1pub=... ouvre directement la page de
+        # validation de valeur — "entête" qui facilite la découverte du billet
+        # par quiconque le trouve, sans application dédiée.
+        solde_url = settings.uSPOT.rstrip("/") + "/scan?g1pub=" + urllib.parse.quote(g1pub)
+        pub_png, _ = await asyncio.to_thread(_generate_qr_png, solde_url, 3, "M")
         pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
 
         # QR "P1" = part Shamir visible (hex, PAS un lien web) — seule, elle
@@ -1152,12 +1213,16 @@ async def generate_billet(
         oc_qr_url = ("data:image/png;base64," + base64.b64encode(oc_png).decode()) if oc_png else ""
         zelkova_png, _ = await asyncio.to_thread(_generate_qr_png, "https://z.astroport.one", 3, "M")
         zelkova_qr_url = ("data:image/png;base64," + base64.b64encode(zelkova_png).decode()) if zelkova_png else ""
-        # Lien GÉNÉRIQUE (sans ?g1pub=...) — même origine que /qr/billet,
-        # /earth/ étant monté sur ce même serveur UPassport (cf. 54321.py).
-        # Jamais de lien par-billet ici : la correspondance recto/verso par
-        # position n'est pas garantie après impression duplex + découpe
-        # (cf. _render_billet_verso_html).
-        redeem_url = str(request.base_url).rstrip("/") + "/earth/billet_redeem.html"
+        # Lien GÉNÉRIQUE (sans ?g1pub=...) — jamais de lien par-billet ici :
+        # la correspondance recto/verso par position n'est pas garantie après
+        # impression duplex + découpe (cf. _render_billet_verso_html).
+        # settings.uSPOT (PAS request.base_url) : ce dernier reflète l'hôte
+        # de la requête EN COURS — s'il s'agit d'un test en local
+        # (http://127.0.0.1:54321), cette adresse inutilisable depuis
+        # l'extérieur se retrouverait figée dans le QR imprimé. uSPOT est
+        # l'URL publique canonique de la station (https://u.copylaradio.com
+        # par défaut), valable pour quiconque scanne le billet plus tard.
+        redeem_url = settings.uSPOT.rstrip("/") + "/scan"
         redeem_png, _ = await asyncio.to_thread(_generate_qr_png, redeem_url, 3, "M")
         redeem_qr_url = ("data:image/png;base64," + base64.b64encode(redeem_png).decode()) if redeem_png else ""
         verso_html = _render_billet_verso_html(
@@ -1170,3 +1235,60 @@ async def generate_billet(
     )
     cells = None
     return HTMLResponse(page)
+
+
+@router.post("/qr/billet/redeem")
+async def redeem_billet(request: Request):
+    """Encaisse un Ğ1Billet : reçoit le seed reconstruit côté client (2 parts
+    Shamir sur 3 réunies — cf. billet_redeem.html / le nouveau /scan) et un
+    G1PUB de destination, puis exécute un virement réel (PAYforSURE.sh DRAIN)
+    du solde du billet vers cette destination. Pas d'authentification requise :
+    le billet est un instrument au porteur — qui réunit 2 des 3 parts a déjà,
+    de fait, le pouvoir de le dépenser (même modèle de confiance qu'un billet
+    de banque physique). Le seed ne transite qu'une fois, en HTTPS, jamais
+    journalisé ni persisté — même discipline /dev/shm que billet_gen.sh."""
+    data = await request.json()
+    seed_hex = str(data.get("seed_hex", "")).strip().lower()
+    dest_g1pub = str(data.get("dest_g1pub", "")).strip()
+
+    if not re.fullmatch(r"[0-9a-f]{64}", seed_hex):
+        raise HTTPException(status_code=400, detail="seed_hex invalide")
+    if not is_safe_g1pub(dest_g1pub):
+        raise HTTPException(status_code=400, detail="dest_g1pub invalide")
+
+    shm_dir = "/dev/shm" if os.path.isdir("/dev/shm") else None
+    cred_path = tempfile.mktemp(dir=shm_dir)
+    dunikey_path = tempfile.mktemp(dir=shm_dir)
+    try:
+        with open(cred_path, "w") as f:
+            f.write(seed_hex + "\n")
+        os.chmod(cred_path, 0o600)
+
+        proc = await asyncio.create_subprocess_exec(
+            str(settings.TOOLS_PATH / "keygen"), "-t", "duniter", "-o", dunikey_path, "-i", cred_path,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+        if proc.returncode != 0 or not os.path.isfile(dunikey_path):
+            logger.error("redeem_billet: keygen échoué — %s", stderr.decode(errors="replace")[:500])
+            raise HTTPException(status_code=500, detail="Dérivation de clé échouée")
+
+        proc = await asyncio.create_subprocess_exec(
+            str(settings.TOOLS_PATH / "PAYforSURE.sh"), dunikey_path, "DRAIN", dest_g1pub, "G1Billet redeem",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90)
+        ok = proc.returncode == 0
+        log_tail = (stdout.decode(errors="replace") + stderr.decode(errors="replace"))[-2000:]
+        if not ok:
+            logger.error("redeem_billet: PAYforSURE.sh échoué — %s", log_tail)
+        return JSONResponse({"ok": ok, "log": log_tail})
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Délai dépassé lors du virement")
+    finally:
+        seed_hex = None
+        for p in (cred_path, dunikey_path):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
