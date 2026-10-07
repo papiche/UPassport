@@ -53,6 +53,17 @@
   .network-row:last-child{border-bottom:none}
   .network-row span:last-child{color:var(--ink);font-family:ui-monospace,monospace;font-size:.72rem;
         text-align:right;word-break:break-all}
+
+  /* ── Journal de diagnostic (requêtes réseau + calculs Shamir), replié par
+     défaut en bas de page — mêmes classes .network-pill/.network-panel que
+     le statut réseau, pour cohérence visuelle. */
+  .debug-entry{padding:6px 0;border-bottom:1px solid var(--card-line);font-size:.72rem;text-align:left}
+  .debug-entry:last-child{border-bottom:none}
+  .debug-ts{color:var(--muted2);font-family:ui-monospace,monospace;margin-right:6px}
+  .debug-label{color:var(--ink);font-weight:700}
+  .debug-detail{white-space:pre-wrap;word-break:break-all;background:rgba(3,5,12,.55);border-radius:6px;
+        padding:6px 8px;margin:4px 0 0;color:var(--muted);font-family:ui-monospace,monospace;font-size:.68rem;
+        max-height:120px;overflow:auto}
   header h1{font-size:1.32rem;font-weight:800;margin:0 0 6px;letter-spacing:-.01em;
         display:flex;align-items:center;justify-content:center;gap:9px}
   header h1 .ic{width:30px;height:30px;border-radius:9px;flex-shrink:0;
@@ -157,6 +168,11 @@
   .match{font-size:.81rem;margin-top:8px;display:flex;align-items:center;gap:7px}
   .match.ok{color:var(--ok)}
   .match.err{color:var(--err)}
+
+  .recon-computed{font-family:ui-monospace,monospace;font-size:.72rem;color:var(--muted);
+        word-break:break-all;margin-top:10px;line-height:1.5;padding-top:10px;border-top:1px solid var(--card-line)}
+  .recon-computed .lbl{color:var(--ink);font-weight:700;display:block;margin-bottom:3px;
+        font-family:-apple-system,sans-serif;font-size:.74rem}
 
   .warn{background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.3);border-radius:var(--radius-md);
         padding:13px 14px;font-size:.79rem;line-height:1.5;margin-bottom:14px;color:#ffc3cd;
@@ -316,6 +332,10 @@
       <div class="state" id="state-2"></div>
     </div>
 
+    <div class="recon-computed" id="recon-computed" style="display:none">
+      <span class="lbl">🔑 G1PUB calculé (P1+P2)</span>
+      <span id="recon-computed-value"></span>
+    </div>
     <div class="match" id="recon-match"></div>
   </div>
 
@@ -366,6 +386,16 @@
     <div class="network-row"><span>RPC</span><span id="ns-rpc">—</span></div>
     <div class="network-row"><span>Cache</span><span id="ns-cache">—</span></div>
   </div>
+
+  <div style="display:flex;justify-content:center;margin-top:8px">
+    <button type="button" id="debug-toggle-btn" class="network-pill" title="Journal de diagnostic (requêtes &amp; calculs)">
+      <span class="dot" id="debug-dot"></span><span>🐞 Debug</span>
+    </button>
+  </div>
+  <div id="debug-panel" class="network-panel" style="display:none;max-width:420px;max-height:50vh;overflow:auto">
+    <div id="debug-log-empty" style="color:var(--muted);text-align:center">Aucun événement pour l'instant.</div>
+    <div id="debug-log-list"></div>
+  </div>
 </main>
 
 <!-- Modal caméra plein écran, réutilisé pour tous les champs -->
@@ -401,6 +431,39 @@
 
   function $(id) { return document.getElementById(id); }
   function short(s) { return s && s.length > 16 ? s.slice(0, 8) + '…' + s.slice(-8) : (s || ''); }
+
+  // ── Journal de diagnostic (bas de page, replié) — trace les requêtes
+  // réseau (URL/méthode + réponse) et les calculs Shamir (parts reçues,
+  // g1pub/ss58 dérivés), pour diagnostiquer in situ un bug comme "P2 renvoie
+  // la valeur de P1". Jamais de secret dedans : seed_hex et parts P1/P2/P3
+  // sont tronqués via short() ou carrément masqués — seuls des
+  // identifiants PUBLICS (g1pub, ss58, g1pub de destination) apparaissent
+  // en clair, cohérent avec la politique "traçabilité publique ok, secret
+  // jamais exposé" déjà appliquée ailleurs sur cette page. ─────────────────
+  var debugLog = [];
+  var DEBUG_LOG_MAX = 150;
+  function logDebug(label, data) {
+    debugLog.push({ ts: new Date(), label: label, data: data });
+    if (debugLog.length > DEBUG_LOG_MAX) debugLog.shift();
+    renderDebugLog();
+  }
+  function fmtTime(d) {
+    return d.toLocaleTimeString('fr-FR', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+  }
+  function renderDebugLog() {
+    var list = $('debug-log-list'), empty = $('debug-log-empty');
+    if (!list || !empty) return;
+    if (!debugLog.length) { empty.style.display = 'block'; list.innerHTML = ''; return; }
+    empty.style.display = 'none';
+    list.innerHTML = debugLog.slice().reverse().map(function (e) {
+      var detail = '';
+      try { detail = typeof e.data === 'string' ? e.data : JSON.stringify(e.data); } catch (err) { detail = String(e.data); }
+      return '<div class="debug-entry"><span class="debug-ts">' + fmtTime(e.ts) + '</span>' +
+        '<span class="debug-label">' + e.label + '</span>' +
+        (detail && detail !== '{}' ? '<pre class="debug-detail">' + detail.replace(/</g, '&lt;') + '</pre>' : '') +
+        '</div>';
+    }).join('');
+  }
 
   // ── Lien vers notre propre application (PAS Cesium : Cesium compte en
   // Ğ1, pas en Ẑen, trompeur pour un billet annoncé en Ẑen) — multipass.html
@@ -617,8 +680,10 @@
     cardRedeem.classList.add('locked');
     setStep(1, 'active'); setStep(2, null); setStep(3, null);
     try {
+      logDebug('→ GET /check_balance', { g1pub: g1pub });
       var resp = await fetch('/check_balance?g1pub=' + encodeURIComponent(g1pub));
       var data = await resp.json();
+      logDebug('← GET /check_balance', { status: resp.status, data: data });
       if (!resp.ok) throw new Error(data.detail || ('HTTP ' + resp.status));
       var zen = data.zen !== undefined ? data.zen : data.balance;
       var unit = data.zen !== undefined ? 'Ẑen' : 'G1';
@@ -633,6 +698,7 @@
       if (Number(zen) > 0) {
         setState($('state-billet'), '✅ Billet valide.', 'ok');
         cardRecon.classList.remove('locked');
+        cardRedeem.classList.remove('locked');
         setStep(1, 'done'); setStep(2, 'active');
       } else {
         setState($('state-billet'), '⚠️ Ce billet est vide (déjà encaissé, ou pas encore approvisionné).', 'err');
@@ -645,6 +711,7 @@
       $('billet-amount').textContent = '—';
       $('billet-g1-short').textContent = '';
       setState($('state-billet'), '❌ ' + (e && e.message ? e.message : 'G1PUB introuvable.'), 'err');
+      logDebug('✗ GET /check_balance', { error: e && e.message });
       checkReconMatch();
     }
   }
@@ -678,8 +745,10 @@
     if (g1pub.length < 8) { destPrimalOk = null; updateRedeemButton(); return; }
     setState($('state-dest'), '⏳ Vérification du portefeuille…', 'pending', true);
     try {
+      logDebug('→ GET /qr/billet/check_primal', { g1pub: g1pub });
       var resp = await fetch('/qr/billet/check_primal?g1pub=' + encodeURIComponent(g1pub));
       var data = await resp.json();
+      logDebug('← GET /qr/billet/check_primal', { status: resp.status, data: data });
       if (mySeq !== destCheckSeq) return; // une saisie plus récente a pris le relais
       destPrimalOk = !!(resp.ok && data.ok);
       setState($('state-dest'),
@@ -689,6 +758,7 @@
       if (mySeq !== destCheckSeq) return;
       destPrimalOk = false;
       setState($('state-dest'), '❌ Vérification impossible — réessayez.', 'err');
+      logDebug('✗ GET /qr/billet/check_primal', { error: e && e.message });
     }
     updateRedeemButton();
   }
@@ -722,10 +792,32 @@
     updateRedeemButton();
   }
   function acceptHex(slot, hex, source) {
-    hex = (hex || '').trim().replace(/\s+/g, '');
-    if (!HEX64.test(hex)) { setSlotState(slot, null, 'Format invalide (attendu 64 caractères hexadécimaux).', 'err'); return; }
+    hex = (hex || '').trim().replace(/\s+/g, '').toLowerCase();
+    if (!HEX64.test(hex)) {
+      setSlotState(slot, null, 'Format invalide (attendu 64 caractères hexadécimaux).', 'err');
+      logDebug('✗ Part P' + slot, { reason: 'format invalide', source: source, longueur: hex.length });
+      return;
+    }
+    // Détection anti-confusion P1/P2 : sur le billet imprimé, P1 est
+    // volontairement tout proche du pli qui contient P2 (pour qu'ils
+    // s'alignent une fois le billet replié) — trop proches pour qu'une
+    // caméra de téléphone les isole toujours correctement : viser P2 peut
+    // capter P1 (et inversement). P1 et P2 sont des parts Shamir à des
+    // points DIFFÉRENTS : elles ne sont JAMAIS identiques sur un billet
+    // valide. Si la même valeur arrive sur les deux champs, c'est à coup
+    // sûr une confusion de scan, pas un vrai billet — on bloque plutôt que
+    // de reconstruire silencieusement une clé fausse.
+    var otherSlot = Number(slot) === 1 ? 2 : 1;
+    if (shares[otherSlot] && bytesToHex(shares[otherSlot]) === hex) {
+      setSlotState(slot, null,
+        '❌ Identique à P' + otherSlot + ' — vous avez scanné le même QR deux fois. Visez bien le QR P' + slot + '.',
+        'err');
+      logDebug('✗ Part P' + slot, { reason: 'identique à P' + otherSlot + ' (confusion de scan)', source: source, hex_tronqué: short(hex) });
+      return;
+    }
     $('input-p' + slot) && ($('input-p' + slot).value = hex);
     setSlotState(slot, hexToBytes(hex), '✅ P' + slot + ' chargée (' + source + ').', 'ok');
+    logDebug('Part P' + slot + ' acceptée', { source: source, hex_tronqué: short(hex) });
     tryReconstruct();
   }
   ['1', '2'].forEach(function (slot) {
@@ -751,30 +843,44 @@
       var seed = combine(a, shares[a], b, shares[b]);
       var derived = deriveG1(seed);
       lastReconstructed = { seedHex: bytesToHex(seed), g1pub: derived.g1pub, ss58: derived.ss58 };
+      // Jamais seedHex dans le journal : c'est littéralement la clé privée.
+      logDebug('Reconstruction Shamir', { parts_utilisées: ['P' + a, 'P' + b], g1pub: derived.g1pub, ss58: derived.ss58 });
     } catch (e) {
       lastReconstructed = null;
+      logDebug('✗ Reconstruction Shamir', { parts_utilisées: ['P' + a, 'P' + b], error: e && e.message });
     }
     checkReconMatch();
     updateRedeemButton();
   }
 
+  // ── Pas de blocage sur la correspondance billet-étape①/clé-reconstruite :
+  // l'encaissement (/qr/billet/redeem) ne se fie de toute façon JAMAIS à
+  // billet.g1pub pour fonctionner — il dérive le g1pub du billet réel
+  // directement depuis le seed reconstruit, côté serveur. Ce rapprochement
+  // n'était qu'une info de confort ; purement informatif, jamais bloquant.
+  // Le G1PUB calculé est en revanche TOUJOURS affiché (même sans billet
+  // identifié en étape①, même en cas de non-correspondance) — utile pour
+  // diagnostiquer un problème de scan (ex. P2 qui renvoie la part P1).
   function checkReconMatch() {
     var el = $('recon-match');
-    var ok = !!lastReconstructed && !!billet && (billet.g1pub === lastReconstructed.g1pub || billet.g1pub === lastReconstructed.ss58);
-    if (!lastReconstructed || !billet) { el.textContent = ''; el.className = 'match'; }
-    else {
-      el.textContent = ok
-        ? '✅ Les parts correspondent bien à ce billet.'
-        : '❌ Ces parts NE correspondent PAS au billet identifié à l\'étape 1 (mauvais billet, ou part corrompue).';
-      el.className = 'match ' + (ok ? 'ok' : 'err');
+    var computedEl = $('recon-computed'), computedVal = $('recon-computed-value');
+    if (!lastReconstructed) {
+      el.textContent = ''; el.className = 'match';
+      if (computedEl) computedEl.style.display = 'none';
+      return;
     }
-    cardRedeem.classList.toggle('locked', !ok);
-    if (ok) { setStep(2, 'done'); setStep(3, 'active'); }
+    if (computedEl && computedVal) {
+      computedVal.textContent = lastReconstructed.g1pub;
+      computedEl.style.display = 'block';
+    }
+    var matches = !!billet && (billet.g1pub === lastReconstructed.g1pub || billet.g1pub === lastReconstructed.ss58);
+    el.textContent = matches ? '✅ Les parts correspondent à ce billet.' : '';
+    el.className = 'match ' + (matches ? 'ok' : '');
+    setStep(2, 'done'); setStep(3, 'active');
   }
 
   function updateRedeemButton() {
-    var reconOk = !!lastReconstructed && billet && (billet.g1pub === lastReconstructed.g1pub || billet.g1pub === lastReconstructed.ss58);
-    var ready = destPrimalOk === true && reconOk;
+    var ready = destPrimalOk === true && !!lastReconstructed;
     $('btn-redeem').disabled = !ready;
     $('redeem-warn').style.display = ready ? 'flex' : 'none';
   }
@@ -785,17 +891,22 @@
     var btn = this;
     btn.disabled = true;
     btn.textContent = '⏳ Virement en cours…';
+    var destG1pub = destInput.value.trim();
     try {
+      // seed_hex JAMAIS journalisé : c'est la clé privée reconstruite du billet.
+      logDebug('→ POST /qr/billet/redeem', { g1pub_billet: lastReconstructed.g1pub, dest_g1pub: destG1pub, seed_hex: '(masqué)' });
       var resp = await fetch('/qr/billet/redeem', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seed_hex: lastReconstructed.seedHex, dest_g1pub: destInput.value.trim() }),
+        body: JSON.stringify({ seed_hex: lastReconstructed.seedHex, dest_g1pub: destG1pub }),
       });
       var data = await resp.json();
+      logDebug('← POST /qr/billet/redeem', { status: resp.status, data: data });
       wipeSecrets();
       if (!resp.ok || !data.ok) throw new Error(data.detail || 'Le virement a échoué.');
       setStep(3, 'done');
       showResult(true, 'Billet encaissé !', 'Les fonds ont été transférés vers votre portefeuille.', data.log);
     } catch (e) {
+      logDebug('✗ POST /qr/billet/redeem', { error: e && e.message });
       showResult(false, 'Échec de l\'encaissement', (e && e.message) || 'Une erreur est survenue.', null);
     }
   });
@@ -803,7 +914,7 @@
   function wipeSecrets() {
     shares = {1: null, 2: null, 3: null};
     lastReconstructed = null;
-    ['1', '2'].forEach(function (s) { $('input-' + s).value = ''; });
+    ['1', '2'].forEach(function (s) { $('input-p' + s).value = ''; });
   }
 
   var ICON_OK = '<svg viewBox="0 0 48 48" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
@@ -848,8 +959,10 @@
   async function loadNetworkStatus() {
     var dot = $('network-dot'), text = $('network-status-text');
     try {
+      logDebug('→ GET /qr/billet/network_status', {});
       var resp = await fetch('/qr/billet/network_status');
       var data = await resp.json();
+      logDebug('← GET /qr/billet/network_status', { status: resp.status, data: data });
       var squid = data.best_squid, rpc = data.best_rpc;
 
       dot.className = 'dot ' + (!data.cache_ok ? 'err' : (squid && rpc ? 'ok' : 'warn'));
@@ -865,6 +978,7 @@
     } catch (e) {
       dot.className = 'dot err';
       text.textContent = 'indisponible';
+      logDebug('✗ GET /qr/billet/network_status', { error: e && e.message });
     }
   }
 
@@ -874,6 +988,17 @@
     if (show) loadNetworkStatus(); // rafraîchit à chaque ouverture
   });
   loadNetworkStatus(); // statut initial (pill) dès le chargement de la page
+
+  // ── Panneau de diagnostic — replié par défaut, affiche le journal au
+  // premier affichage (il peut déjà contenir des entrées si prefillFromQuery
+  // a déclenché un checkBillet avant ce point du script). ─────────────────
+  var debugBtn = $('debug-toggle-btn');
+  var debugPanel = $('debug-panel');
+  debugBtn.addEventListener('click', function () {
+    var show = debugPanel.style.display === 'none';
+    debugPanel.style.display = show ? 'block' : 'none';
+    if (show) renderDebugLog();
+  });
 })();
 </script>
 </body>
