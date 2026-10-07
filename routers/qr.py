@@ -100,6 +100,11 @@ router = APIRouter()
 _TEMPLATE = Path(__file__).parent.parent / "templates" / "qr.html"
 _TEMPLATE_POSTCARD = Path(__file__).parent.parent / "templates" / "qr_postcard.html"
 _BILLET_SCRIPT = Path(__file__).parent.parent / "billet_gen.sh"
+# Logo embarqué (amzqr -p) dans le seul QR "Vérifier" (lien /scan générique,
+# identique sur tous les billets) — PAS dans P1/P2 (hex brut, Shamir : un
+# logo dégraderait la fiabilité de lecture d'une donnée qui doit décoder
+# EXACTEMENT, cf. billet_astroid.py qui utilise le même visuel).
+_BILLET_VERIFY_LOGO = Path(__file__).parent.parent / "static" / "billet_styles" / "astrologo_nb.png"
 
 
 def _qr_html() -> str:
@@ -306,7 +311,7 @@ _BILLET_A4_PAGE = """<!doctype html>
      vertical (dont le dimensionnement intrinsèque échappe à la grille/flex
      et déborde de la cellule). position:absolute retire le texte du flux :
      sa longueur ne peut plus influencer la taille de .fold ni de la ligne. */
-  .cell .fold{width:21mm;flex:0 0 21mm;height:100%;position:relative;overflow:hidden;
+  .cell .fold{width:24mm;flex:0 0 24mm;height:100%;position:relative;overflow:hidden;
               border-right:1px dashed var(--red);
               background:repeating-linear-gradient(45deg,#fffaf0,#fffaf0 2mm,#f2dcdc 2mm,#f2dcdc 4mm)}
   /* 66mm = largeur AVANT rotation = hauteur visible une fois pivoté (calée
@@ -314,12 +319,13 @@ _BILLET_A4_PAGE = """<!doctype html>
      cellule a grandi avec le passage à une planche A4 plein format, pas
      cette marge de sécurité). La contrainte réelle est inverse : la
      HAUTEUR avant rotation devient la LARGEUR visible une fois pivoté —
-     qui doit tenir dans les 21mm du .fold, sans quoi le contenu se retrouve
+     qui doit tenir dans les 24mm du .fold, sans quoi le contenu se retrouve
      rogné par overflow:hidden (constaté à l'impression). D'où l'hexa forcé
      sur EXACTEMENT 2 lignes (cf. _render_billet_a4_html) plutôt que laissé
-     au retour à la ligne naturel. Fold élargi (15mm→21mm) pour un QR P2
-     plus gros et lisible, au prix d'un peu de largeur reprise sur .body
-     (qui a de la marge depuis le passage à la disposition horizontale).
+     au retour à la ligne naturel. Fold élargi (15mm→21mm→24mm au fil des
+     révisions) pour un QR P2 plus gros et lisible, au prix d'un peu de
+     largeur reprise sur .body (qui a de la marge depuis le passage à la
+     disposition horizontale, puis à la planche A4 plein format).
 
      Avec rotate(-90deg), empiler verticalement avant rotation (QR puis
      texte) les sépare, une fois pivoté, HORIZONTALEMENT (QR vers le bord
@@ -339,7 +345,7 @@ _BILLET_A4_PAGE = """<!doctype html>
   .cell .fold .secret .p2-text{text-align:center}
   .cell .fold .secret b{display:block;color:var(--red);font-weight:700;
               font-family:sans-serif;font-size:5.5pt;margin-bottom:.4mm}
-  .cell .fold .secret img{width:17mm;height:17mm;image-rendering:pixelated;
+  .cell .fold .secret img{width:20mm;height:20mm;image-rendering:pixelated;
               display:block;flex-shrink:0;background:#fff;padding:.5mm;
               border-radius:.6mm;border:1px solid var(--gold)}
 
@@ -354,27 +360,37 @@ _BILLET_A4_PAGE = """<!doctype html>
      QR de vérification du solde (anciennement dans .main-row — regroupé
      ici avec le logo, qui sert de même repère "identité de ce billet"). */
   .cell .corner-stack{position:absolute;top:2mm;right:2mm;display:flex;
-              flex-direction:column;align-items:center;gap:1mm;width:20mm}
-  .cell .corner-stack .logo-mark{width:20mm;height:20mm;border-radius:50%;
+              flex-direction:column;align-items:center;gap:1mm;width:23mm}
+  .cell .corner-stack .logo-mark{width:23mm;height:23mm;border-radius:50%;
               object-fit:cover;border:1px solid var(--gold);
               box-shadow:0 1px 3px rgba(0,0,0,.35)}
-  /* QR de vérification agrandi (20mm, contre 17mm pour P1) — c'est le QR
+  /* QR de vérification agrandi (23mm, contre 20mm pour P1/P2) — c'est le QR
      destiné à n'importe quel inconnu scannant le billet au hasard (cf.
      /scan?g1pub=...) : priorité à la lisibilité/robustesse du scan plutôt
-     qu'à la compacité. Même largeur que logo-mark (20mm) pour que les deux
-     éléments du coin soient bien alignés (bords à bords, colonne nette). */
-  .cell .corner-stack .qr-item img{width:20mm;height:20mm}
+     qu'à la compacité. Agrandi de 20→23mm avec le passage à la planche A4
+     plein format (cellule 136×60mm → 148.5×70mm) : .corner-stack n'est
+     contraint ni par la largeur fixe du pli (24mm, cf. .fold) ni par
+     l'appariement visuel P1/P2 (cf. commentaire .p1-corner) — ce coin a
+     toute la marge de manœuvre libérée par l'agrandissement de la cellule.
+     Même largeur que logo-mark (23mm) pour que les deux éléments du coin
+     soient bien alignés (bords à bords, colonne nette). */
+  .cell .corner-stack .qr-item img{width:23mm;height:23mm}
 
   /* P1 en position ABSOLUE (et non plus dans le flux de .main-row) : laisse
      .main-row entièrement libre pour centrer le montant, SANS perdre le
      positionnement voulu pour P1 — juste à côté du pli (.fold, bord gauche,
-     replié vers l'AVANT le long de son bord droit). Un pli à 180° sur cet
-     axe vertical reporte le contenu du volet, en miroir, de l'autre côté de
-     la charnière, à la même hauteur : P1 sert ainsi de repère visuel juste
-     au-dessus de l'endroit où P2 (qui vit dans ce même pli) se cache une
-     fois la bande rabattue et scotchée. Précision au mm près non requise —
-     le pliage reste manuel — seule la PROXIMITÉ immédiate avec le pli
-     compte. Même taille que P2 (17mm, cf. .fold .secret img) pour renforcer
+     replié vers l'AVANT le long de son bord droit). ⚠️ CONFIRMÉ PAR TEST
+     PHYSIQUE : une fois le pli (24mm) rabattu à 180° sur cet axe vertical,
+     il recouvre EXACTEMENT la bande de .body large de 24mm adjacente à la
+     charnière — donc P1 (positionné à seulement 2mm dans .body) se
+     retrouve, comme P2, caché sous le pli replié. C'est voulu, pas un bug :
+     un billet replié/scotché en circulation ne montre NI P1 NI P2 à qui le
+     regarde (sécurité), et déplier révèle les deux parts D'UN COUP, bien
+     alignées, pour un encaissement rapide — P1 n'est un "repère visuel"
+     qu'AVANT pliage, pour qui assemble le billet (savoir où aligner le
+     pli/la bande adhésive), jamais après. Précision au mm près non requise
+     — le pliage reste manuel — seule la PROXIMITÉ immédiate avec le pli
+     compte. Même taille que P2 (20mm, cf. .fold .secret img) pour renforcer
      visuellement que les deux QR forment la même paire. */
   .cell .p1-corner{position:absolute;top:3.5mm;left:2mm}
 
@@ -395,7 +411,7 @@ _BILLET_A4_PAGE = """<!doctype html>
   .cell .amount-badge .unit{font-size:8pt;font-weight:700;color:var(--ink);
               letter-spacing:1px;text-transform:uppercase;margin-top:.5mm}
   .cell .qr-item{display:flex;flex-direction:column;align-items:center;gap:.5mm;flex-shrink:0}
-  .cell .qr-item img{width:17mm;height:17mm;image-rendering:pixelated;
+  .cell .qr-item img{width:20mm;height:20mm;image-rendering:pixelated;
               background:#fff;padding:1mm;border-radius:1mm;border:1px solid var(--gold)}
   /* Fond photo possible derrière (profil NOSTR connecté) : les légendes et le
      bloc g1pub/statut ont besoin de leur PROPRE contraste, pas seulement du
@@ -424,27 +440,28 @@ _BILLET_A4_PAGE = """<!doctype html>
      MAIS la correspondance LOCALE (à l'intérieur d'un même billet découpé)
      entre recto et verso, elle, est parfaitement fixe : le verso est
      imprimé au dos de CE papier, donc directement derrière le recto, à la
-     même position locale. Et une fois le pli (bord gauche, 21mm) rabattu
+     même position locale. Et une fois le pli (bord gauche, 24mm) rabattu
      vers l'avant et scotché, P2 vient se plaquer, en MIROIR par rapport
-     à la charnière (x=21mm), sur le verso entre 21 et 42mm — recouvrant
+     à la charnière (x=24mm), sur le verso entre 24 et 48mm — recouvrant
      tout ce qui y est imprimé là (cf. .p1-corner plus haut : c'est
-     d'ailleurs tout l'intérêt, puisque ça place P2 pile derrière P1).
+     d'ailleurs tout l'intérêt, puisque ça place P2 pile derrière P1 —
+     confirmé par test physique : les deux finissent cachés ensemble).
 
-     Zone 0-21mm (.vflap) : c'est le dos du pli lui-même — AUTANT L'UTILISER
+     Zone 0-24mm (.vflap) : c'est le dos du pli lui-même — AUTANT L'UTILISER
      (texte + QR, même trick de rotation -90° que .fold .secret au recto)
      plutôt que la laisser vide, puisqu'elle n'est jamais recouverte par
      quoi que ce soit (c'est elle qui bouge, pas l'inverse). QR "Encaisser"
      déplacé ici depuis .vsupport : c'est le repère naturel pour qui
      manipule déjà cette languette.
-     Zone 21-42mm (.vgap) : VIDE, volontairement — c'est l'endroit précis
+     Zone 24-48mm (.vgap) : VIDE, volontairement — c'est l'endroit précis
      où P2 vient se plaquer une fois le pli refermé ; tout texte/QR laissé
      là serait recouvert.
-     Zone 42mm+ (.vmain) : contenu principal, à l'abri du pli — texte
+     Zone 48mm+ (.vmain) : contenu principal, à l'abri du pli — texte
      contrat + QR OpenCollective/Zelkova, qui restent ENTIÈREMENT visibles
      quel que soit l'état du pli. */
   .vcell{display:flex;align-items:stretch;height:70mm;border:1px dashed #999;
               overflow:hidden;position:relative;background:#fff}
-  .vcell .vflap{width:21mm;flex:0 0 21mm;position:relative;overflow:hidden;
+  .vcell .vflap{width:24mm;flex:0 0 24mm;position:relative;overflow:hidden;
               border-right:1px dashed var(--red);
               background:repeating-linear-gradient(45deg,#fffaf0,#fffaf0 2mm,#f2dcdc 2mm,#f2dcdc 4mm)}
   .vcell .vflap-inner{position:absolute;top:50%;left:50%;width:66mm;
@@ -453,9 +470,9 @@ _BILLET_A4_PAGE = """<!doctype html>
               font-family:sans-serif;font-size:5pt;line-height:1.25;color:#333;
               background:#fffaf0;padding:1mm 2mm;border-radius:1mm}
   .vcell .vflap-inner b{display:block;color:var(--red);font-weight:700;font-size:5.5pt;margin-bottom:.4mm}
-  .vcell .vflap-inner img{width:17mm;height:17mm;image-rendering:pixelated;
+  .vcell .vflap-inner img{width:20mm;height:20mm;image-rendering:pixelated;
               background:#fff;padding:.5mm;border-radius:.6mm;border:1px solid var(--gold);flex-shrink:0}
-  .vcell .vgap{width:21mm;flex:0 0 21mm}
+  .vcell .vgap{width:24mm;flex:0 0 24mm}
   .vcell .vmain{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;
               justify-content:center;padding:3mm 8mm;text-align:center;gap:1.5mm}
   .vcell .vstamp{font-family:Georgia,serif;font-weight:800;font-size:8pt;
@@ -1242,7 +1259,17 @@ async def generate_billet(
         # validation de valeur — "entête" qui facilite la découverte du billet
         # par quiconque le trouve, sans application dédiée.
         solde_url = settings.uSPOT.rstrip("/") + "/scan?g1pub=" + urllib.parse.quote(g1pub)
-        pub_png, _ = await asyncio.to_thread(_generate_qr_png, solde_url, 3, "M")
+        # Logo UPlanet embarqué (amzqr -p, cf. _BILLET_VERIFY_LOGO) : lien
+        # GÉNÉRIQUE (le domaine, pas le g1pub) — même logo sur tous les
+        # billets, donc même visuel reconnaissable au premier coup d'œil.
+        # Niveau "H" obligatoire avec une image embarquée (amzqr/billet_astroid.py) :
+        # sans la correction d'erreur maximale, le logo recouvre trop de
+        # modules pour rester scannable. _generate_qr_png retombe sur
+        # qrencode (sans logo) si amzqr ou l'image sont absents.
+        pub_png, _ = await asyncio.to_thread(
+            _generate_qr_png, solde_url, 3, "H", False, 1.0, 1.0,
+            str(_BILLET_VERIFY_LOGO) if _BILLET_VERIFY_LOGO.is_file() else None,
+        )
         pub_qr_url = ("data:image/png;base64," + base64.b64encode(pub_png).decode()) if pub_png else ""
 
         # QR "P1" = part Shamir visible (hex, PAS un lien web) — seule, elle
