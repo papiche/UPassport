@@ -333,7 +333,7 @@
     </div>
 
     <div class="recon-computed" id="recon-computed" style="display:none">
-      <span class="lbl">🔑 G1PUB calculé (P1+P2)</span>
+      <span class="lbl">🔑 G1PUB calculé (P1+P2) — format v2</span>
       <span id="recon-computed-value"></span>
     </div>
     <div class="match" id="recon-match"></div>
@@ -870,7 +870,9 @@
       return;
     }
     if (computedEl && computedVal) {
-      computedVal.textContent = lastReconstructed.g1pub;
+      // ss58 = adresse Duniter v2s (format v2) ; g1pub = clé v1 classique.
+      // Affichage : v2, le format utilisé par le réseau actuel.
+      computedVal.textContent = lastReconstructed.ss58;
       computedEl.style.display = 'block';
     }
     var matches = !!billet && (billet.g1pub === lastReconstructed.g1pub || billet.g1pub === lastReconstructed.ss58);
@@ -900,14 +902,19 @@
         body: JSON.stringify({ seed_hex: lastReconstructed.seedHex, dest_g1pub: destG1pub }),
       });
       var data = await resp.json();
-      logDebug('← POST /qr/billet/redeem', { status: resp.status, data: data });
+      // Le log de transaction (sortie PAYforSURE.sh du DRAIN + FORWARD) est
+      // journalisé À PART, en texte brut (pas de JSON.stringify qui
+      // échapperait ses retours à la ligne en "\n" littéraux illisibles).
+      logDebug('← POST /qr/billet/redeem', { status: resp.status, ok: data.ok, detail: data.detail, amount: data.amount });
+      if (data.log) logDebug('📜 Log transaction (DRAIN + FORWARD)', data.log);
       wipeSecrets();
       if (!resp.ok || !data.ok) throw new Error(data.detail || 'Le virement a échoué.');
       setStep(3, 'done');
       showResult(true, 'Billet encaissé !', 'Les fonds ont été transférés vers votre portefeuille.', data.log);
     } catch (e) {
       logDebug('✗ POST /qr/billet/redeem', { error: e && e.message });
-      showResult(false, 'Échec de l\'encaissement', (e && e.message) || 'Une erreur est survenue.', null);
+      showResult(false, 'Échec de l\'encaissement', (e && e.message) || 'Une erreur est survenue.',
+        (typeof data !== 'undefined' && data && data.log) || null);
     }
   });
 
