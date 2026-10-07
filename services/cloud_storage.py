@@ -663,18 +663,18 @@ class _PurgeThread(threading.Thread):
     def __init__(self, interval: Optional[float] = None) -> None:
         super().__init__(name="ucloud-cache-purge", daemon=True)
         self.interval = interval or max(5.0, CACHE_TTL / 2)
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
 
     def run(self) -> None:  # pragma: no cover - boucle infinie
         ensure_cache_dir()
-        while not self._stop.wait(self.interval):
+        while not self._stop_event.wait(self.interval):
             try:
                 purge_stale_cache()
             except Exception as exc:
                 logger.error("ucloud: purge TTL en échec: %s", exc)
 
     def stop(self) -> None:  # pragma: no cover
-        self._stop.set()
+        self._stop_event.set()
 
 
 _purge_thread: Optional[_PurgeThread] = None

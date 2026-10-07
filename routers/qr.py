@@ -529,9 +529,9 @@ __VERSO__
 # Open Source (opensource.html) : le choix de licence est le socle légal de
 # toute la coopérative, pas seulement de Made In Zion.
 _BILLET_VERSO_DEFAULT_TEXT = (
-    "G1FabLab : un Internet qui nous appartient, pas un cloud qui nous facture. "
+    "Financez un Internet qui nous appartient, pas un cloud qui nous facture. "
     "Le Ẑen est la monnaie d'usage des serveurs et stations gérés en commun par le "
-    "collectif Monnaie Libre (opencollective.com/monnaie-libre). Ce billet protège qui "
+    "collectif G1FabLab/Monnaie Libre (opencollective.com/monnaie-libre). Ce billet protège qui "
     "le porte : son secret est scindé en 3 parts — une seule ne permet rien, et sa valeur "
     "se vérifie d'un simple scan. Zéro compte bancaire, zéro spéculation : la monnaie "
     "d'un bien commun citoyen (AGPL-3.0 / CC BY-SA). Rejoignez-nous sur astroport.one"
@@ -541,7 +541,7 @@ _BILLET_VERSO_CELL = """<div class="vcell">
   <div class="vflap"><div class="vflap-inner"><b>Encaisser</b><img src="__REDEEM_QR__" alt="QR reconstruction"></div></div>
   <div class="vgap"></div>
   <div class="vmain">
-    <div class="vstamp">☀️ Monnaie Libre</div>
+    <div class="vstamp">☀️ G1FabLab</div>
     <div class="vtext">__TEXT__</div>
     <div class="vsupport">
       <div class="vsupport-item"><img src="__OC_QR__" alt="QR OpenCollective"><span>opencollective.com/monnaie-libre</span></div>
