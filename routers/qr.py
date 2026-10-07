@@ -281,13 +281,24 @@ _BILLET_A4_PAGE = """<!doctype html>
   .bar button{padding:9px 18px;border:none;border-radius:6px;background:var(--gold);
               color:#1a1209;font-weight:700;cursor:pointer;font-size:.9rem}
   .bar button:hover{box-shadow:0 0 10px var(--gold)}
-  .warn{max-width:277mm;background:#fff3f3;border:1px solid var(--red);color:var(--red);
+  .warn{max-width:297mm;background:#fff3f3;border:1px solid var(--red);color:var(--red);
         padding:8px 12px;font-family:sans-serif;font-size:.8rem;border-radius:6px}
 
-  .sheet{width:277mm;display:grid;grid-template-columns:repeat(2,136mm);
-         grid-auto-rows:60mm;gap:3mm;background:#fff;padding:2mm;
+  /* 297×210mm = A4 paysage EXACT (cf. @page ci-dessous, margin:0) : la
+     feuille remplit toute la page physique, sans marge ni gap entre
+     cellules — chaque frontière interne (entre 2 colonnes, entre 2 lignes)
+     ne porte alors plus qu'UNE seule ligne de coupe (les pointillés
+     .cell/.vcell adjacents se superposent exactement) au lieu d'une bande
+     blanche à découper des deux côtés. Pour 6 billets en 2×3, c'est déjà la
+     disposition qui minimise le nombre de coupes (1 verticale + 2
+     horizontales = 3 coupes au total sur la pile recto+verso empilée,
+     contre 5 pour un 1×6/6×1) — gap:0/padding:0 ne fait que supprimer les
+     bandes blanches superflues entre ces 3 coupes, il ne change pas leur
+     nombre. */
+  .sheet{width:297mm;height:210mm;display:grid;grid-template-columns:repeat(2,148.5mm);
+         grid-auto-rows:70mm;gap:0;background:#fff;padding:0;
          box-shadow:0 0 16px rgba(0,0,0,.35)}
-  .cell{display:flex;height:60mm;border:1px dashed #999;overflow:hidden;
+  .cell{display:flex;height:70mm;border:1px dashed #999;overflow:hidden;
         position:relative;background:#fff}
 
   /* Bande secrète : bloc horizontal qui wrap normalement (largeur = hauteur
@@ -298,8 +309,10 @@ _BILLET_A4_PAGE = """<!doctype html>
   .cell .fold{width:21mm;flex:0 0 21mm;height:100%;position:relative;overflow:hidden;
               border-right:1px dashed var(--red);
               background:repeating-linear-gradient(45deg,#fffaf0,#fffaf0 2mm,#f2dcdc 2mm,#f2dcdc 4mm)}
-  /* 56mm = largeur AVANT rotation = hauteur visible une fois pivoté (calée
-     sur les 60mm de la cellule). La contrainte réelle est inverse : la
+  /* 66mm = largeur AVANT rotation = hauteur visible une fois pivoté (calée
+     sur les 70mm de la cellule, marge de 4mm comme avant — seule la
+     cellule a grandi avec le passage à une planche A4 plein format, pas
+     cette marge de sécurité). La contrainte réelle est inverse : la
      HAUTEUR avant rotation devient la LARGEUR visible une fois pivoté —
      qui doit tenir dans les 21mm du .fold, sans quoi le contenu se retrouve
      rogné par overflow:hidden (constaté à l'impression). D'où l'hexa forcé
@@ -318,7 +331,7 @@ _BILLET_A4_PAGE = """<!doctype html>
      rotation (flex row), QR en dernier (axe X original croissant → axe Y
      final décroissant = vers le haut une fois pivoté) — vérifié par rendu
      réel, pas seulement par le calcul. */
-  .cell .fold .secret{position:absolute;top:50%;left:50%;width:56mm;
+  .cell .fold .secret{position:absolute;top:50%;left:50%;width:66mm;
               transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center center;
               display:flex;flex-direction:row;align-items:center;justify-content:center;gap:1.5mm;
               font-family:monospace;font-size:5pt;line-height:1.25;letter-spacing:0;
@@ -429,12 +442,12 @@ _BILLET_A4_PAGE = """<!doctype html>
      Zone 42mm+ (.vmain) : contenu principal, à l'abri du pli — texte
      contrat + QR OpenCollective/Zelkova, qui restent ENTIÈREMENT visibles
      quel que soit l'état du pli. */
-  .vcell{display:flex;align-items:stretch;height:60mm;border:1px dashed #999;
+  .vcell{display:flex;align-items:stretch;height:70mm;border:1px dashed #999;
               overflow:hidden;position:relative;background:#fff}
   .vcell .vflap{width:21mm;flex:0 0 21mm;position:relative;overflow:hidden;
               border-right:1px dashed var(--red);
               background:repeating-linear-gradient(45deg,#fffaf0,#fffaf0 2mm,#f2dcdc 2mm,#f2dcdc 4mm)}
-  .vcell .vflap-inner{position:absolute;top:50%;left:50%;width:56mm;
+  .vcell .vflap-inner{position:absolute;top:50%;left:50%;width:66mm;
               transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center center;
               display:flex;flex-direction:row;align-items:center;justify-content:center;gap:1.5mm;
               font-family:sans-serif;font-size:5pt;line-height:1.25;color:#333;
@@ -466,7 +479,11 @@ _BILLET_A4_PAGE = """<!doctype html>
        principe que printSide() sur /qr/postcard. */
     body.p-recto .verso-sheet{display:none!important}
     body.p-verso .sheet:not(.verso-sheet){display:none!important}
-    @page{size:A4 landscape;margin:8mm}
+    /* margin:0 — la feuille (.sheet) occupe toute la page physique : chaque
+       billet découpé au pointillé a son propre bord de coupe (cf. .cell{border})
+       jusqu'au bord du papier, sans marge blanche supplémentaire à gérer en
+       plus des pointillés pour aligner les 6 découpes. */
+    @page{size:A4 landscape;margin:0}
   }
 </style>
 </head>
@@ -512,13 +529,12 @@ __VERSO__
 # Open Source (opensource.html) : le choix de licence est le socle légal de
 # toute la coopérative, pas seulement de Made In Zion.
 _BILLET_VERSO_DEFAULT_TEXT = (
-    "G1FabLab : un Internet qui vous appartient, pas un cloud qui vous "
-    "facture. Ce billet est plus sûr qu'un billet classique : sa clé est "
-    "coupée en 3 morceaux — un seul ne vaut rien, et on vérifie sa valeur "
-    "d'un simple scan, sans UV ni loupe. Le Ẑen n'est pas spéculatif : "
-    "c'est la monnaie d'un bien commun, gérée par ses membres, pas par "
-    "une banque centrale. Logiciel libre, bien commun (AGPL-3.0 / CC "
-    "BY-SA) : rejoignez le mouvement sur astroport.one"
+    "G1FabLab : un Internet qui nous appartient, pas un cloud qui nous facture. "
+    "Le Ẑen est la monnaie d'usage des serveurs et stations gérés en commun par le "
+    "collectif Monnaie Libre (opencollective.com/monnaie-libre). Ce billet protège qui "
+    "le porte : son secret est scindé en 3 parts — une seule ne permet rien, et sa valeur "
+    "se vérifie d'un simple scan. Zéro compte bancaire, zéro spéculation : la monnaie "
+    "d'un bien commun citoyen (AGPL-3.0 / CC BY-SA). Rejoignez-nous sur astroport.one"
 )
 
 _BILLET_VERSO_CELL = """<div class="vcell">
