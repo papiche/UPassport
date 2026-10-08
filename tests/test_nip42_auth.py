@@ -14,7 +14,7 @@ Fix (hardened 2026-03)
 A. **Pubkey-bound marker** – named ``.nip42_auth_<hex_pubkey>`` so a marker for
    Alice cannot authenticate Bob (pubkey-confusion attack).
 
-B. **Short TTL** – 300 s (5 min) vs the old 1 h makes replay attacks harder.
+B. **Bounded TTL** – NIP42_MARKER_MAX_AGE (1 h, gros uploads) ; rejeu borné par A et C.
 
 C. **JSON content** – marker contains ``{"pubkey": "<hex>", "event_hash": "<id>",
    "created_at": <unix>}``; the embedded pubkey is cross-checked against the
@@ -25,7 +25,7 @@ D. **Dynamic challenge** – ``GET /api/nip42/challenge?npub=<npub>`` returns a
 
 • ``filter/22242.sh`` (relay write-policy plugin) creates the marker.
 • ``ajouter_media.sh`` also creates it as a fallback for direct uploads.
-• ``check_nip42_auth_local_marker()`` checks for that marker file (max 300 s).
+• ``check_nip42_auth_local_marker()`` checks for that marker file (max NIP42_MARKER_MAX_AGE).
 • ``check_nip42_auth()`` tries the local marker FIRST, then falls back to
   ``nostr_get_events.sh`` (strfry scan) and finally to a WebSocket REQ.
 
@@ -175,25 +175,27 @@ class TestCheckNip42AuthLocalMarker:
             result = self._run(self.check(bob_hex))
         assert result is False, "Alice's marker must not authenticate Bob"
 
-    # ── B. TTL (300 s) ────────────────────────────────────────────────────────
+    # ── B. TTL (NIP42_MARKER_MAX_AGE) ──────────────────────────────────────────────────────
 
     def test_expired_marker_returns_false(self, tmp_path):
-        """Marker older than 300 s (5 min) must be rejected."""
+        """Marker older than NIP42_MARKER_MAX_AGE must be rejected."""
         marker = tmp_path / _marker_name(self.HEX)
         _write_secure_marker(marker, self.HEX)
-        # Backdate by more than TTL (310 s > 300 s)
-        old_mtime = time.time() - 310
+        # Backdate past the TTL — lue depuis le code, jamais codée en dur
+        from services.nostr import NIP42_MARKER_MAX_AGE
+        old_mtime = time.time() - (NIP42_MARKER_MAX_AGE + 10)
         os.utime(marker, (old_mtime, old_mtime))
 
         with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
             result = self._run(self.check(self.HEX))
         assert result is False
 
-    def test_marker_within_300s_is_valid(self, tmp_path):
-        """Marker aged 299 s (just under 5 min) must still be valid."""
+    def test_marker_within_ttl_is_valid(self, tmp_path):
+        """Marker just under NIP42_MARKER_MAX_AGE must still be valid."""
+        from services.nostr import NIP42_MARKER_MAX_AGE
         marker = tmp_path / _marker_name(self.HEX)
         _write_secure_marker(marker, self.HEX)
-        recent = time.time() - 299
+        recent = time.time() - (NIP42_MARKER_MAX_AGE - 10)
         os.utime(marker, (recent, recent))
 
         with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):

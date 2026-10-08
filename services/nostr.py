@@ -346,8 +346,10 @@ async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
     A. **Pubkey-bound filename** – marker is named ``.nip42_auth_<hex_pubkey>``
        so a marker for Alice cannot authenticate Bob (pubkey-confusion attack).
 
-    B. **Short TTL** – 300 s (5 min) limits the window for replay attacks;
-       the old 3 600 s window gave an attacker an entire hour.
+    B. **Bounded TTL** – NIP42_MARKER_MAX_AGE (3 600 s). Ramené un temps à
+       300 s puis remonté : un upload volumineux (vidéo via ajouter_media.sh)
+       dépasse facilement 5 min. Le risque de rejeu reste borné par A et C
+       (marker lié à UNE pubkey, contenu JSON vérifié).
 
     C. **JSON content validation** – marker must contain ``pubkey`` and
        optionally ``event_hash`` fields. The pubkey is cross-checked against

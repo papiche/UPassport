@@ -26,13 +26,12 @@ UPassport utilise un **fichier marqueur local** créé par le plugin relay (`fil
 
 **Attaque bloquée :** Un attaquant qui intercepte un événement 22242 signé ne peut pas le rejouer car le nonce a déjà été consommé par l'API.
 
-### B. TTL trop long (1 heure → 5 minutes)
+### B. TTL du marker local (1 heure)
 
-| Avant | Après |
-|---|---|
-| `NIP42_MARKER_MAX_AGE = 3600` (1 heure) | `NIP42_MARKER_MAX_AGE = 300` (5 minutes) |
-
-**Attaque bloquée :** Un marker volé ou copié expire en 5 min, réduisant la fenêtre d'exploitation.
+`NIP42_MARKER_MAX_AGE = 3600` (1 heure). Une valeur de 300 s (5 minutes) a été
+essayée puis abandonnée : un upload volumineux (vidéo via `ajouter_media.sh`)
+dépasse facilement 5 minutes et échouait. La fenêtre de rejeu reste bornée par
+A (nonce à usage unique) et C (marker lié à une seule pubkey, contenu JSON vérifié).
 
 ### C. Confusion de pubkey (marker générique)
 

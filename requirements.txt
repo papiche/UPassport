@@ -5,7 +5,7 @@ aiofiles
 python-multipart
 python-magic
 websockets
-httpx
+httpx>=0.25,<0.28  # TestClient de starlette 0.36 (fastapi 0.110) passe Client(app=), retiré en httpx 0.28
 cachetools
 jinja2
 bech32

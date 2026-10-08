@@ -12,28 +12,48 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 FAKE_SCENE = """#!/bin/bash
-# faux generate_scene.sh : écrit progress.json comme le vrai, un plan par appel
-W=""; while getopts "w:" o; do W="$OPTARG"; done; shift $((OPTIND-1))
+# faux generate_scene.sh — MÊME interface que Astroport.ONE/IA/generators/generate_scene.sh :
+# options -w -c -i -p, progress.json {stage, shot, shots, message, started, updated, done}
+# (mode -i : job à 1 plan, ni finition ni assemblage). FAKE_SLEEP : durée d'un plan (s).
+W=""; I=""; while getopts "w:ci:p:h" o; do case $o in w) W="$OPTARG";; i) I="$OPTARG";; esac; done; shift $((OPTIND-1))
 N=$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))['shots']))" "$1")
-mkdir -p "$W"
+mkdir -p "$W"; T0=$(date +%s)
+prog() { echo "{\\"stage\\":\\"$1\\",\\"shot\\":$2,\\"shots\\":$3,\\"message\\":\\"$1\\",\\"started\\":$T0,\\"updated\\":$(date +%s),\\"done\\":[$4]}" > "$W/progress.json"; }
+if [ -n "$I" ]; then
+  f=$(printf "%02d" "$I"); sleep "${FAKE_SLEEP:-0}"; echo "take$I" > "$W/shot_$f.mp4"; prog done 0 1 0; exit 0
+fi
 for ((i=0;i<N;i++)); do
-  [ -s "$W/shot_0$i.mp4" ] || echo "clip$i" > "$W/shot_0$i.mp4"
-  echo "part$i" > "$W/part_0$i.mp4"
-  d=$(seq -s, 0 $i | sed 's/,$//')
-  echo "{\\"stage\\":\\"shot\\",\\"shot\\":$i,\\"shots\\":$N,\\"message\\":\\"plan $i\\",\\"done\\":[$d]}" > "$W/progress.json"
+  f=$(printf "%02d" $i); sleep "${FAKE_SLEEP:-0}"
+  [ -s "$W/shot_$f.mp4" ] || echo "clip$i" > "$W/shot_$f.mp4"
+  echo "part$i" > "$W/part_$f.mp4"
+  prog shot $i $N "$(seq -s, 0 $i | sed 's/,$//')"
 done
 echo "fin" > "$W/scene.mp4"
-echo "{\\"stage\\":\\"done\\",\\"shot\\":-1,\\"shots\\":$N,\\"message\\":\\"terminé\\",\\"done\\":[$(seq -s, 0 $((N-1)))]}" > "$W/progress.json"
+prog done -1 $N "$(seq -s, 0 $((N-1)) | sed 's/,$//')"
 """
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
+    # Bibliothèque ET bac à sable dans tmp_path : story_asset lit STORY_LIBRARY_DIR
+    # indépendamment de SCENES_DIR (cf. tools/story_asset.py).
     monkeypatch.setenv("SCENES_DIR", str(tmp_path / "scenes"))
+    monkeypatch.setenv("STORY_LIBRARY_DIR", str(tmp_path / "scenes" / "library"))
+    # Rechargement réel : si un autre test a déjà importé l'app (test_api.py),
+    # `from routers import story` renverrait l'ATTRIBUT du paquet, figé sur les
+    # vrais chemins (~/.zen/workspace/scenes), même après sys.modules.pop.
+    import routers
+    import services
     for m in ("story_asset", "services.story_render", "routers.story"):
         sys.modules.pop(m, None)
-    from routers import story
+    for pkg, attr in ((services, "story_render"), (routers, "story")):
+        if hasattr(pkg, attr):
+            delattr(pkg, attr)
+    story = importlib.import_module("routers.story")
     sr, sa = story.story_render, story.story_asset
+    # Garde-fou : ne JAMAIS écrire dans la vraie bibliothèque du Capitaine.
+    for p in (sa.SCENES, sa.LIBRARY, sa.KEYRING, sa.RENDERS, sr.RENDERS_DIR, sr.JOBS_DIR):
+        assert str(p).startswith(str(tmp_path)), f"chemin réel non isolé : {p}"
     blobs, events = {}, []
 
     def fake_add(payload, name):
@@ -168,10 +188,49 @@ def test_coop_render_is_announced(client):
     assert ev["renders"][0]["version_cid"] == sc
 
 
-def test_queue_one_at_a_time(client):
-    sc = mk(client, "scene", "Q")
-    a = client.post(f"/api/story/asset/{sc}/render", json={}).json()
-    b = client.post(f"/api/story/asset/{sc}/render", json={}).json()
+def test_queue_one_at_a_time(client, monkeypatch):
+    """Une seule carte graphique : un 2e rendu (autre scène) attend son tour — cf. story.html
+    « En attente : un autre rendu occupe la carte graphique ». La MÊME scène, elle, est refusée
+    (répertoire de travail partagé) et story.html affiche le message d'erreur."""
+    monkeypatch.setenv("FAKE_SLEEP", "2")
+    sa_, sb_ = mk(client, "scene", "Q"), mk(client, "scene", "R")
+    a = client.post(f"/api/story/asset/{sa_}/render", json={}).json()
+    b = client.post(f"/api/story/asset/{sb_}/render", json={}).json()
     assert a["status"] == "running" and b["status"] == "queued"
-    c = client.post(f"/api/story/jobs/{b['id']}/cancel").json()
-    assert c["status"] == "cancelled"
+    dup = client.post(f"/api/story/asset/{sa_}/render", json={})
+    assert dup.status_code == 400 and "déjà en cours" in dup.json()["detail"]
+    shot = client.post(f"/api/story/asset/{sa_}/render-shot", json={"index": 0})
+    assert shot.status_code == 400 and "déjà en cours" in shot.json()["detail"], shot.text
+    assert client.post(f"/api/story/jobs/{b['id']}/cancel").json()["status"] == "cancelled"
+    assert client.post(f"/api/story/jobs/{a['id']}/cancel").json()["status"] == "cancelled"
+
+
+def _wait(client, job_id):
+    for _ in range(100):
+        j = client.get(f"/api/story/jobs/{job_id}").json()
+        if j["status"] not in ("queued", "running"):
+            return j
+        time.sleep(0.1)
+    return j
+
+
+def test_render_single_shot_keeps_previous_take(client):
+    """« 🎬 Générer ce plan » (story.html) → generate_scene.sh -i : seul ce plan est refait, dans le
+    même répertoire de travail ; la prise précédente reste consultable (jamais écrasée)."""
+    sc = mk(client, "scene", "Plans")
+    sb = {"cast": {}, "shots": [{"prompt": "a"}, {"prompt": "b"}]}
+    sc2 = client.put(f"/api/story/asset/{sc}", json={"changes": {"storyboard.json": {"text": json.dumps(sb)}}}).json()["cid"]
+    assert _wait(client, client.post(f"/api/story/asset/{sc2}/render", json={}).json()["id"])["status"] == "done"
+
+    job = client.post(f"/api/story/asset/{sc2}/render-shot", json={"index": 1}).json()
+    assert job["kind"] == "shot"
+    j = _wait(client, job["id"])
+    assert j["status"] == "done", j
+    assert client.get(f"/api/story/jobs/{job['id']}/file", params={"name": "shot_01.mp4"}).content == b"take1\n"
+    takes = client.get(f"/api/story/asset/{sc2}/shot/1/takes").json()["takes"]
+    assert len(takes) == 1
+    old = client.get(f"/api/story/asset/{sc2}/shot/1/takes/{takes[0]['id']}/file")
+    assert old.content == b"clip1\n"
+    # le plan 0 n'a pas été recalculé
+    assert client.get(f"/api/story/jobs/{job['id']}/file", params={"name": "shot_00.mp4"}).content == b"clip0\n"
+    assert client.post(f"/api/story/asset/{sc2}/render-shot", json={"index": 5}).status_code == 400
