@@ -19,3 +19,4 @@ a2wsgi==1.10.10  # Pont WSGI→ASGI du montage /dav (remplace starlette.middlewa
 cryptography     # AES-256-GCM — utilisé par Astroport.ONE/tools/uenc_codec.py
 Pillow           # Extraction GPS EXIF au PUT /dav (services/cloud_storage.py) — était transitif via robohash, déclaré explicitement
 numpy            # Projection PCA 2D des visages (routers/mailjet.py::_pca_2d, vue nébuleuse p5.js) — était transitif, déclaré explicitement
+pillow-heif  # facultatif : miniatures et EXIF des photos HEIC (iPhone)

@@ -79,10 +79,12 @@ templates/        ← Jinja2 HTML templates
 Enrôlement seul : le transfert de fichiers passe par le montage WebDAV `/dav/`
 (cf. `services/cloud_storage.py`), pas par un endpoint JSON.
 - `POST /api/cloud/enroll` — Délivre/**renouvelle** le token Basic Auth WebDAV (auth NIP-98, NIP-42 en repli). Retourne `{dav_url, email, token, instructions}` ; `dav_url` est dérivé dynamiquement de `uSPOT` (`my.sh`), jamais codé en dur. Génère un NOUVEAU token — déconnecte tout client DAV déjà monté avec l'ancien
-- `GET  /api/cloud/status` — `{enrolled, dav_url, files, bytes, max_file_size}` — ne révèle jamais le token
+- `GET  /api/cloud/status` — `{enrolled, dav_url, files, bytes, max_file_size, faceid, received, reprocess}` — ne révèle jamais le token. `faceid` = compte des images PROPRES par statut d'analyse (`faces`/`no_face`/`pending`/`timeout`/`none` = jamais analysée), `received` = copies reçues d'amis (`origin: facecloud-share`, jamais analysées), `reprocess` = progression de `faceid_reprocess.py` (`running` recoupé avec le PID)
+- `POST /api/cloud/faceid-reprocess` — lance `faceid_reprocess.py <email>` en arrière-plan (rattrapage silencieux, voir plus bas) ; 409 si déjà en cours
+- `POST /api/cloud/thumbnails` — miniatures de PLUSIEURS images (`paths` = tableau JSON, 40 max, `size` ≤ 400) → `{thumbs:{path: data URL JPEG}}` : une seule signature NIP-98 pour une page de galerie ; décodage JPEG réduit (`Image.draft`), cache mémoire LRU 3000 entrées, jamais de clair sur disque
 - `POST /api/cloud/reveal` — Retourne le token **EXISTANT** (même réponse qu'`enroll`) sans le renouveler. Même garde NIP-98/NIP-42 que les autres routes : cette preuve de possession de la clé MULTIPASS donne de toute façon un accès complet à `/dav/` en direct (NIP-98 est un des deux mécanismes d'auth acceptés par le montage DAV lui-même), donc révéler le token Basic Auth à ce même appelant n'élargit aucun accès — ça évite juste à l'utilisateur de devoir régénérer (et donc déconnecter ses clients existants) s'il veut juste remonter le disque sur un nouvel appareil
 - `POST /api/cloud/revoke` — Supprime le token (déconnecte les clients montés) ; fichiers et clés intacts
-- `GET  /api/cloud/files` — Liste TOUS les fichiers de `.ucloud/index.json` (pas de filtrage FaceID) : `{files:[{path, mime, size, mtime, tags, readonly, faceid_status}]}`, triés par date décroissante. `faceid_status` (`"no_face"` ou absent) distingue « analysé, aucun visage » de « pas encore analysé ». Alimente la section « Mes fichiers » de FaceCloud (galerie brute du disque, indépendante de ce qui a été catalogué)
+- `GET  /api/cloud/files` — Liste TOUS les fichiers de `.ucloud/index.json` (pas de filtrage FaceID) : `{files:[{path, mime, size, mtime, tags, readonly, faceid_status, faces, from_name}]}`, triés par date décroissante. `faceid_status` : `faces` (+ `faces` = nombre détecté), `no_face`, `pending`/`timeout` (rattrapage), absent = pas encore analysé ; `from_name` = expéditeur d'une copie reçue. Alimente l'onglet Photos de FaceCloud
 - `POST /api/cloud/files/delete` — Suppression groupée (multipart `paths`, tableau JSON de chemins, 200 max) depuis la section « Mes fichiers » (cases à cocher + `deleteSelectedGalleryFiles()`). Entrées en lecture seule (partagées) ignorées et renvoyées dans `skipped_readonly`
 - `GET  /api/cloud/thumbnail?path=…` — Miniature JPEG (300×300 max) de N'IMPORTE QUEL fichier image de l'index, déchiffrée à la volée (`ipfs_cat` + `uenc_codec.decrypt_aes256gcm`, jamais persistée en clair). Contrairement à `/mailjet/faces|inventory/thumbnail`, ne requiert aucun catalogage préalable — fonctionne sur toute image présente sur `/dav/`
 
@@ -110,6 +112,92 @@ bas et la section « Importer depuis un autre cloud » de `ucloud.html` :
   discipline fire-and-forget que `_trigger_faceid_analysis()`) ; répond
   immédiatement, le résultat apparaît dans `last_sync` au prochain `GET`
 
+- `GET  /api/cloud/backup` · `POST /api/cloud/backup` · `POST /api/cloud/backup/restore` — sauvegarde hors station du cloud (état / maintenant / restauration en FUSION depuis le relais, puis épinglage des fichiers en arrière-plan), via `ucloud_backup.py` en sous-processus (voir plus bas)
+
+### contacts.py + carddav.py — Carnet d'adresses FaceCloud (depuis 2026-10-12)
+Stockage unique `services/contacts_store.py` : chaque fiche est une vCard
+**chiffrée dans le cloud** sous `/Contacts/<nom>.vcf` (même AES-256-GCM que les
+photos, visible sur le disque monté ; `<nom>` = nom de ressource CardDAV,
+distinct de l'UID). Résumé chiffré `.ucloud/contacts.enc` (clé
+`.ucloud/contacts.key`, 0600 ; reconstruit seul s'il manque) pour la liste, et
+journal de synchro RFC 6578 (compteur `sync`, jeton par fiche, suppressions
+récentes). Une fiche modifiée par le disque monté est réintégrée au prochain
+chargement (comparaison `sha256_plain`). Verrou dédié `.contacts.lock` (pas
+`index_lock`, qu'`ingest_plaintext` prend lui-même). `build()` réécrit une vCard
+3.0 en CONSERVANT les propriétés que l'interface n'édite pas (adresse,
+anniversaire, champs Apple/Google…).
+
+- **CardDAV** (`routers/carddav.py`, RFC 6352) : `/.well-known/carddav` → 301
+  `/carddav/` ; principal `/carddav/principal/`, home `/carddav/books/`, carnet
+  `/carddav/books/contacts/`. Auth Basic `email:dav_token` (mêmes identifiants
+  que `/dav`). REPORT `addressbook-multiget`, `addressbook-query` (tout le
+  carnet), `sync-collection` (jeton inconnu → 403 `valid-sync-token`) ; PUT avec
+  `If-Match` / `If-None-Match` (412), UID dupliqué → 409 `no-uid-conflict`.
+  Exclu du limiteur de débit (`core/middleware.py`). Testé : DAVx5 (parcours
+  rejoué dans `tests/test_contacts.py`)
+- **API** (`routers/contacts.py`, NIP-98) : `GET /api/contacts` (liste + adresse
+  de synchro + sources), `GET|POST|DELETE /api/contacts/item` (fiche ; photo
+  depuis un fichier ou depuis un visage `photo_point_id`, recadrage 512),
+  `POST /api/contacts/import-vcf`, `GET /api/contacts/export.vcf`,
+  `POST /api/contacts/discover` (découverte des carnets d'un serveur :
+  well-known → principal → home, `services/carddav_client.py` ; Google = OAuth,
+  non pris en charge : export .vcf), `GET|POST /api/contacts/sources`,
+  `DELETE …/{id}`, `POST …/{id}/sync` (import UNIDIRECTIONNEL ; une fiche
+  modifiée ici depuis l'import n'est jamais écrasée ni supprimée par le serveur
+  distant — `kept_local`), `POST /api/contacts/reconcile`
+- **Photos de contacts = visages de RÉFÉRENCE** : analysées en mode rapide
+  (`faceid.sh --batch`) quelques secondes après la dernière modification
+  (`schedule_face_refs`), point Qdrant `ref: "contact"` dans `faces_<hex>`
+  (le plus grand visage de la photo). Jamais affichés sur la table, jamais
+  rangés automatiquement, exclus de la recherche du matcher : ils ne servent
+  qu'au champ `maybe` de `GET /mailjet/faces` (`maybe.contact`, `maybe.email`)
+- Les visages portent le lien vers leur fiche (`contact` dans le payload Qdrant,
+  `faces-edit[-bulk]` paramètre `contact`, `-` = effacé)
+
+### facecloud.py — entrée dans FaceCloud (depuis 2026-10-12)
+- `GET  /api/facecloud/invitation/{token}` — PUBLIC : expéditeur, nombre de
+  photos, 4 aperçus recadrés, email masqué (le jeton de l'email prouve la
+  possession de l'adresse)
+- `POST /api/facecloud/start` (`email`, `claim`, `lang`, `lat`, `lon`) — avec
+  `claim` : MULTIPASS créé pour l'email DE L'INVITATION (l'email saisi est
+  ignoré), photos copiées AVANT la réponse (`process_pending_face_claims`),
+  clé renvoyée pour une connexion immédiate en mémoire ; compte déjà existant →
+  photos copiées, connexion par code PASS (aucune clé renvoyée). Sans `claim` :
+  comme `/g1/onboard`. Position : navigateur, sinon la station (`~/.zen/GPS`)
+- Expéditeurs bloqués : `.ucloud/blocked_senders.json`, vérifié dans
+  `cloud_storage.ingest_received` (statut `blocked`) donc pour TOUS les canaux ;
+  `POST /api/cloud/senders` (`hex`, `blocked`), liste dans `GET /api/cloud/status`
+
+### Cercles N1 / N2 — `routers/facecloud.py` + champ `via` (depuis 2026-10-13)
+Trace des liens « follow » NOSTR, bornée par construction (100 amis × 100 amis = 10 000 personnes : jamais renvoyés en bloc).
+- `GET /api/facecloud/circles[?refresh=1]` (NIP-98) — cercle 1 seulement : mes follows ET mes followers (`nostr_get_N1.sh`, `nostr_followers.sh`), avec `rel` : `mutual` (p2p, ils se suivent), `out` (je le suis seulement, 1→p), `in` (il me suit seulement, p→1) ; profil réduit (`name`, `display_name`, `email`, `npub` — jamais l'URL d'avatar ni la bio) ; plafond 600, mutuels d'abord ; `counts`. Cache 10 min, un seul calcul à la fois par clé.
+- `GET /api/facecloud/circles/via/{hex}?q=&offset=&limit=` (≤ 100) — les amis d'UN seul ami (le cercle 2 se charge à la demande, par introducteur), filtrables par nom/email côté serveur, ceux déjà dans mon réseau d'abord ; `rel: none` = inconnu de mon réseau.
+- **`via`** (payload Qdrant, paramètre de `faces-edit[-bulk]`, renvoyé par `GET /mailjet/faces`) : `@me` = je la connais directement (cercle 1), clé hex de l'introducteur = cercle 2, `n:<nom>` = introducteur pas encore dans NOSTR ; vide = inchangé, `-` = effacé. Hors NOSTR (juste un nom) ou avec email seul : une personne n'a pas de `pubkey` ; elle est dans NOSTR dès qu'elle a un MULTIPASS.
+
+### Galerie, doublons, aperçus (depuis 2026-10-13)
+- `GET /api/cloud/files/page?filter=all|faces|no_face|waiting|received&q=&offset=&limit=(≤500)&counts=1` — images, la plus récente d'abord (`COALESCE(taken_at, mtime)`, index `entries_taken`), total + `counts` par filtre ; `GET /api/cloud/files` (tout) reste pour compatibilité.
+- `GET /api/cloud/preview?path=&size=(400–2400)` — JPEG redimensionné pour la visionneuse, cache disque chiffré (`cloud_storage.thumb_cache_get/put`, clé `.ucloud/thumbcache.key`, `.ucloud/thumbcache/*.uenc`). `POST /api/cloud/thumbnails` utilise le même cache (instantané après un redémarrage).
+- `POST /api/cloud/have` (`hashes` = SHA-256 hex, 500 max) → `{present}` : l'interface n'envoie pas ce qui existe (compare `sha_orig` OU `sha_plain`).
+- `GET /api/cloud/duplicates[?summary=1]` — `exact` (même `COALESCE(sha_orig, sha_plain)`, SQL) et `near` (dHash `phash`, `ucloud_db.near_duplicates` : bandes 4×16 bits, distance ≤ 6, empreintes dégénérées ignorées, plafond de seau) ; chaque groupe a `keep` (la sienne d'abord, puis la plus lourde, la plus ancienne, le chemin le plus court). `POST /api/cloud/duplicates/scan` lance `ucloud_dedupe.py scan <email>` (empreinte des photos antérieures au schéma v2 ; progression `.ucloud/dedupe_scan.json`). Le nettoyage passe par `POST /api/cloud/files/delete`, qui oublie aussi les visages (Qdrant) de la copie supprimée.
+- `GET /api/cloud/senders`, `POST /api/cloud/senders/purge`.
+- `GET /api/cloud/geo?since=&until=` — carte : `points` (un par case de 0,01° : `lat`, `lon`, `n`, `first`, `last`, `cover`), `months` (AAAA-MM → nombre de photos géolocalisées), `scan` ; `files/page` accepte `since`, `until`, `lat`, `lon`. `ucloud_dedupe.py` complète aussi `taken_at` et `geo` des photos importées avant l'extraction EXIF (jamais d'écrasement). Schéma SQLite **v3** : colonnes `lat`/`lon` (rattrapées depuis `geo` du JSON) + index `entries_geo`.
+- `GET /api/cloud/memories?month=&day=&year=` — « souvenirs du jour » : une ligne par année passée (`year`, `ago`, `n`, `cover`, `since`, `until`, jour ± 1) ; `GET /api/cloud/events?offset=&limit=&min_photos=` — événements = suites de photos espacées de moins de 6 h (≥ 6 photos par défaut), récents d'abord (`since`, `until`, `n`, `cover`, `lat`, `lon`). `ucloud_db.memories()` / `events()` (dates seules, regroupement linéaire). L'envoi d'un événement ou d'une photo à une personne réutilise `POST /mailjet/person-send` avec les seuls `point_ids` (visages) présents sur ces photos : aucun paramètre nouveau.
+- `POST /api/cloud/photos/info` (`paths` = tableau JSON, 1000 max) — fiches (`files/page`) de chemins précis, plus récentes d'abord : alimente la frise d'une personne (tiroir de ucloud.html).
+- **Quotas d'espace** (`services/storage_quota.py`) : offre **MULTIPASS 10 Go** (NCARD = 1 Ẑ/sem) ou **ZenCard 128 Go** (NCARD + ZCARD = 5 Ẑ/sem ; ZenCard = `~/.zen/game/players/<email>/secret.dunikey`) ; surcharge capitaine : octets dans `<multipass>/.storage_quota`. Usage = `.ucloud` (SUM(size) de l'index SQLite, mémoïsé 60 s) + `APP/uDRIVE` (parcours mémoïsé 10 min). **Période de grâce** : au-delà du forfait (`over`), l'utilisateur reçoit UNE lettre (`templates/NOSTR/multipass_storage_grace.html`, envoyée par `NOSTRCARD.refresh.sh`, rappel tous les 30 jours, marqueur `.storage_grace_letter`) l'invitant à devenir parrain de l'infrastructure ẐEN (`sponsor_url` = https://opencollective.com/monnaie-libre/contribute, surcharge `OC_URL_PARRAIN`) ; la lettre, l'API et l'interface **ne disent jamais** jusqu'où va la grâce. Les NOUVEAUX fichiers ne sont refusés (`full`) qu'à partir de forfait × `STORAGE_GRACE_FACTOR` (2 par défaut) : `ingest_many` refuse AVANT de chiffrer/épingler (`QuotaExceeded`) ; DAV → **507**, `ingest_received`/`adopt_blob` → statut `quota` (la photo reste chez l'expéditeur), `webdav_import` s'arrête avec un message ; jamais de suppression ; fichiers < 256 Kio (carnet, descriptions) toujours acceptés. `GET /api/cloud/quota` (jauge, `over`, `full`, `upgrade`, `sponsor_url`) ; `ucloud_usage.py <email>` écrit `.storage_usage.json`, appelé chaque jour par `NOSTRCARD.refresh.sh` et additionné par `ZEN.ECONOMY.sh` (log « STOCKAGE » : grâce / bloqués, + `~/.zen/tmp/coucou/storage_usage.json`). Le prélèvement hebdomadaire NCARD/ZCARD reste celui de `NOSTRCARD.refresh.sh` / `PLAYER.refresh.sh` : le quota ne le modifie pas.
+- `POST /mailjet/person-invite-link` (`point_ids`, `name`) — invitation **par lien** (WhatsApp, Telegram, SMS, mail local, « Partager » du téléphone) : jeton ouvert (`open: true`, `to_email: ""`) dans `.face_invites/`, 7 jours, **usage unique**, portant toutes les photos des visages ; rend `{url, photos, expires_at}` (`GAFAM.html?claim=…` → `ucloud.html#demarrer&claim=…`). `GET /api/facecloud/invitation/{token}` ajoute `open` ; `POST /api/facecloud/start` prend alors l'email SAISI par l'invité ; `process_pending_face_claims(email, claim_token)` ne réclame une invitation ouverte que pour son jeton exact (jamais par simple correspondance d'email).
+- `GET /api/cloud/webdav-sources` renvoie aussi `refresh` (`analysis.refresh_info` : heure `.refresh_time` du MULTIPASS, `done_today`, `due`) ; `POST /api/facecloud/profiles` (kind 0 sur les relais préférés : station, NIP-65 kind 10002, swarm ; cache `~/.zen/game/profiles`) et `POST /api/facecloud/avatars` (vignettes JPEG servies par le serveur, téléchargement protégé contre le SSRF) — `services/nostr_profiles.py`.
+- Schéma SQLite **v2** : colonne `phash` + index `entries_taken` / `entries_phash`, ajoutés à chaud aux bases v1.
+
+### Réconciliation des identités — `services/identity_links.py`
+SEUL endroit qui décide que personne FaceCloud, fiche de contact et MULTIPASS
+sont la même personne. Annuaire des MULTIPASS sans requête réseau : comptes
+locaux, cache, et constellation (`~/.zen/tmp/swarm/*/TW/<email>/HEX`), 5 min.
+Règles : même clé NOSTR ou même email = lien **certain** (`exact`) ; même email
+**canonique** (`prenom+etiquette@d` ≡ `prenom@d`, casse ignorée — les points ne
+sont jamais retirés) = lien **proposé** (`alias`), confirmé par l'utilisateur.
+Une personne peut avoir plusieurs MULTIPASS en sous-adresses : l'interface
+fait choisir le compte destinataire.
+
 ### Montage `/dav` — WebDAV chiffré (services/cloud_storage.py)
 `54321.py` monte une app WSGI wsgidav via **a2wsgi** (`WSGIMiddleware`, PAS
 `starlette.middleware.wsgi` qui est déprécié) : les I/O IPFS bloquantes et le CPU
@@ -130,8 +218,7 @@ AES-GCM tournent dans un pool de threads, sans figer la boucle uvicorn.
 
 Stockage par utilisateur (tout en 0600, écritures atomiques sous `flock`) :
 ```
-~/.zen/game/nostr/{EMAIL}/.ucloud/index.json    chemin DAV ↔ CID ↔ métadonnées
-~/.zen/game/nostr/{EMAIL}/.ucloud/keyring.json  clé AES-256 par CID (JAMAIS dans l'index)
+~/.zen/game/nostr/{EMAIL}/.ucloud/ucloud.db     SQLite WAL : tables entries (chemin DAV ↔ CID ↔ métadonnées) et keyring (clé AES-256 par CID, JAMAIS dans entries)
 ~/.zen/game/nostr/{EMAIL}/.ucloud/dav_token     token Basic Auth opaque (256 bits)
 ~/.zen/game/nostr/{EMAIL}/.ucloud/webdav_sources.json  sources WebDAV externes (url/login/mdp/dossier)
 ~/.zen/tmp/ucloud_cache/                        clair éphémère (0700)
@@ -142,15 +229,27 @@ Stockage par utilisateur (tout en 0600, écritures atomiques sous `flock`) :
 restent INCHANGÉS. Ici rien n'est publié sur IPNS, et ce qui part vers IPFS est
 déjà chiffré.
 
-Interface : `UPlanet/earth/ucloud.html` — **FaceCloud**, page unique combinant
-activation + instructions de montage, envoi de photos (`PUT /dav/Photos/…`)
-et catalogue de visages (`/mailjet/faces*`). Tout y passe par un seul
-mécanisme d'auth : NIP-98, un event frais par appel. Trois flux d'envoi :
-« Ajouter des photos » (générique, détection auto), « Définir mon FaceID »
-et « Photos d'un ami » (enrôlement supervisé, cible choisie AVANT l'envoi —
-voir en-têtes `X-FaceID-Target-*` ci-dessus) — réduit les faux positifs par
-rapport à la détection auto seule.
-Tests : `tests/test_cloud_storage.py` (37 tests — index/keyring, contrat UENC,
+Interface : `UPlanet/earth/ucloud.html` — **FaceCloud** (refonte grand public
+2026-10-12, cf. `UPlanet/earth/CLAUDE.md`) : table de tri des visages en
+pochettes de personnes, envoi des photos à chacun, sources WebDAV, accès
+disque. Un seul mécanisme d'auth : NIP-98, un event frais par appel.
+L'enrôlement supervisé (`X-FaceID-Target-*`) sert au selfie « Votre visage »
+et à « Ajouter des photos de cette personne ».
+
+**Partage — `share_copy(owner_email, source_path, recipient_email, from_hex,
+from_name)` → `adopt_blob()`** (secret unifié, depuis 2026-10-13) : canal UNIQUE de partage local d'une photo
+vers le cloud d'un autre MULTIPASS de la station. Le destinataire référence le **MÊME bloc chiffré (même CID) avec
+la même clé** — plus de rechiffrement ni de nouvel `ipfs add` : une photo partagée à N comptes = UN CID, détenu
+(épinglé) par chaque station qui l'a reçue → vraie redondance au lieu de N blocs distincts. Entrée rangée sous
+`/Reçues/<expéditeur>/YYYY/MM/<nom>` (suffixe `-2`… sous verrou), idempotente par `sha256` (déjà présent
+n'importe où chez le destinataire → `duplicate`), métadonnées copiées (`cid`, `iv_hex`, `sha256_*`, `phash`,
+`taken_at`, jamais `geo`/`faceid`/`tags`). **Jamais d'analyse FaceID sur une copie reçue** (ping-pong).
+Compromis assumés : la clé d'UNE photo est connue de l'expéditeur et de ses destinataires (qui ont le clair) ;
+deux comptes qui partagent une photo deviennent corrélables (même CID). **Dépinglage** : `unpin_cids(cids, email)`
+ne dépingle un CID que si AUCUN autre compte de la station ne le référence (`cids_referenced_elsewhere`,
+lecture seule des bases voisines) — le démon IPFS n'a qu'un épinglage par CID. Utilisé par le matcher (via
+`ucloud_share.py`), `POST /mailjet/person-send` et la récupération après invitation.
+Tests : `tests/test_cloud_storage.py` (40 tests — index/keyring, contrat UENC, share_copy,
 pile DAV avec IPFS mocké et chiffrement réel).
 
 ⚠️ L'ancienne route `GET /cloud` (template `templates/cloud.html`, drive NOSTR
@@ -158,6 +257,25 @@ kind 1063/21/22) a été **supprimée** — elle n'avait rien à voir avec ce cl
 chiffré. `SIMPLE_UI_ROUTES` dans `routers/system.py` ne la déclare plus.
 `UPlanet/earth/cloud.html` (FaceCloud) a lui-même été renommé `ucloud.html`
 le 2026-10-02 — mettre à jour tout lien/bookmark existant.
+
+### Durcissement du cloud DAV (audit du 2026-10-13)
+- **NIP-98 lié à la requête** (`services/nostr.py::Nip98BindingMiddleware`, enregistré dans `54321.py`) : TOUT `Authorization: Nostr` doit porter un `method` et un chemin de `u` égaux à ceux de la requête (chemin seul, hôte ignoré — les proxies le réécrivent) ; sans tags `u`/`method` l'event reste accepté. Vérifié sur tous les clients de `UPlanet/earth` et de `generate_ipfs_structure.sh` (uDRIVE) : tous signent `u`/`method` de la requête émise, un event par appel. **Anti-rejeu** (un event = une requête pour une méthode qui modifie) seulement sous `NIP98_REPLAY_PREFIXES` (`/api/cloud`, `/api/contacts`, `/mailjet`, `/api/facecloud`, `/dav`) : `nostrFetch` ajoute un tag `nonce` aléatoire, sinon deux appels identiques dans la même seconde auraient le même id. `/dav` est vérifié par `cloud_storage.Nip98AuthMiddleware` (le middleware global l'ignore : double consommation sinon).
+- **Clé AES du FaceID par l'environnement** (`UCLOUD_DECRYPTION_KEY`), plus jamais en argv (visible dans `ps`) ; lanceurs bornés (`UCLOUD_FACEID_TRIGGERS`, 4) et erreurs journalisées.
+- **Ingestion** (`ingest_plaintext`) : EXIF (GPS, date) lu AVANT la normalisation d'orientation, qui conserve désormais EXIF et profil ICC ; `sha256_orig` (octets reçus) en plus de `sha256_plain` — l'import dédoublonne sur les deux ; `taken_at` (EXIF) exposé par `/api/cloud/files` ; mime générique (`application/octet-stream`) deviné par extension puis par les octets ; `._*`, `.DS_Store`, `Thumbs.db` jamais traités en photos ; image illisible → `faceid.status = "unreadable"` (jamais « en attente ») ; `unique=True` choisit le suffixe `-2`… SOUS `index_lock` ; blob dépinglé si l'écriture de l'index échoue.
+- **Lecture** : borne IPFS = taille réelle de l'entrée (`cipher_limit`), +`UENC_OVERHEAD` par défaut (un fichier de 20 Mo exactement n'était pas relisible) ; le clair du GET ne passe plus par le disque (`io.BytesIO`), plus de thread de purge.
+- **DAV** : `If-None-Match: *` → 412 (l'UI renomme au lieu d'écraser), MKCOL existant → 405, `Content-Length` > 20 Mo refusé avant lecture, en-têtes `nosniff` + `Content-Disposition: attachment` + CSP `sandbox` sur les GET, placeholders `cid: null` de plus d'1 h purgés, carte des dossiers construite une fois par requête (`build_children_map`).
+- **Verrous** : `sources_lock` (sources WebDAV, expéditeurs bloqués), un import par source (`.ucloud/.webdav_import_<id>.lock`, 409 côté API), noms de fichiers temporaires uniques (threads), JSON de l'index compact.
+- **Routes** : `files/delete` refuse `/` et `..` (400), tout le bloquant en `asyncio.to_thread`, miniatures par lot en parallèle (4) avec keyring chargé une fois, `/api/cloud/status` ne compte plus les placeholders.
+- **Sources WebDAV externes** : URL validée (http(s), boucle locale / link-local / réservé refusés ; LAN permis), redirections suivies à la main, URL des fichiers pourcent-encodée (`Photo: x.jpg`, `#`, `?`), téléchargement en flux borné (`WEBDAV_MAX_DOWNLOAD`, 200 Mo), parcours borné (cycles, profondeur, dossiers) et **du plus récent au plus ancien** quand `WALK_MAX_FILES` coupe, `dest_prefix` forcé sous `/Photos/` et unique par source, progression de l'import sauvée tous les 50 fichiers.
+- **Visages Qdrant** : `faces_follow_moves` (MOVE/renommage DAV → `source_path` mis à jour) et `faces_forget_paths` (DELETE DAV, `files/delete`, remplacement d'une photo par un autre contenu → points supprimés, par lots de 200) — best-effort, jamais d'exception.
+- **Import par lots** : `ingest_many` (UNE lecture + écriture d'index et de keyring pour N fichiers, tout-ou-rien, blobs dépinglés en cas d'échec) ; `webdav_import` commite par lots de 25 (`WEBDAV_IMPORT_BATCH`, 5 en mode relais, 96 Mo max par lot) — l'index est réécrit en entier à chaque commit (≈ 0,8 s à 50 000 photos), donc 25× moins de réécritures. Mesuré : 7 photos → 3 écritures avec des lots de 3.
+- **Lectures mémoïsées** : `index_ro` / `keyring_ro` / `children_ro` rendent un objet PARTAGÉ tant que le fichier garde sa signature (mtime_ns, taille, inode) — **lecture seule, ne jamais modifier** ; pour modifier : `load_index` sous `index_lock`. Utilisés par les requêtes DAV, `status`, `files`, miniatures, `read_plaintext`, `get_key_hex`.
+- **Index et keyring = SQLite** (`services/ucloud_db.py`, `.ucloud/ucloud.db` en WAL, 0600 ; stdlib seule, importable par le matcher). Tables `entries` (une ligne par chemin ; colonnes dérivées `parent`, `cid`, `mime`, `size`, `sha_orig`, `sha_plain`, `faceid_status`, `origin` ; `data` = l'entrée JSON complète), `keyring(cid → {key_hex})`, `meta(rev, updated_at, owner_hex…)`. **Invariant : tout ancêtre est un dossier explicite.** Mesuré à 50 000 photos : ingestion d'un fichier 15 ms (≈ 800 ms en JSON), `db_entry` 0,02 ms, dossier de 4 000 fichiers 1,3 ms, migration 2,4 s.
+  - **Chemins chauds** (une ligne, pas tout l'index) : `ingest_many`, `delete_paths`, `move_subtree`, `db_entry`, `db_children`, `get_key_hex`, `ucloud_db.patch_entry`, `ucloud_db.stats`, `count_under`, `find_by_hashes`. Le provider DAV ne charge plus l'index.
+  - **API historique conservée** : `load_index` / `save_index` / `load_keyring` / `save_keyring` (diff O(n)), `index_lock` (flock `.lock`, toujours pris EN PLUS de la transaction SQLite pour qu'un `load → modifier → save` ancien n'écrase pas une ligne insérée entre-temps). `index_ro`/`keyring_ro` : copies mémoïsées par `meta.rev`, lecture seule.
+  - **Migration automatique** au premier accès : `index.json` + `keyring.json` importés puis renommés `*.migrated-<date>` ; un index JSON illisible lève `RuntimeError` (jamais de base vide à sa place). `ucloud_db.export_json()` / `UPassport/ucloud_export.py <email> <dossier>` régénèrent le JSON historique (sauvegardes, `nostr_DESTROY_TW.sh`). `nostr_RESTORE_TW.sh` supprime `ucloud.db*` avant de recopier les JSON restaurés (réimportés à l'accès suivant).
+  - **Consommateurs migrés** : `satellite_face_matcher.py` (clé, tags, `faceid`, via `ucloud_db` trouvé dans `~/.zen/UPassport/services`, repli JSON si absent), `faceid_reprocess.py` (une ligne par marquage), `contacts_store`, `ucloud_backup`, `webdav_import`, `cloud_import`, `mailjet` (photo source), `facecloud`, routes `cloud.py`.
+- **Reste à faire** : pas de `Range` (format UENC mono-bloc) ; DNS rebinding non couvert pour les sources WebDAV.
 
 ### cloud_import.py — Import en masse (script CLI, hors API)
 Recopie un répertoire local (archives, export NextCloud…) vers le cloud
@@ -215,8 +333,8 @@ pour décision humaine (ré-analyser, ignorer, supprimer à la main).
 Consomme `.ucloud/webdav_sources.json` (géré par l'utilisateur depuis
 `ucloud.html`, voir `routers/cloud.py` plus haut) — ne configure rien
 lui-même. Invoqué par `Astroport.ONE/RUNTIME/NOSTRCARD.refresh.sh` une fois
-par jour et par compte (même patron que les scrapers de domaine : fichier
-marqueur `.done`, lancé en arrière-plan), ou directement par
+par jour et par compte (tâche de fond « FaceCloud quotidien » : import PUIS
+`ucloud_backup.py snapshot`, marqueur `facecloud_daily_<email>_<date>.done`), ou directement par
 `POST /api/cloud/webdav-sources/{id}/sync` pour un import immédiat.
 
 ```bash
@@ -225,8 +343,27 @@ python3 webdav_import.py <email> [--source-id ID] [--max N] [--dry-run] [--quiet
 Sans `--source-id` : traite TOUTES les sources de cet email (cas cron) ;
 avec : une seule (cas du bouton « Importer maintenant »).
 
-**Budget adaptatif, pas une constante par compte (le point sensible de
-cette fonctionnalité)** : la sérialisation des jobs FaceID (un seul à la
+**Analyse RAPIDE par défaut (depuis 2026-10-12)** : si ComfyUI est
+joignable en direct depuis la station (`faceid_reprocess.comfyui_reachable()`
+→ `comfyui.me.sh` : local, tunnel SSH ou P2P IPFS), les photos sont ingérées
+SANS job DM (`ingest_plaintext(…, trigger_faceid=False)`), puis analysées en
+un seul lot après chaque source par `faceid_reprocess.analyze_quick()`
+(`faceid.sh --batch` + matcher direct, ~1 photo/s, silencieux : pas de
+notification « visage inconnu »). Ce que le lot n'a pas pu traiter repart par
+le relais NOSTR. Le résultat est ajouté à `last_sync.analysis`
+(`{faces, no_face, timeout, relayed}`). Budget en mode rapide :
+`DAILY_STATION_QUICK_BUDGET = 6000` (env `WEBDAV_IMPORT_QUICK_BUDGET`) réparti
+entre les MULTIPASS, minimum 200 par passage — la file DM à TTL 30 min
+n'est plus en jeu. `--no-quick` force l'ancien chemin.
+
+**Parcours distant** : `webdav_client.walk_files()` est plafonné à
+`WALK_MAX_FILES = 50000` (env `WEBDAV_WALK_MAX`). Ce plafond compte TOUS les
+fichiers vus, déjà importés compris : à 2000 (valeur d'origine), une archive
+plus grosse restait figée pour toujours une fois ses 2000 premiers fichiers
+importés (constaté le 2026-10-12, `remote_capped: true`).
+
+**Budget relais NOSTR (sans ComfyUI direct) — adaptatif, pas une constante
+par compte (le point sensible de cette fonctionnalité)** : la sérialisation des jobs FaceID (un seul à la
 fois, flock GPU) est déjà assurée plus loin par `IA/generators/faceid.sh`
 côté Brain — une fois le modèle chargé (ComfyUI « chaud »), traiter un
 visage est rapide. Le vrai risque est le **TTL 30 min** du DM NOSTR
@@ -295,6 +432,83 @@ Résultat de chaque passage écrit dans `webdav_sources.json` via
 `cloud_storage.record_webdav_sync()` (`{at, imported, skipped, errors}`),
 lu par `ucloud.html` sans ré-exécuter l'import.
 
+### Partage entre stations — `services/node_share.py` (depuis 2026-10-12)
+Destinataire hébergé sur une AUTRE station de la constellation (station connue
+par `identity_links`, adresse `NODEHEX` lue dans `~/.zen/tmp/swarm/<IPFSNODEID>/12345.json`) :
+les photos ne partent plus en message NIP-17 adressé à la personne mais de
+station à station, sur le canal inter-NODE `ucloud_share`
+(`nostr_node_intercom.py`, NIP-44 entre stations, TTL 7 jours) : le MÊME bloc (CID + clé de la photo, rien n'est rechiffré ni réuploadé), UN message pour au plus 100
+photos `{to_email, to_hex, from_hex, from_name, items:[{cid,key,sha,name,mime}]}`.
+La station destinataire (`bro_dm_daemon.sh` → `ucloud_share.py --receive`)
+vérifie que l'email ET la clé sont hébergés chez elle, récupère le bloc auprès du swarm, le déchiffre avec la clé annoncée, contrôle l'empreinte, **recalcule** les métadonnées, **épingle le CID chez elle** et range sous `/Reçues/<expéditeur>/` (`cloud_storage.adopt_blob`, commun avec `share_copy`). Plus de copies temporaires côté expéditeur ; l'accusé `ucloud_share_ack` ne sert plus qu'aux anciennes stations. Un email récapitulatif au plus par
+(destinataire, expéditeur, jour). Repli NIP-17 seulement si la station est
+inconnue. Utilisé par le matcher (partage automatique) et `person-send`
+(`sent.mode = "node"`).
+
+### ucloud_share.py — partage FaceCloud (script CLI)
+Modes : copie locale (`<owner> <recipient> <from_hex> <from_name> <path>…`),
+`--remote <owner> <friend_hex> <from_name> <path>…` (canal inter-NODE, exit 3 si
+station inconnue), `--receive` / `--ack` (JSON sur stdin, appelés par
+`bro_dm_daemon.sh`).
+
+### ucloud_backup.py — sauvegarde et restauration du cloud (script CLI)
+```bash
+python3 ucloud_backup.py snapshot|export|restore|pin|status <email> [dossier] [--from-relay|--bundle D] [--no-qdrant]
+```
+Une seule implémentation pour : la sauvegarde **régulière**, qui vit dans
+`Astroport.ONE/RUNTIME/NOSTRCARD.refresh.sh` (une fois par jour et par compte,
+dans la MÊME tâche de fond que `webdav_import.py`, juste après lui, pour que la
+sauvegarde du jour contienne les photos importées du jour ; plus une
+sauvegarde finale SYNCHRONE `ucloud_final_backup` juste avant toute
+destruction — insolvabilité ou clé incompatible, y compris la suppression
+brutale de repli) ; l'archive de `nostr_DESTROY_TW.sh` (`export`, mêmes noms
+de fichiers qu'avant — ce script ne tourne qu'à la désactivation d'un compte,
+ce n'est pas un mécanisme de sauvegarde) ; la restauration
+(`nostr_RESTORE_TW.sh`, FaceCloud).
+Paquet : index, trousseau, sources WebDAV/CardDAV, état d'import, invitations
+en attente, catalogue Qdrant `faces_<hex>` — tout en 0600. `snapshot` : archive
+tar.gz chiffrée (clé neuve) sur IPFS + **UN** event kind 30078
+`d=facecloud:backup`, contenu NIP-44 pour soi-même `{cid, key, sha, at, counts}`
+(relais local + relay.copylaradio.com), remplacé à chaque version, ancienne
+archive désépinglée, rien de republié si le contenu n'a pas changé. Choix
+délibéré : pas un event par contact ou par fichier (moins de métadonnées
+visibles, un seul event à remplacer ou supprimer, pas de données de tiers
+répliquées dans toute la constellation). `restore` = FUSION (ce qui manque est
+ajouté, rien n'est écrasé) ; `pin` épingle tous les CID de l'index (prise de
+garde par la nouvelle station). Mesuré : 2037 fichiers + 1275 visages →
+3,7 Mo chiffrés, 3,3 s.
+
+### faceid_reprocess.py — rattrapage FaceID silencieux (script CLI)
+```bash
+python3 faceid_reprocess.py <email> [--quick] [--before ISO] [--status no_face,none,pending,timeout] [--parallel 6] [--wait 240] [--limit N] [--dry-run]
+```
+**`--quick`** (utilisé par `POST /api/cloud/faceid-reprocess`) : un seul
+`Astroport.ONE/IA/generators/faceid.sh --batch` parle DIRECTEMENT à ComfyUI
+(local, tunnel SSH ou P2P IPFS via `comfyui.me.sh`, vérifié UNE fois), le
+résultat est passé à `satellite_face_matcher.py` comme le ferait
+`bro_dm_daemon.sh` — sans aller-retour DM NOSTR. Mesuré le 2026-10-12 :
+~0,8 s par photo contre ~10 s (un appel unitaire de `faceid.sh` coûtait ~2,6 s
+de `my.sh` + ~4,3 s de `comfyui.me.sh` pour ~0,6 s d'inférence). Clairs
+déchiffrés dans un dossier 0700 sous `/tmp` (pas `~/.zen/tmp/`, purgé la nuit),
+6 d'avance au plus, supprimés aussitôt analysés. ComfyUI injoignable → repli
+automatique sur le relais NOSTR décrit ci-dessous. `--before ISO` ne reprend que
+les photos analysées avant cette date (évite de refaire un rattrapage partiel).
+
+Réanalyse les images PROPRES (pas les copies reçues) dont le statut est dans
+`--status`. Créé le 2026-10-12 après le bug `faceid.sh` qui marquait `no_face`
+toute photo réduite avant détection (> 1600 px). Fonctionnement :
+- pose `.ucloud/faceid_quiet_until` (epoch, prolongé à chaque tour, expire
+  seul) : `satellite_face_matcher.py::_quiet_mode()` suspend alors les
+  notifications « visage inconnu » et les envois NIP-17 inter-stations ; les
+  copies locales (`ucloud_share.py`) restent actives ;
+- au plus `--parallel` photos en vol : marquées `pending`, analyse déclenchée
+  par `cloud_storage._trigger_faceid_analysis()`, la suivante part quand le
+  matcher a écrit `faces`/`no_face` (ou `timeout` après `--wait`). Mesuré :
+  ~60 s par aller-retour (relève des DM par `bro_dm_daemon.sh`, pas le GPU),
+  d'où le parallélisme, loin du TTL 30 min de la file ;
+- progression dans `.ucloud/faceid_reprocess.json` (lue par
+  `GET /api/cloud/status`), une instance par compte (`.ucloud/.reprocess.lock`).
+
 ### system.py
 - `GET  /` — Statut station UPlanet (avec lat/lon/deg pour grille UMAP)
 - `GET  /health` — Health check
@@ -350,34 +564,41 @@ positifs (ex. `Inconnu_xxx` sur un détail d'image sans visage réel) lors
 d'un import de masse. Une image dont TOUTES les détections tombent
 sous le seuil suit le même chemin que « zéro visage détecté » (`_tag_ucloud_no_face()`) :
 - `GET  /mailjet/faces` — Liste
-  `[{id, name, pubkey, timestamp, has_photo, maybe, group_id, group_size, x, y}]`.
+  `[{id, name, pubkey, email, timestamp, has_photo, photo, sent, maybe, group_id, group_size, x, y}]`
+  (scroll Qdrant PAGINÉ, jusqu'à `_FACES_MAX=20000` points, `truncated` sinon ;
+  `photo` = `source_path`, `sent` = dernier envoi via `person-send`, `email` =
+  email de contact). Un visage est « nommé » s'il a une `pubkey` OU un nom ne
+  commençant pas par `Inconnu` (`_is_named()`).
   `maybe` (depuis 2026-09-25, pour les archives longue durée) : sur une entrée
   SANS pubkey, `{name, pubkey, score}` du visage déjà nommé le plus proche par
   cosinus quand le score tombe dans `[0.55, 0.82[` (sous le seuil de match
   automatique `satellite_face_matcher.MATCH_THRESHOLD`, mais assez proche pour
   être la même personne à un autre âge). `group_id`/`group_size` (depuis
-  2026-09-30) : regroupement ENTRE ELLES (union-find transitif, même seuil
-  `_MAYBE_SAME_MIN=0.55`) des entrées SANS pubkey — même personne détectée sur
-  plusieurs photos, mais pas encore identifiée du tout — présent seulement
-  quand la composante connexe compte ≥2 membres. `x`/`y` (depuis 2026-10-02) :
+  2026-09-30) : regroupement ENTRE ELLES des entrées non identifiées — depuis
+  le 2026-10-12 par k plus proches voisins MUTUELS (`_mutual_knn_groups()`,
+  k=8, cosinus ≥ `_MAYBE_SAME_MIN=0.55`, groupe > 120 redécoupé avec un seuil
+  relevé de 0,05) : l'ancien union-find transitif enchaînait A–B–C… en
+  groupes géants mélangeant plusieurs personnes. But : la même personne
+  détectée sur plusieurs photos, pas encore identifiée ; présent seulement
+  pour un groupe d'au moins 2 visages. `x`/`y` (depuis 2026-10-02) :
   projection PCA 2D de l'embedding (`_pca_2d()`, SVD numpy), normalisée dans
-  [-1, 1] — alimente la vue « nébuleuse » p5.js de `ucloud.html`. Les trois
-  sont calculés serveur (scroll Qdrant `with_vector: true`,
-  `_cosine()`/`_cluster_unnamed_faces()`/`_pca_2d()`, cf. `routers/mailjet.py`)
-  — les vecteurs 512D ne sont jamais renvoyés au client, et rien n'est
-  persisté dans Qdrant (recalculé à chaque appel). Garde-fous de performance
-  (Python pur, O(n²)) : `_CLUSTER_MAX_UNNAMED=400` visages sans pubkey
-  au-delà duquel le regroupement est ignoré (la liste reste utilisable, juste
-  sans suggestion) ; `_PCA_MAX_FACES=5000` visages au total au-delà duquel la
-  projection est ignorée (`x`/`y` à 0). UI : bandeau de suggestion +
-  regroupement visuel + nébuleuse dans `ucloud.html`
-- `POST /mailjet/faces-edit` — Nomme un visage / l'associe à un pubkey (64 hex)
+  [-1, 1] — ne sert plus qu'à ordonner les visages isolés sur la table de tri
+  (`face-board.js`, qui empile les grappes en disques) de `ucloud.html`. Les trois
+  sont calculés serveur par `_annotate_faces()` (numpy, produits matriciels
+  par blocs de 512, dans un thread — ~1,5 s pour 6000 visages ; plus de
+  plafond à 400 visages comme du temps du Python pur O(n²)) — les vecteurs
+  512D ne sont jamais renvoyés au client, et rien n'est persisté dans Qdrant
+  (recalculé à chaque appel). `maybe` compare aux visages NOMMÉS (clé OU nom).
+  UI : bandeau « est-ce X ? » + halos de groupe sur la table de tri de `ucloud.html`
+- `POST /mailjet/faces-edit` — Nomme un visage / l'associe à un pubkey (64 hex) et/ou un `contact_email` (vide = inchangé, `-` = effacé)
 - `POST /mailjet/faces-edit-bulk` — Même chose pour plusieurs `point_id` à la
-  fois (`point_ids` séparés par des virgules, 200 max) : un seul `set_payload`
+  fois (`point_ids` séparés par des virgules, 2000 max, `contact_email` idem) : un seul `set_payload`
   Qdrant sur toute la liste — permet d'attribuer une identité commune à un
   groupe suggéré (ou une sélection manuelle) en un seul appel NIP-98 plutôt
   qu'un aller-retour par photo
-- `POST /mailjet/faces-delete` — Oublie un visage (vecteur supprimé)
+- `POST /mailjet/faces-delete` — Oublie un ou plusieurs visages (`point_id`, ou `point_ids` séparés par des virgules, 2000 max ; vecteurs supprimés, photos conservées)
+- `POST /mailjet/faces/thumbs` — miniatures recadrées de PLUSIEURS visages (`point_ids`, 80 max, `size` 48–320 ; la table demande 96, puis 256 pour les visages affichés en grand au zoom) → `{thumbs:{id: data URL}}`. Mesuré sur 12 Mpx : ipfs cat ~90 ms, AES ~5 ms, décodage JPEG ~135 ms — le DÉCODAGE domine, d'où : chaque photo source décodée une seule fois pour tous ses visages du lot et à la résolution juste nécessaire (`_crop_faces()`, `Image.draft`), 4 photos en parallèle, et **cache disque CHIFFRÉ** (`.ucloud/thumbcache/*.uenc`, AES-256-GCM avec la clé du compte `.ucloud/thumbcache.key`, 0600 — jamais de clair sur disque). Lot de 80 : ~3,7 s à froid, instantané ensuite, y compris après redémarrage du service
+- `POST /mailjet/person-send` — « Envoyer ses photos » (`point_ids` d'une personne, `name`, `pubkey` OU `to_email`) : MULTIPASS sur cette station → `share_copy` de toutes les photos en tâche de fond + UN email récapitulatif ; MULTIPASS ailleurs (`search_for_this_email_in_nostr.sh`) → `satellite_face_matcher.py --send` (NIP-17, une photo par message) ; aucun MULTIPASS → invitation email (jeton `.face_invites/` 7 jours portant TOUTES les photos, aperçu des 4 premières). Mémorise `name`/`pubkey`/`email` et `sent:{at, mode, photos}` sur les points. Geste explicite : pas de condition de suivi mutuel (exigée seulement pour le partage AUTOMATIQUE du matcher). Remplace `POST /mailjet/faces-invite` (supprimée : 4 photos max, inconnus seulement). `process_pending_face_claims()` (après une création MULTIPASS locale) passe elle aussi par `share_copy` — plus d'enrôlement supervisé du destinataire sur des photos de groupe
 - `GET  /mailjet/faces/thumbnail?point_id=…` — Miniature JPEG recadrée sur
   `bbox` (marge 50%) à partir de `source_path` : résout l'entrée
   `.ucloud/index.json` du propriétaire → CID chiffré → clé `.ucloud/keyring.json`
@@ -385,10 +606,13 @@ sous le seuil suit le même chemin que « zéro visage détecté » (`_tag_uclou
   réponse JPEG directe. Jamais persistée en clair (même discipline que le
   GET `/dav/`). 404 si `source_path` absent (points pré-2026-09-20) ou si la
   photo/clé a depuis été supprimée du cloud chiffré.
-- `GET  /mailjet/faces/photo?point_id=…` — Même résolution que la miniature
-  ci-dessus, mais photo ENTIÈRE (pas de recadrage `bbox`), redimensionnée
-  ≤1024px (`_resize_full_jpeg()`) — aperçu au survol d'un point dans la vue
-  nébuleuse de `ucloud.html` (la vignette identifie le visage, cette route
+- `GET  /mailjet/faces/photo?point_id=…[&max_side=1024][&mark=1]` — Même
+  résolution que la miniature ci-dessus, mais photo ENTIÈRE, ≤`max_side` px
+  (256–2048 ; décodage réduit `_open_reduced()`), `mark=1` entoure le visage
+  d'une ellipse (le retrouver sur une photo de groupe). Cache MÉMOIRE de la
+  photo redimensionnée (80 entrées) : survoler plusieurs visages d'une même
+  photo ne la redéchiffre qu'une fois — aperçu au survol d'un point dans la vue
+  table de tri de `ucloud.html` (la vignette identifie le visage, cette route
   donne le contexte complet de la photo)
 
 Auth de ces 3 routes (`_faces_auth`) : **`Authorization: Nostr <event>` (NIP-98)**

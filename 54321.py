@@ -37,8 +37,9 @@ from core.middleware import RateLimitMiddleware
 # boucle d'événements uvicorn.
 from a2wsgi import WSGIMiddleware
 from services.cloud_storage import build_wsgi_dav_app
+from services.nostr import Nip98BindingMiddleware
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin, calendar, story
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, facecloud
 
 # Setup logging
 setup_logging()
@@ -72,6 +73,10 @@ if os.path.exists(zelkova_apk_path):
 # NIP-98 directe. Les fichiers sont chiffrés AES-256-GCM (format UENC) AVANT
 # d'atteindre IPFS — cf. services/cloud_storage.py.
 app.mount("/dav", WSGIMiddleware(build_wsgi_dav_app()), name="dav")
+
+# NIP-98 : l'event doit correspondre à la requête (méthode + chemin), anti-rejeu
+# sur le cloud — ajouté AVANT le reste pour rester le plus proche des routes.
+app.add_middleware(Nip98BindingMiddleware)
 
 # Add Rate Limiting Middleware
 app.add_middleware(RateLimitMiddleware)
@@ -115,6 +120,9 @@ app.include_router(nostr_sign.router)
 app.include_router(zine.router)
 app.include_router(node_admin.router)
 app.include_router(calendar.router)
+app.include_router(contacts.router)   # carnet FaceCloud (JSON, NIP-98)
+app.include_router(carddav.router)    # synchro téléphone/Thunderbird (CardDAV, Basic)
+app.include_router(facecloud.router)  # entrée FaceCloud : invitation + création MULTIPASS
 
 if __name__ == "__main__":
     import uvicorn

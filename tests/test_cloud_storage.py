@@ -90,22 +90,44 @@ class TestIndexIO(unittest.TestCase):
         back = cs.load_index(self.email)
         self.assertEqual(back["entries"]["/a.txt"]["cid"], "Qm1")
         self.assertEqual(back["owner_hex"], "deadbeef")
-        self.assertEqual(cs.index_path(self.email).stat().st_mode & 0o777, 0o600)
+        db = cs.ucloud_dir(self.email) / "ucloud.db"
+        self.assertEqual(db.stat().st_mode & 0o777, 0o600)
+        for side in ("ucloud.db-wal", "ucloud.db-shm"):
+            if (cs.ucloud_dir(self.email) / side).exists():
+                self.assertEqual((cs.ucloud_dir(self.email) / side).stat().st_mode & 0o777, 0o600)
 
-    def test_keyring_separate_and_0600(self):
-        """Le keyring est un FICHIER DISTINCT : une fuite de l'index seul
-        n'expose aucune clé de déchiffrement."""
+    def test_keyring_separate_table_and_export(self):
+        """Le keyring est une TABLE DISTINCTE : l'index complet n'expose aucune clé
+        (et l'export JSON de l'index non plus)."""
         cs.save_index(self.email, cs.empty_index())
         cs.save_keyring(self.email, {"Qm1": {"key_hex": "ab" * 32}})
-
-        self.assertNotEqual(cs.index_path(self.email), cs.keyring_path(self.email))
-        raw_index = cs.index_path(self.email).read_text()
-        self.assertNotIn("key_hex", raw_index)
-        self.assertNotIn("ab" * 32, raw_index)
-
-        self.assertEqual(cs.keyring_path(self.email).stat().st_mode & 0o777, 0o600)
+        idx_json = json.dumps(cs.load_index(self.email))
+        self.assertNotIn("key_hex", idx_json)
+        self.assertNotIn("ab" * 32, idx_json)
         self.assertEqual(cs.get_key_hex(self.email, "Qm1"), "ab" * 32)
         self.assertIsNone(cs.get_key_hex(self.email, "Qm-absent"))
+        out = _TMP / f"export-{time.time_ns()}"
+        res = cs.ucloud_db.export_json(cs.ucloud_dir(self.email), out)
+        self.assertEqual(res["keys"], 1)
+        self.assertNotIn("key_hex", (out / "index.json").read_text())
+        self.assertEqual((out / "keyring.json").stat().st_mode & 0o777, 0o600)
+
+    def test_migration_from_legacy_json(self):
+        """Un cloud existant (index.json + keyring.json) est importé au premier accès,
+        dossiers implicites matérialisés ; les anciens fichiers sont conservés renommés."""
+        d = cs.ensure_ucloud_dir(self.email)
+        (d / "index.json").write_text(json.dumps({"version": 1, "owner_hex": "ab" * 32, "entries": {
+            "/a/b/c.txt": {"type": "file", "cid": "Qm1", "size_plain": 5, "mime": "text/plain",
+                           "faceid": {"status": "faces"}}}}))
+        (d / "keyring.json").write_text(json.dumps({"Qm1": {"key_hex": "cd" * 32}}))
+        idx = cs.load_index(self.email)
+        self.assertEqual(idx["owner_hex"], "ab" * 32)
+        self.assertEqual(sorted(idx["entries"]), ["/a", "/a/b", "/a/b/c.txt"])
+        self.assertEqual(cs.get_key_hex(self.email, "Qm1"), "cd" * 32)
+        self.assertEqual(cs.db_children(self.email, "/a"), ["b"])
+        self.assertEqual(cs.ucloud_db.stats(d)["faceid"], {})   # pas une image
+        self.assertFalse((d / "index.json").exists())
+        self.assertTrue(list(d.glob("index.json.migrated-*")))
 
     def test_atomic_write_leaves_no_tmp(self):
         for i in range(5):
@@ -119,7 +141,7 @@ class TestIndexIO(unittest.TestCase):
         """Un index illisible doit lever, pas retourner un index vide en
         silence (ce qui masquerait une perte de données)."""
         cs.ensure_ucloud_dir(self.email)
-        cs.index_path(self.email).write_text("{ ceci n'est pas du json")
+        (cs.ucloud_dir(self.email) / "index.json").write_text("{ ceci n'est pas du json")
         with self.assertRaises(RuntimeError):
             cs.load_index(self.email)
 
@@ -413,7 +435,7 @@ class TestDavSmoke(unittest.TestCase):
 
         key_hex = cs.get_key_hex(EMAIL, entry["cid"])
         self.assertEqual(len(key_hex), 64)
-        self.assertEqual(cs.keyring_path(EMAIL).stat().st_mode & 0o777, 0o600)
+        self.assertEqual((cs.ucloud_dir(EMAIL) / "ucloud.db").stat().st_mode & 0o777, 0o600)
 
     def test_07_wrong_key_gives_500_not_plaintext(self):
         """Clé corrompue → 500, et surtout aucun clair partiel dans le corps."""
@@ -538,6 +560,1205 @@ class TestDavSmoke(unittest.TestCase):
         self.assertIsNone(cs.verify_basic_credentials("../../etc", token))
         self.assertTrue(cs.revoke_dav_token(email))
         self.assertIsNone(cs.verify_basic_credentials(email, token))
+
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Partage FaceCloud — share_copy (copie rechiffrée vers un autre MULTIPASS)
+# ═════════════════════════════════════════════════════════════════════════════
+class TestShareCopy(unittest.TestCase):
+    def setUp(self):
+        self.fake = FakeIPFS()
+        self._real = (cs.ipfs_add_bytes, cs.ipfs_cat, cs._trigger_faceid_analysis)
+        cs.ipfs_add_bytes = self.fake.add_bytes
+        cs.ipfs_cat = self.fake.cat
+        self.faceid_calls = []
+        cs._trigger_faceid_analysis = lambda *a, **k: self.faceid_calls.append(a)
+        stamp = time.time_ns()
+        self.owner = f"owner-{stamp}@example.com"
+        self.friend = f"friend-{stamp}@example.com"
+
+    def tearDown(self):
+        cs.ipfs_add_bytes, cs.ipfs_cat, cs._trigger_faceid_analysis = self._real
+
+    def test_copy_shares_the_same_encrypted_block_idempotent_and_silent(self):
+        cs.ingest_plaintext(self.owner, "/Photos/a.txt", b"photo-claire", content_type="text/plain")
+        src = cs.get_entry(cs.load_index(self.owner), "/Photos/a.txt")
+
+        res = cs.share_copy(self.owner, "/Photos/a.txt", self.friend, "ab" * 32, "fred")
+        self.assertEqual(res["status"], "copied")
+        self.assertTrue(res["path"].startswith("/Reçues/fred/"))
+        dst = cs.get_entry(cs.load_index(self.friend), res["path"])
+        self.assertEqual(dst["cid"], src["cid"], "secret unifié : MÊME CID, un seul bloc sur IPFS")
+        self.assertEqual(cs.get_key_hex(self.friend, dst["cid"]), cs.get_key_hex(self.owner, src["cid"]))
+        self.assertEqual(len(self.fake.blobs), 1, "aucun nouveau blob n'a été créé pour la copie")
+        self.assertEqual(dst["origin"], "facecloud-share")
+        self.assertNotIn("geo", dst)
+        self.assertEqual(cs.read_plaintext(self.friend, res["path"])[0], b"photo-claire")
+
+        again = cs.share_copy(self.owner, "/Photos/a.txt", self.friend, "ab" * 32, "fred")
+        self.assertEqual(again, {"status": "duplicate", "path": res["path"]})
+
+    def test_shared_cid_stays_pinned_until_nobody_references_it(self):
+        unpinned = []
+        real = cs.ipfs_unpin
+        cs.ipfs_unpin = lambda cid: unpinned.append(cid) or True
+        try:
+            cs.ingest_plaintext(self.owner, "/Photos/s.txt", b"partage", content_type="text/plain")
+            cid = cs.get_entry(cs.load_index(self.owner), "/Photos/s.txt")["cid"]
+            path = cs.share_copy(self.owner, "/Photos/s.txt", self.friend, "ab" * 32, "fred")["path"]
+            cs.delete_paths(self.owner, ["/Photos/s.txt"])
+            self.assertNotIn(cid, unpinned, "le destinataire référence encore ce CID : l'épinglage reste")
+            self.assertEqual(cs.read_plaintext(self.friend, path)[0], b"partage", "sa copie reste lisible")
+            cs.delete_paths(self.friend, [path])
+            self.assertIn(cid, unpinned, "plus personne ne le référence : dépinglé")
+            self.assertIsNone(cs.get_key_hex(self.friend, cid))
+        finally:
+            cs.ipfs_unpin = real
+
+    def test_received_image_never_triggers_faceid(self):
+        cs.ingest_plaintext(self.owner, "/Photos/b.jpg", b"\xff\xd8pas-une-vraie-image",
+                            content_type="image/jpeg")
+        self.faceid_calls.clear()
+        cs.share_copy(self.owner, "/Photos/b.jpg", self.friend, "cd" * 32, "fred")
+        self.assertEqual(self.faceid_calls, [],
+                         "une copie reçue analysée renverrait la photo à l'expéditeur (ping-pong)")
+
+    def test_same_name_different_content_is_not_overwritten(self):
+        cs.ingest_plaintext(self.owner, "/A/x.txt", b"un", content_type="text/plain")
+        cs.ingest_plaintext(self.owner, "/B/x.txt", b"deux", content_type="text/plain")
+        p1 = cs.share_copy(self.owner, "/A/x.txt", self.friend, "ef" * 32, "fred")["path"]
+        p2 = cs.share_copy(self.owner, "/B/x.txt", self.friend, "ef" * 32, "fred")["path"]
+        self.assertNotEqual(p1, p2)
+        self.assertTrue(p2.endswith("/x-2.txt"))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Durcissement (audit 2026-10-13) : ingestion, verrous, NIP-98, client WebDAV
+# ═════════════════════════════════════════════════════════════════════════════
+def _jpeg(orientation=1, gps=True, icc=None, size=(60, 40)):
+    from PIL import Image
+    im = Image.new("RGB", size, (200, 30, 30))
+    ex = im.getexif()
+    if orientation != 1:
+        ex[0x0112] = orientation
+    if gps:
+        from PIL import ExifTags
+        g = ex.get_ifd(ExifTags.IFD.GPSInfo)
+        g[1], g[2], g[3], g[4] = "N", (48.0, 51.0, 0.0), "E", (2.0, 21.0, 0.0)
+    buf = io.BytesIO()
+    kw = {"exif": ex.tobytes()}
+    if icc:
+        kw["icc_profile"] = icc
+    im.save(buf, "JPEG", **kw)
+    return buf.getvalue()
+
+
+class _IngestBase(unittest.TestCase):
+    def setUp(self):
+        self.fake = FakeIPFS()
+        self._real = (cs.ipfs_add_bytes, cs.ipfs_cat, cs._trigger_faceid_analysis, cs.ipfs_unpin)
+        cs.ipfs_add_bytes = self.fake.add_bytes
+        cs.ipfs_cat = self.fake.cat
+        self.faceid_calls, self.unpinned = [], []
+        cs._trigger_faceid_analysis = lambda *a, **k: self.faceid_calls.append(a)
+        cs.ipfs_unpin = lambda cid: self.unpinned.append(cid) or True
+        self.email = f"h{time.time_ns()}@example.com"
+
+    def tearDown(self):
+        cs.ipfs_add_bytes, cs.ipfs_cat, cs._trigger_faceid_analysis, cs.ipfs_unpin = self._real
+
+
+class TestStorageQuota(_IngestBase):
+    """Offre 10 Go / 128 Go (ZenCard) : on refuse le NOUVEAU au-delà du quota, jamais de suppression."""
+
+    def setUp(self):
+        super().setUp()
+        self.q = cs.storage_quota
+        self._small = self.q.SMALL_FREE
+        self.nd = cs.nostr_dir(self.email)
+        cs.ensure_ucloud_dir(self.email)
+        self.q.forget(self.nd)
+
+    def tearDown(self):
+        self.q.SMALL_FREE = self._small
+        self.q.forget(self.nd)
+        super().tearDown()
+
+    def limit(self, nbytes):
+        (self.nd / ".storage_quota").write_text(str(nbytes))
+        self.q.forget(self.nd)
+
+    def test_default_tiers_and_zencard(self):
+        st = self.q.status(self.nd, fresh=True)
+        self.assertEqual((st["tier"], st["quota"], st["zen_week"]), ("multipass", 10 * self.q.GO, 1))
+        self.assertEqual(st["upgrade"]["quota"], 128 * self.q.GO)
+        card = self.nd.parent.parent / "players" / self.email
+        card.mkdir(parents=True, exist_ok=True)
+        (card / "secret.dunikey").write_text("x")
+        try:
+            st = self.q.status(self.nd, fresh=True)
+            self.assertEqual((st["tier"], st["quota"], st["zen_week"]), ("zencard", 128 * self.q.GO, 5))
+            self.assertNotIn("upgrade", st)
+        finally:
+            (card / "secret.dunikey").unlink()
+
+    def test_grace_zone_then_refusal_and_existing_kept(self):
+        self.q.SMALL_FREE = 0
+        a, b, c = _photo(1), _photo(2), _photo(3)
+        # Forfait = la moitié du total : a+b dépassent le forfait (grâce) sans atteindre le seuil de refus (×2).
+        self.limit((len(a) + len(b) + len(c) - 1) // 2)
+        cs.ingest_plaintext(self.email, "/Photos/a.jpg", a, content_type="image/jpeg")
+        cs.ingest_plaintext(self.email, "/Photos/b.jpg", b, content_type="image/jpeg")
+        st = self.q.status(self.nd, fresh=True)
+        self.assertTrue(st["over"], "au-delà du forfait : période de grâce")
+        self.assertFalse(st["full"], "mais pas encore bloqué")
+        with self.assertRaises(self.q.QuotaExceeded):
+            cs.ingest_plaintext(self.email, "/Photos/c.jpg", c, content_type="image/jpeg")
+        self.assertIsNone(cs.db_entry(self.email, "/Photos/c.jpg"), "refusé : rien d'indexé")
+        self.assertIsNotNone(cs.db_entry(self.email, "/Photos/a.jpg"), "l'existant n'est jamais supprimé")
+        self.assertNotIn("hard", " ".join(st.keys()), "le seuil de refus n'est jamais exposé")
+        self.assertTrue(all(v != st["quota"] * 2 for v in st.values() if isinstance(v, int) and v), "ni le double du forfait")
+
+    def test_small_files_always_accepted(self):
+        self.limit(10)
+        cs.ingest_plaintext(self.email, "/Contacts/x.vcf", b"BEGIN:VCARD\nEND:VCARD\n", content_type="text/vcard")
+        self.assertIsNotNone(cs.db_entry(self.email, "/Contacts/x.vcf"))
+
+    def test_received_photo_reports_quota_status(self):
+        self.q.SMALL_FREE = 0
+        self.limit(2)
+        res = cs.ingest_received(self.email, _photo(4), "image/jpeg", "p.jpg", "ab" * 32, "Ami")
+        self.assertEqual(res["status"], "quota")
+
+    def test_usage_file_written_for_economy(self):
+        cs.ingest_plaintext(self.email, "/Photos/a.jpg", _photo(5), content_type="image/jpeg")
+        (self.nd / "APP" / "uDRIVE").mkdir(parents=True)
+        (self.nd / "APP" / "uDRIVE" / "f.bin").write_bytes(b"x" * 1000)
+        st = self.q.record(self.nd)
+        import json as _j
+        on_disk = _j.loads((self.nd / ".storage_usage.json").read_text())
+        self.assertEqual(on_disk["udrive"], 1000)
+        self.assertEqual(on_disk["used"], st["ucloud"] + 1000)
+        self.assertGreater(st["ucloud"], 0)
+
+
+class TestIngestHardening(_IngestBase):
+    def test_exif_gps_and_icc_survive_rotation(self):
+        icc = b"\x00" * 128
+        src = _jpeg(orientation=6, gps=True)
+        e = cs.ingest_plaintext(self.email, "/Photos/r.jpg", src, content_type="image/jpeg")
+        self.assertIsNotNone(e.get("geo"), "GPS lu AVANT la normalisation (rotation)")
+        self.assertAlmostEqual(e["geo"]["lat"], 48.85, places=2)
+        stored, _ = cs.read_plaintext(self.email, "/Photos/r.jpg")
+        from PIL import Image
+        im = Image.open(io.BytesIO(stored))
+        self.assertEqual(im.size, (40, 60), "image redressée")
+        self.assertEqual(im.getexif().get(0x0112, 1), 1)
+        self.assertTrue(im.getexif().get_ifd(0x8825), "EXIF GPS conservé dans l'image stockée")
+        self.assertNotEqual(e["sha256_plain"], e["sha256_orig"])
+        self.assertEqual(e["sha256_orig"], __import__("hashlib").sha256(src).hexdigest())
+
+    def test_generic_mime_is_resolved(self):
+        e = cs.ingest_plaintext(self.email, "/Photos/g.jpg", _jpeg(gps=False),
+                                content_type="application/octet-stream")
+        self.assertEqual(e["mime"], "image/jpeg")
+        self.assertEqual(len(self.faceid_calls), 1, "FaceID déclenché malgré octet-stream")
+        e2 = cs.ingest_plaintext(self.email, "/Photos/noext", _jpeg(gps=False), content_type="")
+        self.assertEqual(e2["mime"], "image/jpeg", "reconnu par les octets")
+
+    def test_junk_and_unreadable_never_reach_faceid(self):
+        cs.ingest_plaintext(self.email, "/Photos/._IMG.jpg", b"\x00\x05\x16\x07appledouble",
+                            content_type="image/jpeg")
+        cs.ingest_plaintext(self.email, "/Photos/faux.jpg", b"pas une image", content_type="image/jpeg")
+        self.assertEqual(self.faceid_calls, [])
+        idx = cs.load_index(self.email)
+        self.assertEqual(idx["entries"]["/Photos/faux.jpg"]["faceid"]["status"], "unreadable")
+
+    def test_unique_is_race_free(self):
+        errs = []
+
+        def put(i):
+            try:
+                cs.ingest_plaintext(self.email, "/Reçues/x/IMG_0001.jpg", f"contenu-{i}".encode(),
+                                    content_type="text/plain", unique=True)
+            except Exception as exc:       # pragma: no cover
+                errs.append(exc)
+        ts = [threading.Thread(target=put, args=(i,)) for i in range(8)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        self.assertEqual(errs, [])
+        files = [k for k, v in cs.load_index(self.email)["entries"].items() if v.get("type") == "file"]
+        self.assertEqual(len(files), 8, "aucun écrasement : 8 contenus → 8 fichiers")
+
+    def test_failed_commit_unpins_blob(self):
+        cs.ingest_plaintext(self.email, "/A/b", b"un fichier", content_type="text/plain")
+        with self.assertRaises(ValueError):          # /A/b est un fichier, pas un dossier
+            cs.ingest_plaintext(self.email, "/A/b/c.txt", b"x", content_type="text/plain")
+        self.assertEqual(len(self.unpinned), 1, "blob orphelin dépinglé")
+
+    def test_large_import_is_readable(self):
+        big = os.urandom(21 * 1024 * 1024)
+        cs.ingest_plaintext(self.email, "/Photos/pano.bin", big, content_type="application/x-big")
+        entry = cs.get_entry(cs.load_index(self.email), "/Photos/pano.bin")
+        self.assertGreater(cs.cipher_limit(entry), cs.MAX_FILE_SIZE)
+        self.assertEqual(cs.read_plaintext(self.email, "/Photos/pano.bin")[0], big)
+
+    def test_exact_max_size_cipher_fits_default_limit(self):
+        self.assertGreaterEqual(cs.MAX_FILE_SIZE + cs.UENC_OVERHEAD, cs.MAX_FILE_SIZE + 34)
+
+    def test_children_map_matches_list_children(self):
+        for p in ("/a/b/c.txt", "/a/d.txt", "/z.txt"):
+            cs.ingest_plaintext(self.email, p, b"x", content_type="text/plain")
+        idx = cs.load_index(self.email)
+        cmap = cs.build_children_map(idx)
+        for d in ("/", "/a", "/a/b"):
+            self.assertEqual(cmap.get(d, []), cs.list_children(idx, d))
+
+
+class TestAuthAndLocks(unittest.TestCase):
+    def test_basic_auth_non_ascii_password_is_refused_not_500(self):
+        email = f"na{time.time_ns()}@example.com"
+        cs.ensure_ucloud_dir(email)
+        cs.token_path(email).write_text(json.dumps({"token": "a" * 64}))
+        self.assertIsNone(cs.verify_basic_credentials(email, "é" * 10))
+        self.assertEqual(cs.verify_basic_credentials(email, "a" * 64), email)
+
+    def test_hex_map_cache(self):
+        email = f"hx{time.time_ns()}@example.com"
+        h = f"{time.time_ns():064x}"[-64:]
+        cs.nostr_dir(email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(email) / ".secret.nostr").write_text(f"NSEC=nsec1zzz; NPUB=npub1x; HEX={h};\n")
+        self.assertEqual(cs._parse_secret_nostr(cs.nostr_dir(email) / ".secret.nostr"),
+                         {"HEX": h, "NPUB": "npub1x"}, "le NSEC n'est jamais conservé")
+        cs._HEX_MAP_AT = 0.0
+        self.assertEqual(cs.email_for_hex(h), email)
+
+    def test_webdav_sources_concurrent_updates_are_not_lost(self):
+        email = f"ws{time.time_ns()}@example.com"
+        ts = [threading.Thread(target=cs.add_webdav_source,
+                               args=(email, f"s{i}", "https://x/", "u", "p", "", "/Photos/Import_S"))
+              for i in range(12)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        srcs = cs.load_webdav_sources(email)
+        self.assertEqual(len(srcs), 12, "aucune source perdue (read-modify-write sous verrou)")
+        prefixes = [s["dest_prefix"] for s in srcs]
+        self.assertEqual(len(set(prefixes)), 12, "un dossier de destination par source")
+        cs.record_webdav_sync(email, srcs[0]["id"], {"imported": 3})
+        self.assertEqual(len(cs.load_webdav_sources(email)), 12)
+
+    def test_dest_prefix_is_confined_under_photos(self):
+        self.assertTrue(cs.sanitize_dest_prefix("/Contacts", "abcdef123", []).startswith("/Photos/Import_"))
+        self.assertTrue(cs.sanitize_dest_prefix("/../etc", "abcdef123", []).startswith("/Photos/Import_"))
+        self.assertEqual(cs.sanitize_dest_prefix("/Photos/Mes", "abcdef123", []), "/Photos/Mes")
+
+    def test_nip98_binding_and_replay(self):
+        from services.nostr import check_nip98_binding
+        ev = lambda i, m="POST", u="https://h/api/cloud/files/delete": {
+            "id": i, "tags": [["u", u], ["method", m]]}
+        check_nip98_binding(ev("1" * 64), "POST", "/api/cloud/files/delete")
+        with self.assertRaises(ValueError):                       # rejeu
+            check_nip98_binding(ev("1" * 64), "POST", "/api/cloud/files/delete")
+        with self.assertRaises(ValueError):                       # autre méthode
+            check_nip98_binding(ev("2" * 64, m="GET"), "POST", "/api/cloud/files/delete")
+        with self.assertRaises(ValueError):                       # autre route
+            check_nip98_binding(ev("3" * 64, u="https://h/api/cloud/status"), "POST", "/api/cloud/enroll")
+        check_nip98_binding(ev("4" * 64, m="GET", u="https://h/x/dav/a%20b"), "GET", "/dav/a b")
+        check_nip98_binding(ev("4" * 64, m="GET", u="https://h/x/dav/a%20b"), "GET", "/dav/a b")  # GET rejouable
+        check_nip98_binding({"id": "5" * 64, "tags": []}, "POST", "/n/importe/quoi")   # tolérant sans tags
+
+
+class TestDavHardening(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from wsgidav.wsgidav_app import WsgiDAVApp
+        cls.email = f"dh{time.time_ns()}@example.com"
+        cs.nostr_dir(cls.email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(cls.email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={'cd' * 32};\n")
+        cs.ensure_ucloud_dir(cls.email)
+        cs.token_path(cls.email).write_text(json.dumps({"token": TOKEN}))
+        cls.fake = FakeIPFS()
+        cls._real = (cs.ipfs_add_bytes, cs.ipfs_cat, cs._trigger_faceid_analysis)
+        cs.ipfs_add_bytes, cs.ipfs_cat = cls.fake.add_bytes, cls.fake.cat
+        cs._trigger_faceid_analysis = lambda *a, **k: None
+        cls.app = staticmethod(cs._strip_duplicate_date_header(WsgiDAVApp(cs.build_wsgi_dav_config())))
+
+    @classmethod
+    def tearDownClass(cls):
+        cs.ipfs_add_bytes, cs.ipfs_cat, cs._trigger_faceid_analysis = cls._real
+
+    def call(self, method, path, body=b"", headers=None):
+        return call_wsgi(self.app, method, path, body, auth=(self.email, TOKEN), headers=headers)
+
+    def test_if_none_match_star_refuses_overwrite(self):
+        self.assertEqual(self.call("PUT", "/n.txt", b"un", {"If-None-Match": "*"})[0], 201)
+        self.assertEqual(self.call("PUT", "/n.txt", b"deux", {"If-None-Match": "*"})[0], 412)
+        self.assertEqual(self.call("GET", "/n.txt")[2], b"un", "contenu d'origine intact")
+
+    def test_mkcol_existing_is_405(self):
+        self.assertEqual(self.call("MKCOL", "/dossier")[0], 201)
+        self.assertEqual(self.call("MKCOL", "/dossier")[0], 405)
+
+    def test_get_has_download_headers_and_no_duplicate_date(self):
+        self.call("PUT", "/p.html", b"<script>1</script>", {"Content-Type": "text/html"})
+        st, hdrs, _ = self.call("GET", "/p.html")
+        h = {k.lower(): v for k, v in hdrs}
+        self.assertEqual(st, 200)
+        self.assertEqual(h["content-disposition"], "attachment")
+        self.assertEqual(h["x-content-type-options"], "nosniff")
+        self.assertIn("sandbox", h["content-security-policy"])
+        self.assertNotIn("date", h)
+
+    def test_oversize_declared_length_is_refused_early(self):
+        def lying(environ, start_response):       # annonce 20 Mo+1, n'en envoie qu'un octet
+            environ["CONTENT_LENGTH"] = str(cs.MAX_FILE_SIZE + 1)
+            return self.app(environ, start_response)
+        st, _, _ = call_wsgi(lying, "PUT", "/gros.bin", b"x", auth=(self.email, TOKEN))
+        self.assertEqual(st, 403)
+        self.assertNotIn("/gros.bin", cs.load_index(self.email)["entries"])
+
+    def test_octet_stream_photo_is_typed_as_image(self):
+        self.call("PUT", "/ph.jpg", _jpeg(gps=False), {"Content-Type": "application/octet-stream"})
+        self.assertEqual(cs.load_index(self.email)["entries"]["/ph.jpg"]["mime"], "image/jpeg")
+
+    def test_implicit_dir_and_propfind(self):
+        idx = cs.load_index(self.email)
+        idx["entries"]["/imp/licite/x.txt"] = {"type": "file", "cid": None, "mtime": 1}
+        cs.save_index(self.email, idx)
+        self.assertEqual(self.call("PROPFIND", "/imp", headers={"Depth": "1"})[0], 207)
+
+    def test_stale_ghost_placeholders_are_purged(self):
+        idx = cs.load_index(self.email)
+        idx["entries"]["/fantome.txt"] = {"type": "file", "cid": None, "mtime": 1}
+        cs.save_index(self.email, idx)
+        self.call("PUT", "/nouveau.txt", b"x")
+        self.assertNotIn("/fantome.txt", cs.load_index(self.email)["entries"])
+
+
+class TestWebdavClientHardening(unittest.TestCase):
+    def test_child_url_encodes_segments(self):
+        from services import webdav_client as wc
+        self.assertEqual(wc._child_url("https://h/dav", "a b/Photo: x#1?.jpg"),
+                         "https://h/dav/a%20b/Photo%3A%20x%231%3F.jpg")
+        self.assertEqual(wc._child_url("https://h/dav/", ""), "https://h/dav/")
+
+    def test_internal_addresses_are_refused(self):
+        import asyncio
+        from services import webdav_client as wc
+        for url in ("http://127.0.0.1:5001/", "http://169.254.169.254/latest", "ftp://x/", "http://[::1]/"):
+            with self.assertRaises(wc.WebdavError, msg=url):
+                asyncio.run(wc.validate_remote_url(url))
+
+    def test_walk_keeps_newest_when_capped_and_survives_cycles(self):
+        import asyncio
+        from services import webdav_client as wc
+        tree = {"": [{"name": y, "path": y, "is_dir": True, "size": 0, "mtime": None} for y in ("2007", "2026", "loop")],
+                "loop": [{"name": "loop", "path": "loop", "is_dir": True, "size": 0, "mtime": None}]}
+        for y in ("2007", "2026"):
+            tree[y] = [{"name": f"{i}.jpg", "path": f"{y}/{i}.jpg", "is_dir": False, "size": 1, "mtime": None}
+                       for i in range(3)]
+        real = wc.list_folder
+
+        async def fake(root, u, p, path="", timeout=20.0):
+            return tree.get(path.strip("/"), [])
+        wc.list_folder = fake
+        try:
+            out = asyncio.run(wc.walk_files("https://h/", "u", "p", "", max_files=4))
+        finally:
+            wc.list_folder = real
+        paths = [e["path"] for e in out]
+        self.assertEqual(len(paths), 4)
+        self.assertTrue(all(p.startswith(("2026/", "2007/")) for p in paths))
+        self.assertEqual(paths[:3], ["2026/2.jpg", "2026/1.jpg", "2026/0.jpg"], "les plus récentes d'abord")
+
+
+class TestBatchAndReadCache(_IngestBase):
+    def test_ingest_many_writes_index_once(self):
+        writes = []
+        real = cs.ucloud_db.transaction
+        from contextlib import contextmanager
+
+        @contextmanager
+        def counting(udir):
+            writes.append(1)
+            with real(udir) as conn:
+                yield conn
+        cs.ucloud_db.transaction = counting
+        try:
+            items = [{"path": f"/B/f{i}.txt", "plaintext": f"c{i}".encode(), "content_type": "text/plain"}
+                     for i in range(20)]
+            res = cs.ingest_many(self.email, items)
+        finally:
+            cs.ucloud_db.transaction = real
+        self.assertEqual(len(writes), 1, "UNE transaction pour 20 fichiers")
+        self.assertEqual([r["path"] for r in res], [f"/B/f{i}.txt" for i in range(20)])
+        for i in (0, 19):
+            self.assertEqual(cs.read_plaintext(self.email, f"/B/f{i}.txt")[0], f"c{i}".encode())
+        self.assertEqual(len(cs.load_keyring(self.email)), 20)
+
+    def test_batch_same_path_unique_and_overwrite(self):
+        res = cs.ingest_many(self.email, [
+            {"path": "/U/a.txt", "plaintext": b"1", "content_type": "text/plain", "unique": True},
+            {"path": "/U/a.txt", "plaintext": b"2", "content_type": "text/plain", "unique": True}])
+        self.assertEqual([r["path"] for r in res], ["/U/a.txt", "/U/a-2.txt"])
+        # écrasement dans le même lot (unique=False) : le 1er blob est dépinglé, sa clé retirée
+        self.unpinned.clear()
+        res = cs.ingest_many(self.email, [
+            {"path": "/V/a.txt", "plaintext": b"1", "content_type": "text/plain"},
+            {"path": "/V/a.txt", "plaintext": b"2", "content_type": "text/plain"}])
+        self.assertEqual(self.unpinned, [res[0]["cid"]])
+        self.assertNotIn(res[0]["cid"], cs.load_keyring(self.email))
+        self.assertEqual(cs.read_plaintext(self.email, "/V/a.txt")[0], b"2")
+
+    def test_batch_failure_unpins_everything(self):
+        cs.ingest_plaintext(self.email, "/F/file", b"x", content_type="text/plain")
+        self.unpinned.clear()
+        with self.assertRaises(ValueError):
+            cs.ingest_many(self.email, [
+                {"path": "/G/ok.txt", "plaintext": b"1", "content_type": "text/plain"},
+                {"path": "/F/file/bad.txt", "plaintext": b"2", "content_type": "text/plain"}])
+        self.assertEqual(len(self.unpinned), 2)
+        self.assertNotIn("/G/ok.txt", cs.load_index(self.email)["entries"], "tout-ou-rien")
+
+    def test_ro_cache_is_shared_then_invalidated_by_a_write(self):
+        cs.ingest_plaintext(self.email, "/R/a.txt", b"a", content_type="text/plain")
+        i1, i2 = cs.index_ro(self.email), cs.index_ro(self.email)
+        self.assertIs(i1, i2, "même objet tant que le fichier n'a pas changé")
+        cs.ingest_plaintext(self.email, "/R/b.txt", b"b", content_type="text/plain")
+        i3 = cs.index_ro(self.email)
+        self.assertIsNot(i1, i3)
+        self.assertIn("/R/b.txt", i3["entries"])
+        self.assertEqual(cs.db_children(self.email, "/R"), ["a.txt", "b.txt"])
+        cid = i3["entries"]["/R/b.txt"]["cid"]
+        self.assertEqual(len(cs.get_key_hex(self.email, cid)), 64)
+        self.assertEqual(cs.index_ro(f"nouveau{time.time_ns()}@x.org")["entries"], {})
+
+
+class TestFacesFollowPaths(_IngestBase):
+    """Les points Qdrant suivent les chemins : MOVE → source_path mis à jour,
+    DELETE / remplacement → visages oubliés."""
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+        self._qp = cs._qdrant_post
+        cs._qdrant_post = lambda coll, route, body: self.calls.append((coll, route, body)) or True
+        cs.nostr_dir(self.email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(self.email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={'12' * 32};\n")
+
+    def tearDown(self):
+        cs._qdrant_post = self._qp
+        super().tearDown()
+
+    def test_overwrite_with_other_content_forgets_old_faces(self):
+        cs.ingest_plaintext(self.email, "/P/a.txt", b"v1", content_type="text/plain")
+        self.assertEqual(self.calls, [])
+        cs.ingest_plaintext(self.email, "/P/a.txt", b"v1", content_type="text/plain")   # même contenu
+        self.assertEqual(self.calls, [])
+        cs.ingest_plaintext(self.email, "/P/a.txt", b"v2", content_type="text/plain")
+        coll, route, body = self.calls[0]
+        self.assertEqual((coll, route), ("faces_" + "12" * 32, "points/delete"))
+        self.assertEqual(body["filter"]["must"][0]["match"]["any"], ["/P/a.txt"])
+
+    def test_subtree_paths_and_forget_batches(self):
+        for p in ("/D/x.txt", "/D/s/y.txt", "/E/z.txt"):
+            cs.ingest_plaintext(self.email, p, p.encode(), content_type="text/plain")
+        idx = cs.load_index(self.email)
+        self.assertEqual(sorted(cs.subtree_paths(idx, "/D")), ["/D/s/y.txt", "/D/x.txt"])
+        cs.faces_forget_paths(self.email, [f"/p/{i}.jpg" for i in range(450)])
+        self.assertEqual(len(self.calls), 3, "lots de 200")
+
+    def test_follow_moves(self):
+        cs.faces_follow_moves(self.email, {"/a.jpg": "/b.jpg", "/c.jpg": "/c.jpg"})
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.calls[0][2]["payload"], {"source_path": "/b.jpg"})
+
+
+class TestNip98Middleware(unittest.TestCase):
+    """Nip98BindingMiddleware : liaison sur toutes les routes, rejeu sur le cloud."""
+    def setUp(self):
+        import asyncio
+        from services import nostr as nz
+        self.nz, self.asyncio = nz, asyncio
+        self._real = nz._decode_and_verify_nip98_event
+        self.event = {}
+        nz._decode_and_verify_nip98_event = lambda h: self.event
+        calls = self.calls = []
+
+        async def app(scope, receive, send):
+            calls.append(scope["path"])
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"ok"})
+        self.mw = nz.Nip98BindingMiddleware(app)
+
+    def tearDown(self):
+        self.nz._decode_and_verify_nip98_event = self._real
+
+    def req(self, method, path, eid, tags, auth=True):
+        self.event = {"id": eid, "tags": tags}
+        out = []
+
+        async def send(m):
+            out.append(m)
+
+        async def receive():
+            return {"type": "http.request", "body": b""}
+        headers = [(b"authorization", b"Nostr xxx")] if auth else []
+        self.asyncio.run(self.mw({"type": "http", "method": method, "path": path, "headers": headers},
+                                 receive, send))
+        return out[0]["status"]
+
+    def test_binding_applies_everywhere(self):
+        t = [["u", "https://h/api/upload"], ["method", "POST"]]
+        self.assertEqual(self.req("POST", "/api/upload", "a" * 64, t), 200)
+        self.assertEqual(self.req("POST", "/api/upload", "b" * 64, [["u", "https://h/api/autre"], ["method", "POST"]]), 401)
+        self.assertEqual(self.req("DELETE", "/api/upload", "c" * 64, t), 401, "autre méthode")
+        self.assertEqual(self.req("POST", "/api/upload", "d" * 64, []), 200, "client sans tags toléré")
+
+    def test_replay_only_on_cloud_prefixes(self):
+        t = [["u", "https://h/api/upload"], ["method", "POST"]]
+        self.assertEqual(self.req("POST", "/api/upload", "e" * 64, t), 200)
+        self.assertEqual(self.req("POST", "/api/upload", "e" * 64, t), 200, "hors cloud : pas d'anti-rejeu")
+        c = [["u", "https://h/api/cloud/files/delete"], ["method", "POST"], ["nonce", "1"]]
+        self.assertEqual(self.req("POST", "/api/cloud/files/delete", "f" * 64, c), 200)
+        self.assertEqual(self.req("POST", "/api/cloud/files/delete", "f" * 64, c), 401, "rejeu refusé")
+
+    def test_dav_and_unauthenticated_are_passed_through(self):
+        self.assertEqual(self.req("PUT", "/dav/x", "9" * 64, [["method", "GET"]]), 200, "géré par le middleware DAV")
+        self.assertEqual(self.req("GET", "/n", "8" * 64, [], auth=False), 200)
+
+    def test_invalid_event_is_left_to_the_route(self):
+        def boom(h):
+            raise ValueError("bad sig")
+        self.nz._decode_and_verify_nip98_event = boom
+        self.assertEqual(self.req("POST", "/api/x", "7" * 64, []), 200)
+
+
+class TestEditWebdavSource(unittest.TestCase):
+    def setUp(self):
+        import asyncio
+        from routers import cloud
+        from services import webdav_client as wc
+        self.asyncio, self.cloud, self.wc = asyncio, cloud, wc
+        self.email = f"es{time.time_ns()}@example.com"
+        self.h = f"{time.time_ns():064x}"[-64:]
+        cs.nostr_dir(self.email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(self.email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={self.h};\n")
+        cs._HEX_MAP_AT = 0.0
+        self.src = cs.add_webdav_source(self.email, "Vieux", "https://a.example/dav/", "u", "secret", "Photos", "/Photos/Import_a")
+        self._real = (wc.validate_remote_url, wc.list_folder)
+        self.checked = []
+
+        async def ok_url(url):
+            return None
+
+        async def ok_list(url, user, pwd, path="", timeout=20.0):
+            self.checked.append((url, user, pwd, path))
+            return []
+        wc.validate_remote_url, wc.list_folder = ok_url, ok_list
+
+    def tearDown(self):
+        self.wc.validate_remote_url, self.wc.list_folder = self._real
+
+    def edit(self, **kw):
+        args = dict(label=None, url=None, username=None, password=None, remote_path=None)   # appel direct : pas de Form()
+        args.update(kw)
+        return self.asyncio.run(self.cloud.edit_webdav_source(None, self.src["id"], npub=self.h, **args))
+
+    def test_label_only_keeps_password_and_does_not_reconnect(self):
+        r = self.edit(label="Nouveau nom")
+        self.assertEqual(r.status_code, 200)
+        cur = cs.get_webdav_source(self.email, self.src["id"])
+        self.assertEqual((cur["label"], cur["password"], cur["dest_prefix"]), ("Nouveau nom", "secret", "/Photos/Import_a"))
+        self.assertEqual(self.checked, [], "rien à revalider")
+        self.assertNotIn("password", json.loads(r.body)["source"])
+
+    def test_new_folder_blank_password_is_validated_with_stored_password(self):
+        r = self.edit(remote_path="/Photos/2026/", password="")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.checked, [("https://a.example/dav/", "u", "secret", "Photos/2026")])
+        cur = cs.get_webdav_source(self.email, self.src["id"])
+        self.assertEqual((cur["remote_path"], cur["password"]), ("Photos/2026", "secret"))
+        self.assertIsNone(cur["last_sync"])
+
+    def test_refused_connection_changes_nothing(self):
+        async def boom(url, user, pwd, path="", timeout=20.0):
+            raise self.wc.WebdavError("identifiants refusés (401)")
+        self.wc.list_folder = boom
+        r = self.edit(password="mauvais", url="https://b.example/dav/")
+        self.assertEqual(r.status_code, 400)
+        cur = cs.get_webdav_source(self.email, self.src["id"])
+        self.assertEqual((cur["url"], cur["password"]), ("https://a.example/dav/", "secret"))
+
+    def test_browse_reuses_stored_password(self):
+        r = self.asyncio.run(self.cloud.browse_webdav(None, url="https://a.example/dav/", username="", password="",
+                                                      path="Photos", source_id=self.src["id"], npub=self.h))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.checked[-1][1:3], ("u", "secret"))
+
+    def test_unknown_source_is_404(self):
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as ctx:
+            self.asyncio.run(self.cloud.edit_webdav_source(None, "inconnue", label="x", url=None, username=None, password=None, remote_path=None, npub=self.h))
+        self.assertEqual(ctx.exception.status_code, 404)
+
+
+class TestCirclesRouter(unittest.TestCase):
+    """Cercles N1/N2 : la nature des liens, et un cercle 2 PAGINÉ (100 amis × 100 amis)."""
+    def setUp(self):
+        import asyncio
+        from routers import facecloud as fc
+        self.asyncio, self.fc = asyncio, fc
+        fc._circles_cache.clear()
+        h = lambda i: f"{i:064x}"
+        self.h, self.me = h, h(1)
+        self.follows = [h(i) for i in range(10, 110)]            # je suis 100 personnes
+        self.followers = [h(i) for i in range(60, 160)]          # 100 me suivent : 50 mutuels, 50 « in »
+        self.theirs = [h(i) for i in range(1000, 1100)] + [h(10), h(1)]   # les 100 amis d'UN ami (+ un N1 + moi)
+        self.calls = {"n1": 0}
+        self._real = (fc.get_n1_follows, fc.get_followers, fc.fetch_nostr_profiles)
+
+        async def n1(k):
+            self.calls["n1"] += 1
+            return self.follows if k == self.me else self.theirs
+
+        async def fol(k):
+            return self.followers
+
+        async def prof(keys):
+            return {k: {"name": f"N{int(k, 16)}", "display_name": "Marie Dupont" if int(k, 16) == 1005 else "",
+                        "email": "", "npub": "npub" + k[-6:], "picture": "http://x/y.png"} for k in keys}
+        fc.get_n1_follows, fc.get_followers, fc.fetch_nostr_profiles = n1, fol, prof
+
+    def tearDown(self):
+        self.fc.get_n1_follows, self.fc.get_followers, self.fc.fetch_nostr_profiles = self._real
+
+    def test_circle1_relations_and_no_avatar_url(self):
+        r = json.loads(self.asyncio.run(self.fc.circles(None, refresh=0, npub=self.me)).body)
+        rel = {l["pubkey"]: l["rel"] for l in r["links"]}
+        self.assertEqual(rel[self.h(10)], "out")          # je le suis seulement
+        self.assertEqual(rel[self.h(70)], "mutual")       # dans les deux listes
+        self.assertEqual(rel[self.h(150)], "in")          # il me suit seulement
+        self.assertEqual(r["counts"], {"out": 50, "in": 50, "mutual": 50})
+        self.assertNotIn("picture", json.dumps(r), "aucune URL d'avatar : la page ne charge rien d'extérieur")
+
+    def test_circle2_is_paginated_filtered_and_cached(self):
+        via = self.h(10)
+        r = json.loads(self.asyncio.run(self.fc.circles_via(None, via, q="", offset=0, limit=30, npub=self.me)).body)
+        self.assertEqual((len(r["items"]), r["total"], r["total_friends"]), (30, 100, 100))
+        self.assertNotIn(self.me, [i["pubkey"] for i in r["items"]], "ni moi ni l'introducteur")
+        r2 = json.loads(self.asyncio.run(self.fc.circles_via(None, via, q="", offset=90, limit=30, npub=self.me)).body)
+        self.assertEqual(len(r2["items"]), 10, "dernière page")
+        hit = json.loads(self.asyncio.run(self.fc.circles_via(None, via, q="marie", offset=0, limit=30, npub=self.me)).body)
+        self.assertEqual([i["display_name"] for i in hit["items"]], ["Marie Dupont"])
+        self.assertEqual(hit["items"][0]["rel"], "none", "inconnu de mon réseau")
+        self.assertEqual(self.calls["n1"], 2, "mes follows + ceux de l'ami, pas un appel par requête")
+
+
+def _photo(seed: int, size=(160, 120), quality=90, rot=False):
+    """Image à motifs aléatoires déterministes (un dégradé uni donnerait des dHash dégénérés)."""
+    import random
+    from PIL import Image, ImageDraw
+    rnd = random.Random(seed)
+    im = Image.new("RGB", (320, 240), (rnd.randrange(256), rnd.randrange(256), rnd.randrange(256)))
+    d = ImageDraw.Draw(im)
+    for _ in range(40):
+        x, y = rnd.randrange(320), rnd.randrange(240)
+        d.ellipse([x, y, x + rnd.randrange(10, 90), y + rnd.randrange(10, 90)],
+                  fill=(rnd.randrange(256), rnd.randrange(256), rnd.randrange(256)))
+    if size != (320, 240):
+        im = im.resize(size)
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=quality)
+    return buf.getvalue()
+
+
+class TestGalleryAndDuplicates(_IngestBase):
+    def setUp(self):
+        super().setUp()
+        self.udir = cs.ensure_ucloud_dir(self.email)
+
+    def put(self, path, data, **kw):
+        return cs.ingest_plaintext(self.email, path, data, content_type="image/jpeg", trigger_faceid=False, **kw)
+
+    def test_phash_is_stable_under_resize_and_recompression_but_not_across_images(self):
+        a = cs.compute_phash(_photo(1))
+        self.assertEqual(len(a), 16)
+        small = cs.compute_phash(_photo(1, size=(80, 60), quality=40))
+        dist = lambda x, y: bin(int(x, 16) ^ int(y, 16)).count("1")
+        self.assertLessEqual(dist(a, small), 6, "même photo réduite et recompressée")
+        self.assertGreater(dist(a, cs.compute_phash(_photo(2))), 12, "autre photo")
+
+    def test_exact_and_near_duplicates_and_keep_choice(self):
+        from routers import cloud
+        same = _photo(1)
+        self.put("/Photos/a.jpg", same)
+        self.put("/Photos/copie/a (1).jpg", same)                       # exact : mêmes octets
+        self.put("/Photos/mini.jpg", _photo(1, size=(80, 60), quality=40))   # quasi : réduite
+        self.put("/Photos/autre.jpg", _photo(2))
+        res = cloud._dup_groups(self.email)
+        self.assertEqual(len(res["exact"]), 1)
+        self.assertEqual(sorted(f["path"] for f in res["exact"][0]["files"]), ["/Photos/a.jpg", "/Photos/copie/a (1).jpg"])
+        self.assertEqual(res["exact"][0]["keep"], "/Photos/a.jpg", "à égalité : le chemin le plus court")
+        self.assertEqual(len(res["near"]), 1, "la version réduite est un quasi-doublon")
+        near = res["near"][0]
+        self.assertIn("/Photos/mini.jpg", [f["path"] for f in near["files"]])
+        self.assertNotEqual(near["keep"], "/Photos/mini.jpg", "on garde la plus lourde (la plus fidèle)")
+        self.assertNotIn("/Photos/autre.jpg", json.dumps(res))
+
+    def test_received_copy_is_never_the_one_kept(self):
+        from routers import cloud
+        same = _photo(3)
+        self.put("/Photos/mienne.jpg", same)
+        self.put("/Reçues/Maman/2026/10/x.jpg", same, extra={"origin": "facecloud-share", "from_name": "Maman"})
+        g = cloud._dup_groups(self.email)["exact"][0]
+        self.assertEqual(g["keep"], "/Photos/mienne.jpg")
+
+    def test_page_filters_counts_and_order(self):
+        for i in range(25):
+            self.put(f"/Photos/p{i:02d}.jpg", _photo(100 + i))
+        cs.ucloud_db.patch_entry(self.udir, "/Photos/p03.jpg", lambda e: e.update(faceid={"status": "faces", "count": 2}, taken_at=2000000000) or True)
+        cs.ucloud_db.patch_entry(self.udir, "/Photos/p04.jpg", lambda e: e.update(faceid={"status": "no_face"}) or True)
+        rows, total = cs.ucloud_db.page(self.udir, "all", "", 0, 10)
+        self.assertEqual((len(rows), total), (10, 25))
+        self.assertEqual(rows[0][0], "/Photos/p03.jpg", "date de prise de vue la plus récente d'abord")
+        self.assertEqual(cs.ucloud_db.page(self.udir, "faces")[1], 1)
+        self.assertEqual(cs.ucloud_db.page(self.udir, "no_face")[1], 1)
+        self.assertEqual(cs.ucloud_db.page(self.udir, "all", "p1_")[1], 0, "_ est littéral dans la recherche")
+        self.assertEqual(cs.ucloud_db.page(self.udir, "all", "p1")[1], 10)
+        c = cs.ucloud_db.gallery_counts(self.udir)
+        self.assertEqual((c["all"], c["faces"], c["no_face"], c["waiting"]), (25, 1, 1, 23))
+        page2, _ = cs.ucloud_db.page(self.udir, "all", "", 10, 10)
+        self.assertEqual(len(page2), 10)
+        self.assertFalse({p for p, _ in rows} & {p for p, _ in page2}, "pages disjointes")
+
+    def test_have_by_hash_matches_original_bytes_even_when_rotated(self):
+        import hashlib
+        data = _jpeg(orientation=6, gps=False)
+        self.put("/Photos/r.jpg", data)
+        h = hashlib.sha256(data).hexdigest()
+        self.assertEqual(cs.db_present_hashes(self.email, [h, "0" * 64, "pas-un-hash"]), [h])
+
+    def test_thumb_cache_is_encrypted_on_disk(self):
+        cs.thumb_cache_put(self.email, "QmCID", 240, b"\xff\xd8JPEG-MARQUEUR")
+        self.assertEqual(cs.thumb_cache_get(self.email, "QmCID", 240), b"\xff\xd8JPEG-MARQUEUR")
+        raw = b"".join(f.read_bytes() for f in (cs.ucloud_dir(self.email) / "thumbcache").glob("*.uenc"))
+        self.assertNotIn(b"MARQUEUR", raw, "jamais de clair sur disque")
+        self.assertIsNone(cs.thumb_cache_get(self.email, "QmCID", 400))
+
+    def test_v1_database_is_upgraded_in_place(self):
+        import sqlite3
+        d = cs.ucloud_dir(f"old{time.time_ns()}@x.org")
+        d.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(d / "ucloud.db")
+        c.executescript("""CREATE TABLE entries(path TEXT PRIMARY KEY, parent TEXT NOT NULL, type TEXT NOT NULL, cid TEXT, mime TEXT,
+            size INTEGER, mtime INTEGER, taken_at INTEGER, sha_orig TEXT, sha_plain TEXT, faceid_status TEXT, origin TEXT, data TEXT NOT NULL) WITHOUT ROWID;
+            CREATE TABLE keyring(cid TEXT PRIMARY KEY, data TEXT NOT NULL) WITHOUT ROWID;
+            CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT) WITHOUT ROWID;
+            INSERT INTO meta VALUES('migrated','1');
+            INSERT INTO entries(path,parent,type,cid,mime,data) VALUES('/a.jpg','/','file','Qm1','image/jpeg','{"type":"file","cid":"Qm1","mime":"image/jpeg"}');""")
+        c.commit(); c.close()
+        conn = cs.ucloud_db.connect(d)
+        self.assertIn("phash", {r[1] for r in conn.execute("PRAGMA table_info(entries)")})
+        self.assertEqual(cs.ucloud_db.page(d, "all")[1], 1)
+
+
+class TestNodeShareUnifiedSecret(_IngestBase):
+    """Entre stations : même CID, même clé ; la station destinataire vérifie puis ÉPINGLE."""
+    def setUp(self):
+        super().setUp()
+        from services import node_share
+        self.ns = node_share
+        self.owner = f"o{time.time_ns()}@example.com"
+        self.rcpt = f"r{time.time_ns()}@example.com"
+        for e, h in ((self.owner, "11" * 32), (self.rcpt, "22" * 32)):
+            cs.nostr_dir(e).mkdir(parents=True, exist_ok=True)
+            (cs.nostr_dir(e) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={h};\n")
+        cs._HEX_MAP_AT = 0.0
+        self.pinned, self.sent = [], []
+        self._real2 = (cs.ipfs_pin, node_share._intercom_send, node_share.node_hex_for)
+        cs.ipfs_pin = lambda cid, timeout=300.0: self.pinned.append(cid) or True
+        node_share._intercom_send = lambda to, ch, payload, ttl: self.sent.append((ch, payload)) or True
+        node_share.node_hex_for = lambda node: "33" * 32
+
+    def tearDown(self):
+        cs.ipfs_pin, self.ns._intercom_send, self.ns.node_hex_for = self._real2
+        super().tearDown()
+
+    def test_send_does_not_reencrypt_and_receive_pins_the_same_block(self):
+        cs.ingest_plaintext(self.owner, "/Photos/x.jpg", _photo(7), content_type="image/jpeg", trigger_faceid=False)
+        src = cs.db_entry(self.owner, "/Photos/x.jpg")
+        blobs_before = len(self.fake.blobs)
+        res = self.ns.send(self.owner, "Fred", {"email": self.rcpt, "hex": "22" * 32, "node": "N"}, ["/Photos/x.jpg"])
+        self.assertEqual(res, {"status": "sent", "photos": 1})
+        self.assertEqual(len(self.fake.blobs), blobs_before, "aucun blob créé à l'envoi")
+        msg = self.sent[0][1]
+        self.assertEqual(msg["items"][0]["cid"], src["cid"])
+        self.assertEqual(msg["items"][0]["key"], cs.get_key_hex(self.owner, src["cid"]))
+
+        out = self.ns.receive(msg)
+        self.assertEqual((out["status"], out["copied"], out["error"]), ("ok", 1, 0))
+        self.assertEqual(self.pinned, [src["cid"]], "la station destinataire épingle le bloc reçu")
+        got = cs.get_entry(cs.load_index(self.rcpt), next(iter(p for p, e in cs.load_index(self.rcpt)["entries"].items() if e.get("cid"))))
+        self.assertEqual(got["cid"], src["cid"])
+        self.assertEqual(got["size_plain"], src["size_plain"], "métadonnées recalculées, pas prises sur parole")
+        self.assertEqual(len(self.fake.blobs), blobs_before)
+
+    def test_receive_refuses_a_wrong_key_or_hash(self):
+        cs.ingest_plaintext(self.owner, "/Photos/y.jpg", _photo(8), content_type="image/jpeg", trigger_faceid=False)
+        src = cs.db_entry(self.owner, "/Photos/y.jpg")
+        base = {"to_email": self.rcpt, "to_hex": "22" * 32, "from_hex": "11" * 32, "from_name": "Fred"}
+        bad_key = dict(base, items=[{"cid": src["cid"], "key": "00" * 32, "sha": src["sha256_plain"], "name": "y.jpg"}])
+        bad_sha = dict(base, items=[{"cid": src["cid"], "key": cs.get_key_hex(self.owner, src["cid"]), "sha": "f" * 64, "name": "y.jpg"}])
+        for msg in (bad_key, bad_sha):
+            self.assertEqual(self.ns.receive(msg)["error"], 1)
+        self.assertEqual([e for e in cs.load_index(self.rcpt)["entries"].values() if e.get("cid")], [], "rien n'est rangé")
+
+
+class TestSendersRoutes(_IngestBase):
+    def test_senders_listing_and_purge_all_not_only_loaded_ones(self):
+        import asyncio
+        from routers import cloud
+        h = f"{time.time_ns():064x}"[-64:]
+        cs.nostr_dir(self.email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(self.email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={h};\n")
+        cs._HEX_MAP_AT = 0.0
+        for i in range(5):
+            cs.ingest_plaintext(self.email, f"/Reçues/Maman/2026/10/p{i}.jpg", _photo(300 + i), content_type="image/jpeg",
+                                trigger_faceid=False, extra={"origin": "facecloud-share", "from_hex": "ab" * 32, "from_name": "Maman"})
+        cs.ingest_plaintext(self.email, "/Photos/mienne.jpg", _photo(399), content_type="image/jpeg", trigger_faceid=False)
+        r = json.loads(asyncio.run(cloud.cloud_senders(None, npub=h)).body)
+        self.assertEqual(r["senders"], [{"hex": "ab" * 32, "name": "Maman", "count": 5}])
+        p = json.loads(asyncio.run(cloud.cloud_senders_purge(None, hex="ab" * 32, name="", npub=h)).body)
+        self.assertEqual(p["deleted"], 5)
+        self.assertEqual(cs.ucloud_db.page(cs.ucloud_dir(self.email))[1], 1, "ses photos à elle ne sont pas touchées")
+
+    def test_have_endpoint(self):
+        import asyncio, hashlib
+        from routers import cloud
+        h = f"{time.time_ns():064x}"[-64:]
+        cs.nostr_dir(self.email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(self.email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={h};\n")
+        cs._HEX_MAP_AT = 0.0
+        data = _photo(5)
+        cs.ingest_plaintext(self.email, "/Photos/a.jpg", data, content_type="image/jpeg", trigger_faceid=False)
+        sha = hashlib.sha256(data).hexdigest()
+        r = json.loads(asyncio.run(cloud.cloud_have(None, hashes=json.dumps([sha, "1" * 64]), npub=h)).body)
+        self.assertEqual(r["present"], [sha])
+
+
+class TestMapView(_IngestBase):
+    def setUp(self):
+        super().setUp()
+        self.udir = cs.ensure_ucloud_dir(self.email)
+
+    def photo(self, path, lat_ref="N", lat=(48.0, 51.0, 0.0), taken="2025:07:14 10:00:00", seed=1):
+        from PIL import Image, ExifTags
+        im = Image.new("RGB", (40, 30), (seed * 9 % 255, 40, 90))
+        ex = im.getexif()
+        g = ex.get_ifd(ExifTags.IFD.GPSInfo)
+        g[1], g[2], g[3], g[4] = lat_ref, lat, "E", (2.0, 21.0, 0.0)
+        ex.get_ifd(ExifTags.IFD.Exif)[0x9003] = taken
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", exif=ex.tobytes())
+        return cs.ingest_plaintext(self.email, path, buf.getvalue(), content_type="image/jpeg", trigger_faceid=False)
+
+    def test_points_months_and_range(self):
+        from routers import cloud
+        for i in range(3):
+            self.photo(f"/Photos/paris{i}.jpg", seed=i, taken=f"2025:07:1{i} 10:00:00")
+        self.photo("/Photos/nice.jpg", lat=(43.0, 42.0, 0.0), taken="2024:01:05 12:00:00", seed=9)
+        cs.ingest_plaintext(self.email, "/Photos/sans_gps.jpg", _photo(50), content_type="image/jpeg", trigger_faceid=False)
+        pts = cs.ucloud_db.geo_points(self.udir)
+        self.assertEqual(sorted(p["n"] for p in pts), [1, 3], "un lieu par case : 3 photos à Paris, 1 à Nice")
+        jul = int(time.mktime(time.strptime("2025-07-01", "%Y-%m-%d")))
+        aug = int(time.mktime(time.strptime("2025-08-01", "%Y-%m-%d")))
+        only = cs.ucloud_db.geo_points(self.udir, jul, aug)
+        self.assertEqual([p["n"] for p in only], [3], "entre deux dates")
+        self.assertEqual(dict(cs.ucloud_db.geo_months(self.udir)), {"2025-07": 3, "2024-01": 1})
+        rows, total = cs.ucloud_db.page(self.udir, since=jul, until=aug, lat=only[0]["lat"], lon=only[0]["lon"])
+        self.assertEqual(total, 3)
+        self.assertEqual(cs.ucloud_db.page(self.udir, lat=0.0, lon=0.0)[1], 0)
+
+    def test_events_group_by_gap_and_memories_by_day(self):
+        ud = cs.ucloud_db
+        # Soirée 2023-06-10 (4 photos en 2 h) + autre soirée 2023-06-11 + photo isolée 2022-06-10
+        for i in range(4):
+            self.photo(f"/Photos/s{i}.jpg", seed=i, taken=f"2023:06:10 2{i % 4}:00:00" if i < 4 else "")
+        for i in range(3):
+            self.photo(f"/Photos/t{i}.jpg", seed=20 + i, taken=f"2023:06:12 1{i}:00:00")
+        self.photo("/Photos/old.jpg", seed=40, taken="2022:06:10 09:00:00")
+        evs, total = ud.events(self.udir, min_photos=3)
+        self.assertEqual(total, 2, "deux événements d'au moins 3 photos : l'isolée est exclue")
+        self.assertEqual([e["n"] for e in evs], [3, 4], "récent d'abord")
+        self.assertTrue(evs[0]["since"] > evs[1]["since"])
+        self.assertIsNotNone(evs[0]["lat"])
+        rows, tot = ud.page(self.udir, since=evs[1]["since"], until=evs[1]["until"])
+        self.assertEqual(tot, 4, "l'intervalle d'un événement rouvre exactement ses photos")
+        mem = ud.memories(self.udir, 6, 10, 2025)
+        self.assertEqual([m["year"] for m in mem], [2023, 2022])
+        self.assertEqual([m["ago"] for m in mem], [2, 3])
+        self.assertEqual(mem[0]["n"], 4)
+        self.assertEqual(ud.memories(self.udir, 6, 10, 2022), [], "pas de souvenir de l'année en cours ni future")
+
+    def test_entry_shape_for_photos_info(self):
+        self.photo("/Photos/a.jpg", seed=5)
+        e = cs.ucloud_db.get_entry(cs.ucloud_db.connect(self.udir), "/Photos/a.jpg")
+        self.assertEqual(e.get("type"), "file")
+        self.assertTrue(e.get("cid"))
+        self.assertTrue(str(e.get("mime")).startswith("image/"))
+        from routers import cloud
+        row = cloud._file_row("/Photos/a.jpg", e)
+        self.assertEqual(row["path"], "/Photos/a.jpg")
+        self.assertTrue(row["taken_at"])
+
+    def test_v2_database_gets_coordinates_backfilled(self):
+        import sqlite3
+        d = cs.ucloud_dir(f"v2{time.time_ns()}@x.org")
+        d.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(d / "ucloud.db")
+        c.executescript("""CREATE TABLE entries(path TEXT PRIMARY KEY, parent TEXT NOT NULL, type TEXT NOT NULL, cid TEXT, mime TEXT,
+            size INTEGER, mtime INTEGER, taken_at INTEGER, sha_orig TEXT, sha_plain TEXT, faceid_status TEXT, origin TEXT, data TEXT NOT NULL, phash INTEGER) WITHOUT ROWID;
+            CREATE TABLE keyring(cid TEXT PRIMARY KEY, data TEXT NOT NULL) WITHOUT ROWID;
+            CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT) WITHOUT ROWID;
+            INSERT INTO meta VALUES('migrated','1');""")
+        c.execute("INSERT INTO entries(path,parent,type,cid,mime,mtime,data) VALUES('/a.jpg','/','file','Q','image/jpeg',1700000000,?)",
+                  ('{"type":"file","cid":"Q","mime":"image/jpeg","geo":{"lat":48.85,"lon":2.35,"umap_key":"48.85,2.35"}}',))
+        c.commit(); c.close()
+        pts = cs.ucloud_db.geo_points(d)
+        self.assertEqual((pts[0]["lat"], pts[0]["lon"], pts[0]["n"]), (48.85, 2.35, 1))
+
+    def test_scan_enriches_legacy_photos_with_date_and_place(self):
+        import ucloud_dedupe
+        from PIL import Image, ExifTags
+        im = Image.new("RGB", (40, 30), (10, 200, 10))
+        ex = im.getexif()
+        g = ex.get_ifd(ExifTags.IFD.GPSInfo)
+        g[1], g[2], g[3], g[4] = "N", (45.0, 45.0, 0.0), "E", (4.0, 50.0, 0.0)
+        ex.get_ifd(ExifTags.IFD.Exif)[0x9003] = "2019:05:20 09:30:00"
+        buf = io.BytesIO(); im.save(buf, "JPEG", exif=ex.tobytes())
+        e = cs.ingest_plaintext(self.email, "/Photos/vieille.jpg", buf.getvalue(), content_type="image/jpeg", trigger_faceid=False)
+        # simule une photo importée AVANT l'extraction EXIF : ni date, ni lieu, ni empreinte
+        cs.ucloud_db.patch_entry(self.udir, "/Photos/vieille.jpg", lambda x: [x.pop(k, None) for k in ("taken_at", "geo", "phash")] and True)
+        self.assertEqual(cs.ucloud_db.geo_points(self.udir), [])
+        out = ucloud_dedupe.scan(self.email, workers=1)
+        self.assertEqual((out["done"], out["failed"]), (1, 0))
+        got = cs.db_entry(self.email, "/Photos/vieille.jpg")
+        self.assertEqual(got["geo"]["lat"], 45.75)
+        self.assertTrue(got["taken_at"] and got["phash"])
+        self.assertEqual(len(cs.ucloud_db.geo_points(self.udir)), 1, "la photo apparaît sur la carte")
+
+
+class TestAnalysisAndDescriptions(_IngestBase):
+    def setUp(self):
+        super().setUp()
+        self.udir = cs.ensure_ucloud_dir(self.email)
+        self.h = f"{time.time_ns():064x}"[-64:]
+        cs.nostr_dir(self.email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(self.email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={self.h};\n")
+        cs._HEX_MAP_AT = 0.0
+
+    def photos(self, n=3):
+        for i in range(n):
+            cs.ingest_plaintext(self.email, f"/Photos/p{i}.jpg", _photo(700 + i), content_type="image/jpeg", trigger_faceid=False)
+
+    def test_counts_and_status_explain_each_task(self):
+        import asyncio
+        from routers import cloud
+        self.photos(4)
+        cs.ucloud_db.patch_entry(self.udir, "/Photos/p0.jpg", lambda e: e.update(faceid={"status": "faces", "count": 1}) or True)
+        cs.ucloud_db.patch_entry(self.udir, "/Photos/p1.jpg", lambda e: e.update(faceid={"status": "pending"}) or True)
+        cs.set_photo_description(self.email, "/Photos/p2.jpg", "Une plage au coucher du soleil", "ai", "minicpm")
+        c = cs.ucloud_db.analysis_counts(self.udir)
+        self.assertEqual((c["images"], c["faces_done"], c["faces_pending"], c["faces_waiting"], c["described"]), (4, 1, 1, 2, 1))
+        st = asyncio.run(cloud.cloud_analysis(None, npub=self.h))
+        d = json.loads(st.body)
+        self.assertEqual(d["faces"]["done"], 1)
+        self.assertEqual(d["describe"]["pending"], 3)
+        self.assertEqual(d["enrich"]["pending"], 0, "les empreintes sont calculées à l'envoi")
+        self.assertIn(d["mode"]["describe"]["effective"], ("direct", "relay", "none"))
+        self.assertEqual(d["mode"]["enrich"]["effective"], "local")
+        self.assertIn("why", d["mode"]["faces"])
+
+    def test_user_description_is_never_overwritten_by_ai(self):
+        self.photos(1)
+        self.assertEqual(cs.set_photo_description(self.email, "/Photos/p0.jpg", "Mariage de Léa, juin 2019", "user"), "set")
+        self.assertEqual(cs.set_photo_description(self.email, "/Photos/p0.jpg", "Une église", "ai", "m"), "kept_user")
+        e = cs.db_entry(self.email, "/Photos/p0.jpg")
+        self.assertEqual((e["desc"]["text"], e["desc"]["src"]), ("Mariage de Léa, juin 2019", "user"))
+        self.assertEqual(cs.set_photo_description(self.email, "/Photos/p0.jpg", "", "user"), "cleared")
+        self.assertNotIn("desc", cs.db_entry(self.email, "/Photos/p0.jpg"))
+        self.assertEqual(cs.set_photo_description(self.email, "/Photos/inconnue.jpg", "x", "user"), "missing")
+
+    def test_search_finds_description_and_scan_describes_direct(self):
+        import ucloud_describe
+        self.photos(3)
+        runner = lambda plain: {"description": "Deux chiens jouent dans la neige.", "model": "fake-vision"}
+        out = ucloud_describe.scan(self.email, mode="direct", runner=runner)
+        self.assertEqual((out["done"], out["failed"], out["mode"]), (3, 0, "direct"))
+        self.assertEqual(cs.ucloud_db.page(self.udir, q="neige")[1], 3, "la recherche porte sur la description")
+        self.assertEqual(cs.ucloud_db.page(self.udir, q="chats")[1], 0)
+        self.assertEqual(cs.db_entry(self.email, "/Photos/p1.jpg")["desc"]["src"], "ai")
+        self.assertEqual(ucloud_describe.scan(self.email, mode="direct", runner=runner)["total"], 0, "rien à refaire")
+
+    def test_scan_stops_early_when_the_model_is_down(self):
+        import ucloud_describe
+        self.photos(8)
+        out = ucloud_describe.scan(self.email, mode="direct", runner=lambda plain: {"error": "connexion refusée"})
+        self.assertEqual(out["error"], "model_unavailable")
+        self.assertLess(out["done"], 8, "arrêt après 5 échecs d'affilée, pas 8 appels inutiles")
+
+    def test_apply_relay_result(self):
+        import ucloud_describe
+        self.photos(1)
+        rc = ucloud_describe.apply_result({"email": self.email, "path": "/Photos/p0.jpg", "status": "ok",
+                                           "description": "Un chat sur un canapé.", "model": "m", "task": "describe"})
+        self.assertEqual(rc, 0)
+        self.assertEqual(cs.db_entry(self.email, "/Photos/p0.jpg")["desc"]["text"], "Un chat sur un canapé.")
+        self.assertEqual(ucloud_describe.apply_result({"email": self.email, "path": "/Photos/p0.jpg", "status": "failed"}), 1)
+
+    def test_put_desc_route_and_mode_config(self):
+        import asyncio
+        from routers import cloud
+        from services import analysis
+        self.photos(1)
+        r = json.loads(asyncio.run(cloud.cloud_photo_desc(None, path="/Photos/p0.jpg", text="  Pique-nique   chez  Mamie ", npub=self.h)).body)
+        self.assertEqual(r["text"], "Pique-nique chez Mamie")
+        real = analysis.CONFIG_FILE
+        analysis.CONFIG_FILE = _TMP / f"mode-{time.time_ns()}.json"
+        try:
+            self.assertEqual(analysis.get_mode(), "auto")
+            analysis.set_mode("relay")
+            self.assertEqual(analysis.resolve("faces")["effective"], "relay" if analysis.relay_ready() else "relay")
+            with self.assertRaises(ValueError):
+                analysis.set_mode("nimporte")
+            analysis.set_mode("direct")
+            self.assertEqual(analysis.resolve("describe")["effective"], "direct")
+        finally:
+            analysis.CONFIG_FILE = real
+
+    def test_refresh_time_info(self):
+        from services import analysis
+        d = cs.nostr_dir(self.email)
+        (d / ".refresh_time").write_text("10:06")
+        (d / ".todate").write_text("20200101")
+        info = analysis.refresh_info(d)
+        self.assertEqual((info["time"], info["done_today"]), ("10:06", False))
+        (d / ".todate").write_text(time.strftime("%Y%m%d"))
+        self.assertTrue(analysis.refresh_info(d)["done_today"])
+        self.assertIsNone(analysis.refresh_info(d / "inexistant")["time"])
+
+
+class TestNetworkProfiles(unittest.TestCase):
+    """Profils kind 0 lus sur plusieurs relais ; vignettes servies par la station."""
+    def setUp(self):
+        import asyncio
+        from services import nostr_profiles as np
+        from core.config import settings
+        self.asyncio, self.np, self.settings = asyncio, np, settings
+        self._real = (np.CACHE_DIR, settings.NOSTR_RELAYS, np.swarm_relays, np.PROFILE_TTL)
+        np.CACHE_DIR = _TMP / f"profiles-{time.time_ns()}"
+        np.swarm_relays = lambda: []
+        self.me = "aa" * 32
+        self.a, self.b, self.c = "11" * 32, "22" * 32, "33" * 32
+        self.queries = []
+
+    def tearDown(self):
+        self.np.CACHE_DIR, self.settings.NOSTR_RELAYS, self.np.swarm_relays, self.np.PROFILE_TTL = self._real
+
+    def serve(self, events):
+        """Faux relais : répond aux REQ par les événements correspondant au filtre, puis EOSE."""
+        import websockets
+
+        async def handler(ws):
+            async for raw in ws:
+                msg = json.loads(raw)
+                if msg[0] != "REQ":
+                    continue
+                flt = msg[2]
+                self.queries.append(flt)
+                for ev in events:
+                    if ev["kind"] in flt.get("kinds", []) and (not flt.get("authors") or ev["pubkey"] in flt["authors"]):
+                        await ws.send(json.dumps(["EVENT", msg[1], ev]))
+                await ws.send(json.dumps(["EOSE", msg[1]]))
+        return websockets.serve(handler, "127.0.0.1", 0)
+
+    def test_newest_profile_wins_across_relays_and_declared_relays_are_used(self):
+        # deux relais (deux ports) : on vérifie l'union des relais et la fraîcheur du profil
+        async def scenario():
+            ev = lambda pk, name, ts, pic="": {"kind": 0, "pubkey": pk, "created_at": ts, "content": json.dumps({"name": name, "picture": pic, "lud16": f"{name}@x.org"}), "tags": [], "id": "0" * 64, "sig": "0" * 128}
+            async with self.serve([ev(self.b, "Béa", 50), ev(self.a, "Nouveau", 200, "http://x/y.png")]) as s2:
+                port2 = s2.sockets[0].getsockname()[1]
+                decl = {"kind": 10002, "pubkey": self.me, "created_at": 1, "content": "", "tags": [["r", f"ws://127.0.0.1:{port2}"]], "id": "0" * 64, "sig": "0" * 128}
+                async with self.serve([ev(self.a, "Ancien", 100), decl]) as s1:
+                    port1 = s1.sockets[0].getsockname()[1]
+                    self.settings.NOSTR_RELAYS = f"ws://127.0.0.1:{port1}"
+                    first = await self.np.read_profiles([self.a, self.b, self.c, "pas-une-cle"], self.me)
+                    n_queries = len(self.queries)
+                    second = await self.np.read_profiles([self.a, self.b], self.me)
+                    return first, second, n_queries, len(self.queries), port1, port2
+        first, second, q1, q2, p1, p2 = self.asyncio.run(scenario())
+        self.assertEqual(first["profiles"][self.a]["name"], "Nouveau", "le profil le plus récent gagne, quel que soit le relais")
+        self.assertEqual(first["profiles"][self.b]["name"], "Béa")
+        self.assertEqual(first["missing"], [self.c])
+        self.assertEqual(first["relays"], [f"ws://127.0.0.1:{p1}", f"ws://127.0.0.1:{p2}"], "station d'abord, puis relais déclaré (NIP-65)")
+        self.assertEqual(first["profiles"][self.a]["email"], "Nouveau@x.org")
+        self.assertEqual((second["cached"], q2), (2, q1), "cache disque : plus aucune requête aux relais")
+        self.assertEqual(self.np.cached_profile(self.c), None)
+
+    def test_dead_relay_is_ignored(self):
+        self.settings.NOSTR_RELAYS = "ws://127.0.0.1:9"
+        res = self.asyncio.run(self.np.read_profiles([self.a], self.me))
+        self.assertEqual((res["profiles"], res["missing"]), ({}, [self.a]))
+
+    def test_avatar_is_downloaded_once_resized_and_failures_are_remembered(self):
+        from PIL import Image
+        buf = io.BytesIO(); Image.new("RGB", (500, 300), (200, 10, 10)).save(buf, "PNG")
+        calls = []
+
+        async def fake(url):
+            calls.append(url)
+            return buf.getvalue() if "ok" in url else None
+        real = self.np._download
+        self.np._download = fake
+        try:
+            jpeg = self.asyncio.run(self.np.avatar_jpeg(self.a, "http://h/ok.png"))
+            self.assertEqual(Image.open(io.BytesIO(jpeg)).size, (96, 96))
+            self.asyncio.run(self.np.avatar_jpeg(self.a, "http://h/ok.png"))
+            self.assertEqual(len(calls), 1, "téléchargée UNE fois")
+            self.assertIsNone(self.asyncio.run(self.np.avatar_jpeg(self.b, "http://h/cassee.png")))
+            self.assertIsNone(self.asyncio.run(self.np.avatar_jpeg(self.b, "http://h/cassee.png")))
+            self.assertEqual(len(calls), 2, "l'échec est mémorisé : pas de nouvel essai immédiat")
+        finally:
+            self.np._download = real
+
+    def test_download_refuses_internal_addresses(self):
+        for url in ("http://127.0.0.1:5001/api/v0/id", "http://169.254.169.254/latest/meta-data", "file:///etc/passwd"):
+            self.assertIsNone(self.asyncio.run(self.np._download(url)), url)
+
+
+class TestCloudRoutes(unittest.TestCase):
+    def test_delete_root_is_refused(self):
+        import asyncio
+        from routers import cloud
+        email = f"rt{time.time_ns()}@example.com"
+        h = "ef" * 32
+        cs.nostr_dir(email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={h};\n")
+        cs._HEX_MAP_AT = 0.0
+        fake = FakeIPFS()
+        real = (cs.ipfs_add_bytes, cs.ipfs_cat)
+        cs.ipfs_add_bytes, cs.ipfs_cat = fake.add_bytes, fake.cat
+        try:
+            cs.ingest_plaintext(email, "/Photos/a.txt", b"a", content_type="text/plain")
+            for bad in ('["/"]', '[""]', '["/Photos/../.."]'):
+                r = asyncio.run(cloud.delete_cloud_files(None, paths=bad, npub=h))
+                self.assertEqual(r.status_code, 400, bad)
+            self.assertIn("/Photos/a.txt", cs.load_index(email)["entries"], "rien n'a été supprimé")
+            r = asyncio.run(cloud.delete_cloud_files(None, paths='["/Photos/a.txt"]', npub=h))
+            self.assertEqual(r.status_code, 200)
+        finally:
+            cs.ipfs_add_bytes, cs.ipfs_cat = real
 
 
 if __name__ == "__main__":

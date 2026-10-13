@@ -160,8 +160,9 @@ def main() -> int:
             # Repli si le cache local est absent/perdu : ne pas ré-importer
             # (nouvelle clé, nouveau CID, nouveau job FaceID) un fichier déjà
             # présent à ce chemin avec le même contenu.
-            existing = cloud_storage.get_entry(cloud_storage.load_index(args.email), dest)
-            if existing and existing.get("sha256_plain") == hashlib.sha256(plaintext).hexdigest():
+            existing = cloud_storage.db_entry(args.email, dest)
+            h = hashlib.sha256(plaintext).hexdigest()
+            if existing and h in (existing.get("sha256_plain"), existing.get("sha256_orig")):
                 skipped_index += 1
                 state[key] = {"mtime": st.st_mtime, "size": st.st_size, "dest_path": dest}
                 continue

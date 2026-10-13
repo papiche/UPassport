@@ -56,11 +56,17 @@ Idempotence à TROIS niveaux (cf. `_import_source`) :
    contenu, est ainsi reconnu comme déjà catalogué. Sans ce filet, une
    photo déjà analysée serait réimportée sous un nouveau chemin ET
    redéclencherait une analyse FaceID GPU inutile.
-3. Désambiguïsation de nom (`_unique_dest()`) : si le chemin daté calculé
-   est déjà occupé par un AUTRE contenu (homonymie — plus probable
-   maintenant qu'un seul mois de photos partage le même dossier qu'avant),
-   un suffixe `-2`, `-3`… est ajouté plutôt que d'écraser silencieusement
-   l'entrée existante (son CID/clé deviendraient orphelins, invisibles).
+3. Désambiguïsation de nom : `ingest_plaintext(..., unique=True)` choisit, SOUS
+   le verrou de l'index, un suffixe `-2`, `-3`… si le chemin daté est occupé
+   par un AUTRE contenu (homonymie — IMG_0001.jpg d'appareils différents),
+   au lieu d'écraser l'entrée existante (CID/clé orphelins).
+
+Le filet SHA256 (niveau 2) compare le hash des octets REÇUS (`sha256_orig`),
+pas celui de l'image stockée (ré-encodée si EXIF Orientation ≠ 1).
+
+Un seul import à la fois PAR SOURCE (flock `.ucloud/.webdav_import_<id>.lock`),
+progression sauvée tous les 50 fichiers, fichiers > `WEBDAV_MAX_DOWNLOAD`
+(200 Mo) ignorés, parcours distant du plus RÉCENT au plus ancien.
 """
 
 import sys as _sys
@@ -86,6 +92,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from services import cloud_storage, webdav_client  # noqa: E402
+import faceid_reprocess  # noqa: E402  — analyse rapide (faceid.sh --batch)
 
 # Garde-fous (cf. docstring du module — le facteur limitant est le nombre de
 # comptes qui partagent la station, pas une constante par compte). Les deux
@@ -94,6 +101,18 @@ from services import cloud_storage, webdav_client  # noqa: E402
 # RUNTIME/NOSTRCARD.refresh.sh).
 DAILY_STATION_BUDGET = int(os.environ.get("WEBDAV_IMPORT_DAILY_BUDGET", "300"))
 MIN_IMPORT_PER_RUN = 5
+# Mode RAPIDE (ComfyUI joignable en direct, cf. faceid_reprocess.analyze_quick) :
+# plus de file DM à TTL 30 min à protéger, l'analyse tourne à ~1 photo/s avec
+# un verrou GPU pris PAR photo (partage équitable entre comptes). Le budget
+# reste réparti entre les MULTIPASS de la station, mais 20× plus large.
+DAILY_STATION_QUICK_BUDGET = int(os.environ.get("WEBDAV_IMPORT_QUICK_BUDGET", "6000"))
+MIN_QUICK_IMPORT_PER_RUN = 200
+# Photos commitées par lot (UNE lecture+écriture d'index par lot) : l'index est
+# réécrit en entier à chaque commit (≈ 0,8 s à 50 000 photos, bien plus sur un
+# RPi). En mode relais NOSTR on garde de petits lots (un job FaceID par photo).
+BATCH_QUICK = int(os.environ.get("WEBDAV_IMPORT_BATCH", "25"))
+BATCH_RELAY = 5
+BATCH_MAX_BYTES = 96 * 1024 * 1024      # borne mémoire d'un lot
 IMPORT_DELAY_SECONDS = float(os.environ.get("WEBDAV_IMPORT_DELAY_SECONDS", "2"))
 
 def _log(msg: str, quiet: bool = False) -> None:
@@ -114,7 +133,9 @@ def _station_multipass_count() -> int:
     return max(1, sum(1 for p in nostr_dir.iterdir() if p.is_dir() and "@" in p.name))
 
 
-def _default_max_import() -> int:
+def _default_max_import(quick: bool = False) -> int:
+    if quick:
+        return max(MIN_QUICK_IMPORT_PER_RUN, DAILY_STATION_QUICK_BUDGET // _station_multipass_count())
     return max(MIN_IMPORT_PER_RUN, DAILY_STATION_BUDGET // _station_multipass_count())
 
 
@@ -147,7 +168,11 @@ def _save_state(email: str, source_id: str, state: dict) -> None:
 
 def _guess_image_mime(name: str):
     import mimetypes
+    if cloud_storage.is_junk_name(name):
+        return None            # ._IMG.jpg, Thumbs.db… : jamais des photos
     mime, _ = mimetypes.guess_type(name)
+    if mime == "image/svg+xml":
+        return None            # du code, pas une photo (et PIL/FaceID ne le lisent pas)
     if mime and mime.startswith("image/"):
         return mime
     ext = Path(name).suffix.lower()
@@ -188,36 +213,20 @@ def _hash_index(index: dict) -> dict:
     destination" (`_unique_dest`) ne peut, par construction, pas voir."""
     out = {}
     for path, e in (index.get("entries") or {}).items():
-        if isinstance(e, dict) and e.get("sha256_plain"):
-            out.setdefault(e["sha256_plain"], path)
+        if not isinstance(e, dict):
+            continue
+        # `sha256_orig` = octets tels que REÇUS : le hash de ce qu'on télécharge.
+        # `sha256_plain` est celui de l'image STOCKÉE, qui diffère si elle a été
+        # ré-encodée (rotation EXIF) — sans `sha256_orig`, toute photo tournée
+        # était réimportée en `-2`, `-3`… dès que le cache mtime/size sautait.
+        for key in ("sha256_orig", "sha256_plain"):
+            if e.get(key):
+                out.setdefault(e[key], path)
     return out
 
 
-def _unique_dest(index: dict, dest: str, content_hash: str) -> str:
-    """`dest` si libre OU déjà occupé par ce MÊME contenu (sha256) ; sinon
-    `<nom>-2.<ext>`, `-3`, … jusqu'à trouver un chemin libre. Le classement
-    par date (cf. `_dated_dest`) réduit l'espace de noms à un seul mois —
-    deux photos distinctes partageant un nom généré en série (IMG_0001.jpg…)
-    y sont bien plus probables que sur un `/Photos/` plat ; sans ce
-    garde-fou, `ingest_plaintext()` écraserait silencieusement la première
-    entrée (son CID/clé deviennent orphelins, invisibles, non récupérables)."""
-    existing = cloud_storage.get_entry(index, dest)
-    if existing is None or existing.get("sha256_plain") == content_hash:
-        return dest
-    stem, dot, ext = dest.rpartition(".")
-    stem = stem if dot else dest
-    ext = f".{ext}" if dot else ""
-    n = 2
-    while True:
-        candidate = f"{stem}-{n}{ext}"
-        existing = cloud_storage.get_entry(index, candidate)
-        if existing is None or existing.get("sha256_plain") == content_hash:
-            return candidate
-        n += 1
-
-
 async def _import_source(email: str, source: dict, max_import: int,
-                          dry_run: bool, quiet: bool) -> dict:
+                          dry_run: bool, quiet: bool, quick: bool = False) -> dict:
     label = source.get("label") or source.get("url")
     remote_path = source.get("remote_path") or ""
     dest_prefix = (source.get("dest_prefix") or "/Photos/Import").rstrip("/")
@@ -239,12 +248,60 @@ async def _import_source(email: str, source: dict, max_import: int,
                 "error": str(exc)}
 
     imported = skipped = errors = 0
+    new_paths: list = []          # chemins importés à CE passage (analyse rapide en lot)
+    pending: list = []            # (entry, content_hash, base_dest, mime, plaintext) pas encore commités
+    pending_hashes: set = set()
+    pending_bytes = 0
+    quota_hit = [False]           # espace du MULTIPASS atteint : on arrête, on ne supprime rien
+    batch_max = BATCH_QUICK if quick else BATCH_RELAY
+
+    async def flush() -> None:
+        """Commit du lot en UNE écriture d'index (cf. cloud_storage.ingest_many)."""
+        nonlocal imported, errors, pending, pending_hashes, pending_bytes
+        if not pending:
+            return
+        batch, pending, pending_hashes, pending_bytes = pending, [], set(), 0
+        try:
+            # `unique=True` : l'homonymie (autre contenu au même chemin daté) est
+            # résolue SOUS le verrou de l'index — plus d'écrasement possible
+            # entre deux imports ou un import et un PUT simultanés.
+            results = cloud_storage.ingest_many(email, [
+                {"path": dest, "plaintext": data, "content_type": mime,
+                 "trigger_faceid": not quick, "unique": True}
+                for (_e, _h, dest, mime, data) in batch])
+        except cloud_storage.storage_quota.QuotaExceeded as exc:
+            errors += len(batch)
+            quota_hit[0] = True
+            _log(f"ERROR:webdav_import:{label}: espace plein ({exc}) — import arrêté, rien n'est supprimé", quiet)
+            return
+        except Exception as exc:
+            errors += len(batch)
+            _log(f"ERROR:webdav_import:{label}: lot de {len(batch)} en échec : {exc}", quiet)
+            return
+        for (e, h, _dest, _m, _d), res in zip(batch, results):
+            dest = res["path"]
+            index_snapshot.setdefault("entries", {})[dest] = {"sha256_orig": h}
+            hash_index[h] = dest
+            state[e["path"]] = {"mtime": e.get("mtime"), "size": e.get("size"), "dest_path": dest}
+            imported += 1
+            new_paths.append(cloud_storage.normalize_path(dest))
+            _log(f"[{label}] importé {e['path']} → {dest}", quiet)
+        # Progression sauvée à chaque lot : un crash / OOM en cours de passage
+        # (déjà vu sur un import de masse) perdait TOUTE la progression.
+        _save_state(email, source["id"], state)
+        # Espacement délibéré en mode relais : chaque photo déclenche un job
+        # FaceID distant (cf. docstring du module) — on les laisse trickle.
+        if not quick:
+            await asyncio.sleep(IMPORT_DELAY_SECONDS * len(batch))
+
     for entry in entries:
-        if imported >= max_import:
+        if imported + len(pending) >= max_import:
             _log(f"[{label}] plafond atteint ({max_import}/passage) — "
                  f"le reste sera importé au prochain passage.", quiet)
             break
 
+        if quota_hit[0]:
+            break
         mime = _guess_image_mime(entry["name"])
         if not mime:
             continue   # pas une image — hors scope de l'import FaceCloud (documents, etc.)
@@ -259,6 +316,14 @@ async def _import_source(email: str, source: dict, max_import: int,
         if dry_run:
             _log(f"[{label}] (dry-run) importerait {entry['path']} → {base_dest}", quiet)
             imported += 1
+            continue
+
+        size = entry.get("size") or 0
+        if size > webdav_client.MAX_DOWNLOAD_BYTES:
+            errors += 1
+            _log(f"ERROR:webdav_import:{label}:{entry['path']}: trop volumineux "
+                 f"({size} octets > {webdav_client.MAX_DOWNLOAD_BYTES}), ignoré", quiet)
+            state[cache_key] = {"mtime": entry.get("mtime"), "size": size, "too_big": True}
             continue
 
         try:
@@ -278,38 +343,19 @@ async def _import_source(email: str, source: dict, max_import: int,
         # nouveau chemin daté, et surtout pas question de redéclencher une
         # analyse FaceID GPU dessus.
         existing_path = hash_index.get(content_hash)
-        if existing_path:
+        if existing_path or content_hash in pending_hashes:
             state[cache_key] = {"mtime": entry.get("mtime"), "size": entry.get("size"),
-                                 "dest_path": existing_path}
+                                 "dest_path": existing_path or base_dest}
             skipped += 1
             continue
 
-        # Sinon : _unique_dest() ne fait plus que la désambiguïsation de nom
-        # (homonymie au chemin daté calculé — un AUTRE contenu y est déjà,
-        # plus probable désormais qu'un seul mois de photos partage le même
-        # dossier). index_snapshot/hash_index sont mis à jour au fil de la
-        # boucle (ci-dessous) pour voir aussi les collisions survenues
-        # PENDANT ce même passage, pas seulement avant.
-        dest = _unique_dest(index_snapshot, base_dest, content_hash)
+        pending.append((entry, content_hash, base_dest, mime, plaintext))
+        pending_hashes.add(content_hash)
+        pending_bytes += len(plaintext)
+        if len(pending) >= batch_max or pending_bytes >= BATCH_MAX_BYTES:
+            await flush()
 
-        try:
-            cloud_storage.ingest_plaintext(email, dest, plaintext, content_type=mime)
-        except Exception as exc:
-            errors += 1
-            _log(f"ERROR:webdav_import:{label}:{entry['path']}: {exc}", quiet)
-            continue
-
-        index_snapshot.setdefault("entries", {})[dest] = {"sha256_plain": content_hash}
-        hash_index[content_hash] = dest
-        state[cache_key] = {"mtime": entry.get("mtime"), "size": entry.get("size"), "dest_path": dest}
-        imported += 1
-        _log(f"[{label}] importé {entry['path']} → {dest}", quiet)
-
-        # Espacement délibéré : chaque ingest_plaintext() déclenche un job
-        # FaceID distant (cf. docstring du module) — on les laisse trickle
-        # plutôt que de les tirer tous d'un coup.
-        if imported < max_import:
-            await asyncio.sleep(IMPORT_DELAY_SECONDS)
+    await flush()
 
     if not dry_run:
         _save_state(email, source["id"], state)
@@ -328,9 +374,28 @@ async def _import_source(email: str, source: dict, max_import: int,
 
     return {
         "at": int(time.time()), "imported": imported, "skipped": skipped, "errors": errors,
-        "remote_count": remote_count, "remote_capped": len(entries) >= 2000,
+        "remote_count": remote_count, "remote_capped": len(entries) >= webdav_client.WALK_MAX_FILES,
         "local_count": local_count,
+        "paths": new_paths,
+        **({"error": "Espace épuisé : libérez de la place ou devenez parrain de l'infrastructure ẐEN pour continuer l'import."}
+           if quota_hit[0] else {}),
     }
+
+
+async def _analyze_imported(email: str, paths: list, quiet: bool) -> dict:
+    """Analyse FaceID rapide et silencieuse des photos tout juste importées
+    (faceid_reprocess.analyze_quick). Ce que le lot n'a pas pu traiter
+    (ComfyUI tombé en route) repart par le relais NOSTR, comme avant."""
+    remaining, counts = await asyncio.to_thread(faceid_reprocess.analyze_quick, email, paths)
+    _log(f"webdav_import: analyse rapide {counts} — {len(remaining)} à confier au relais NOSTR", quiet)
+    for path in remaining:
+        entry = cloud_storage.db_entry(email, path) or {}
+        key_hex = cloud_storage.get_key_hex(email, entry.get("cid", "")) if entry.get("cid") else None
+        if key_hex:
+            cloud_storage._trigger_faceid_analysis(email, path, entry["cid"], key_hex)
+            await asyncio.sleep(IMPORT_DELAY_SECONDS)
+    counts["relayed"] = len(remaining)
+    return counts
 
 
 async def _main_async(args) -> int:
@@ -351,6 +416,13 @@ async def _main_async(args) -> int:
         _log(f"webdav_import: aucune source configurée pour {args.email}", args.quiet)
         return 0
 
+    # Mode rapide si ComfyUI est joignable en direct depuis cette station
+    # (local, tunnel SSH ou P2P IPFS) : l'analyse se fait en un lot après
+    # chaque source, sans relais NOSTR. Sinon, comportement historique.
+    quick = (not args.dry_run and not args.no_quick
+             and faceid_reprocess.comfyui_reachable())
+    _log(f"webdav_import: analyse {'RAPIDE (ComfyUI direct)' if quick else 'par relais NOSTR'}", args.quiet)
+
     if args.max is not None:
         per_source_max = args.max   # override explicite : s'applique tel quel à chaque source
     else:
@@ -358,7 +430,7 @@ async def _main_async(args) -> int:
         # _default_max_import) réparti entre ses propres sources — un compte
         # avec 3 sources ne doit pas tripler sa part au prétexte d'en avoir
         # configuré plusieurs.
-        account_budget = _default_max_import()
+        account_budget = _default_max_import(quick)
         per_source_max = max(1, account_budget // len(sources))
         _log(f"webdav_import: budget auto {account_budget} photo(s)/jour pour "
              f"{args.email} ({_station_multipass_count()} MULTIPASS sur la "
@@ -366,7 +438,21 @@ async def _main_async(args) -> int:
 
     total_imported = total_skipped = total_errors = 0
     for source in sources:
-        summary = await _import_source(args.email, source, per_source_max, args.dry_run, args.quiet)
+        # Une seule instance par source (cron + « Importer maintenant » répété) :
+        # deux passages parallèles téléchargeaient et chiffraient les mêmes fichiers.
+        lock_fd = cloud_storage.try_lock_nowait(
+            cloud_storage.webdav_import_lock_path(args.email, source["id"]))
+        if lock_fd is None:
+            _log(f"webdav_import: source '{source.get('label')}' déjà en cours d'import — ignorée", args.quiet)
+            continue
+        try:
+            summary = await _import_source(args.email, source, per_source_max, args.dry_run,
+                                           args.quiet, quick)
+        finally:
+            os.close(lock_fd)
+        new_paths = summary.pop("paths", [])
+        if quick and new_paths:
+            summary["analysis"] = await _analyze_imported(args.email, new_paths, args.quiet)
         total_imported += summary["imported"]
         total_skipped += summary["skipped"]
         total_errors += summary["errors"]
@@ -390,6 +476,8 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true",
                          help="N'écrit rien — affiche juste ce qui serait importé/ignoré")
     parser.add_argument("--quiet", action="store_true", help="Seul le résumé final est affiché")
+    parser.add_argument("--no-quick", action="store_true",
+                         help="Forcer l'analyse par relais NOSTR (une photo = un DM vers le Brain)")
     args = parser.parse_args()
     return asyncio.run(_main_async(args))
 

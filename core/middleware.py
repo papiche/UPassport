@@ -122,7 +122,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # serait déconnecté en permanence. La surface reste protégée : chaque
         # requête /dav exige un token opaque de 256 bits (ou une signature
         # NIP-98), non devinable par force brute.
-        is_static = request.url.path.startswith("/static") or request.url.path.startswith("/dav")
+        is_static = request.url.path.startswith(("/static", "/dav", "/carddav", "/.well-known/carddav"))
         start = time.perf_counter()
 
         try:

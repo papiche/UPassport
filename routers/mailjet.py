@@ -16,6 +16,7 @@ import secrets
 import sys
 import tempfile
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Optional
 
@@ -1339,13 +1340,14 @@ _QDRANT_URL = "http://localhost:6333"
 _AUTO_MATCH_THRESHOLD = 0.82
 _MAYBE_SAME_MIN = 0.55
 
-# Garde-fous de performance : _cluster_unnamed_faces est du Python pur en
-# O(n²) (une comparaison cosinus par paire) — au-delà de quelques centaines
-# de visages SANS pubkey, le coût devient notable à chaque GET /mailjet/faces.
-# _pca_2d s'appuie sur numpy/LAPACK (SVD), largement plus rapide à n égal,
-# mais reste borné par prudence contre un catalogue pathologiquement grand.
-_CLUSTER_MAX_UNNAMED = 400
-_PCA_MAX_FACES = 5000
+# Garde-fous de volume : le catalogue d'une archive importée (WebDAV) peut
+# compter plusieurs milliers de visages. Tout le calcul de similarité
+# (regroupement, suggestions) est fait en numpy par blocs — plus de plafond
+# à 400 visages comme du temps du Python pur O(n²).
+_FACES_MAX = 20000
+_SCROLL_PAGE = 1000
+_PCA_MAX_FACES = 20000
+_SIM_BLOCK = 512
 
 
 def _cosine(a: list, b: list) -> float:
@@ -1355,53 +1357,125 @@ def _cosine(a: list, b: list) -> float:
     return dot / (na * nb) if na and nb else 0.0
 
 
-def _cluster_unnamed_faces(faces: list, threshold: float) -> None:
-    """Regroupe entre eux (union-find, transitif) les visages SANS pubkey dont
-    les embeddings sont proches par cosinus — ex. la même personne détectée
-    sur plusieurs photos avec un embedding trop différent d'une photo à
-    l'autre pour matcher automatiquement à l'ingestion (satellite_face_matcher
-    MATCH_THRESHOLD=0.82), mais assez proche pour être manifestement la même
-    personne. Contrairement à `maybe` (Inconnu → Nommé), ceci compare les
-    Inconnus ENTRE EUX, pour permettre de leur attribuer une identité commune
-    en un seul geste avant même de savoir qui c'est. Purement calculé pour
-    cette réponse (comme `maybe`) — aucun `group_id` n'est stocké dans Qdrant.
-    Modifie `faces` en place : ajoute `group_id`/`group_size` aux entrées dont
-    la composante connexe compte plus d'un membre. Au-delà de
-    _CLUSTER_MAX_UNNAMED visages SANS pubkey, le coût O(n²) en Python pur
-    devient trop lourd pour un simple GET — ne regroupe pas, la liste reste
-    utilisable (juste sans suggestion de regroupement)."""
-    unnamed = [f for f in faces if not f["pubkey"] and isinstance(f["_vector"], list)]
-    if len(unnamed) > _CLUSTER_MAX_UNNAMED:
-        logger.info("FaceID : regroupement ignoré (%d visages sans pubkey > %d)",
-                    len(unnamed), _CLUSTER_MAX_UNNAMED)
-        return
-    parent = {f["id"]: f["id"] for f in unnamed}
+def _is_named(name: str, pubkey: str) -> bool:
+    """Un visage appartient à une PERSONNE dès qu'il porte une clé NOSTR OU
+    un vrai nom — « Inconnu_xxx » (bootstrap du matcher) et « Inconnu »
+    (visage retiré d'une personne dans ucloud.html) restent à identifier."""
+    return bool(pubkey) or bool(name and not name.startswith("Inconnu"))
 
-    def find(x):
+
+def _unit_matrix(vectors: list):
+    import numpy as np
+    mat = np.asarray(vectors, dtype=np.float32)
+    norms = np.linalg.norm(mat, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    return mat / norms
+
+
+_GROUP_KNN = 8          # voisins examinés par visage
+_GROUP_MAX = 120        # au-delà, un groupe est redécoupé avec un seuil plus strict
+
+
+def _mutual_knn_groups(xu, idx: list, threshold: float) -> list:
+    """Groupes de visages probablement identiques parmi les lignes `idx` de
+    `xu` (vecteurs unitaires). Un lien i–j n'existe que si chacun est parmi
+    les _GROUP_KNN plus proches de l'autre ET cosinus ≥ `threshold` : un
+    simple seuil transitif (version d'origine) enchaînait A–B–C–D… jusqu'à
+    des groupes géants mélangeant plusieurs personnes (constaté sur 1215
+    visages d'une archive, 2026-10-12). Un groupe encore > _GROUP_MAX est
+    redécoupé récursivement avec un seuil relevé de 0,05."""
+    import numpy as np
+    n = len(idx)
+    if n < 2:
+        return [idx]
+    sub = xu[idx]
+    k = min(_GROUP_KNN, n - 1)
+    neigh: list = []
+    for start in range(0, n, _SIM_BLOCK):
+        sims = sub[start:start + _SIM_BLOCK] @ sub.T
+        for r in range(sims.shape[0]):
+            sims[r, start + r] = -1.0
+        top = np.argpartition(-sims, k - 1, axis=1)[:, :k]
+        for r in range(sims.shape[0]):
+            neigh.append({int(j) for j in top[r] if sims[r, j] >= threshold})
+    parent = list(range(n))
+
+    def find(x: int) -> int:
         while parent[x] != x:
             parent[x] = parent[parent[x]]
             x = parent[x]
         return x
 
-    for i in range(len(unnamed)):
-        for j in range(i + 1, len(unnamed)):
-            if _cosine(unnamed[i]["_vector"], unnamed[j]["_vector"]) >= threshold:
-                ra, rb = find(unnamed[i]["id"]), find(unnamed[j]["id"])
-                if ra != rb:
-                    parent[ra] = rb
+    for i in range(n):
+        for j in neigh[i]:
+            if j > i and i in neigh[j]:
+                ri, rj = find(i), find(j)
+                if ri != rj:
+                    parent[ri] = rj
+    comps: dict = {}
+    for i in range(n):
+        comps.setdefault(find(i), []).append(i)
+    out = []
+    for members in comps.values():
+        real = [idx[i] for i in members]
+        if len(real) > _GROUP_MAX and threshold < 0.8:
+            out.extend(_mutual_knn_groups(xu, real, threshold + 0.05))
+        else:
+            out.append(real)
+    return out
 
-    components: dict = {}
-    for f in unnamed:
-        components.setdefault(find(f["id"]), []).append(f["id"])
 
-    for ids in components.values():
-        if len(ids) < 2:
-            continue
-        group_id = hashlib.sha1("|".join(sorted(ids)).encode()).hexdigest()[:12]
-        for f in unnamed:
-            if f["id"] in ids:
-                f["group_id"] = group_id
-                f["group_size"] = len(ids)
+def _annotate_faces(faces: list, refs: Optional[list] = None) -> None:
+    """Calculs de similarité pour GET /mailjet/faces, en place :
+
+    * `maybe` — pour un visage NON identifié, la personne identifiée la plus
+      proche quand le score tombe dans [_MAYBE_SAME_MIN, _AUTO_MATCH_THRESHOLD[
+      (même personne à un autre âge, autre angle…) : une PROPOSITION que
+      l'utilisateur confirme, jamais un ré-étiquetage automatique ;
+    * `group_id`/`group_size` — visages non identifiés proches ENTRE EUX
+      (k plus proches voisins MUTUELS au même seuil, cf. _mutual_knn_groups) :
+      même personne vue sur plusieurs photos, à nommer d'un seul geste ;
+    * `x`/`y` — projection PCA 2D normalisée dans [-1, 1].
+
+    Les vecteurs 512D ne quittent jamais ce process ; rien n'est persisté."""
+    import numpy as np
+    with_vec = [f for f in faces if isinstance(f.get("_vector"), list)]
+    if not with_vec:
+        return
+    unnamed = [f for f in with_vec if not f["_named"]]
+    # Candidats de ressemblance : les personnes déjà rangées ET les photos des
+    # fiches de contact (`refs`, jamais affichées ni rangées elles-mêmes).
+    named = [f for f in with_vec if f["_named"]] + \
+        [r for r in (refs or []) if isinstance(r.get("_vector"), list)]
+
+    if unnamed and named:
+        xu = _unit_matrix([f["_vector"] for f in unnamed])
+        xn = _unit_matrix([f["_vector"] for f in named])
+        for start in range(0, len(unnamed), _SIM_BLOCK):
+            sims = xu[start:start + _SIM_BLOCK] @ xn.T
+            best = sims.argmax(axis=1)
+            for r, j in enumerate(best.tolist()):
+                score = float(sims[r, j])
+                if _MAYBE_SAME_MIN <= score < _AUTO_MATCH_THRESHOLD:
+                    ref = named[j]
+                    unnamed[start + r]["maybe"] = {
+                        "name": ref["name"], "pubkey": ref["pubkey"], "score": round(score, 3),
+                        "contact": ref.get("contact") or "", "email": ref.get("email") or ""}
+
+    if len(unnamed) >= 2:
+        xu = _unit_matrix([f["_vector"] for f in unnamed])
+        for members in _mutual_knn_groups(xu, list(range(len(unnamed))), _MAYBE_SAME_MIN):
+            if len(members) < 2:
+                continue
+            ids = sorted(str(unnamed[i]["id"]) for i in members)
+            group_id = hashlib.sha1("|".join(ids).encode()).hexdigest()[:12]
+            for i in members:
+                unnamed[i]["group_id"] = group_id
+                unnamed[i]["group_size"] = len(members)
+
+    coords = _pca_2d([f["_vector"] for f in with_vec])
+    for f, (x, y) in zip(with_vec, coords):
+        f["x"], f["y"] = round(x, 4), round(y, 4)
 
 
 def _pca_2d(vectors: list) -> list:
@@ -1504,35 +1578,47 @@ def _faces_auth(
     return email, None
 
 
+async def _scroll_all_points(collection: str, with_vector: bool) -> list:
+    """Tous les points d'une collection (pagination Qdrant `next_page_offset`,
+    plafonnée à _FACES_MAX). [] si la collection n'existe pas encore (404).
+    Lève RuntimeError si Qdrant répond une erreur."""
+    points: list = []
+    offset = None
+    async with httpx.AsyncClient(timeout=30) as client:
+        while True:
+            body = {"limit": _SCROLL_PAGE, "with_payload": True, "with_vector": with_vector}
+            if offset is not None:
+                body["offset"] = offset
+            resp = await client.post(
+                f"{_QDRANT_URL}/collections/{collection}/points/scroll",
+                headers=_qdrant_headers(), json=body,
+            )
+            if resp.status_code == 404:
+                return []
+            if resp.status_code != 200:
+                raise RuntimeError(f"Qdrant scroll HTTP {resp.status_code}")
+            result = resp.json().get("result", {})
+            points.extend(result.get("points", []))
+            offset = result.get("next_page_offset")
+            if offset is None or len(points) >= _FACES_MAX:
+                return points
+
+
 @router.get("/mailjet/faces")
 async def get_mailjet_faces(
     request: Request,
     email: Optional[str] = Query(default=None),
     token: Optional[str] = Query(default=None),
 ):
-    """Liste les visages catalogués —
-    [{id, name, pubkey, timestamp, maybe, group_id, group_size, x, y}].
+    """Liste les visages catalogués :
+    [{id, name, pubkey, email, timestamp, has_photo, photo, sent, maybe,
+      group_id, group_size, x, y}].
 
-    `maybe` (rapprochement pour archives longue durée, cf. ucloud.html) : pour
-    une entrée SANS pubkey, le point déjà nommé le plus proche par cosinus
-    quand son score tombe entre _MAYBE_SAME_MIN et _AUTO_MATCH_THRESHOLD —
-    ex. la même personne mais photographiée 20 ans plus tôt/plus tard, dont
-    l'embedding a assez dérivé pour ne pas matcher automatiquement mais reste
-    reconnaissable.
-
-    `group_id`/`group_size` (cf. _cluster_unnamed_faces) : regroupement des
-    visages SANS pubkey ENTRE EUX (même personne détectée plusieurs fois,
-    jamais encore nommée) — présent seulement quand au moins 2 entrées se
-    rapprochent par cosinus. Permet de leur attribuer un nom/pubkey commun en
-    un seul geste (POST /mailjet/faces-edit-bulk) avant toute identification.
-
-    `x`/`y` (cf. _pca_2d) : projection PCA 2D de l'embedding, normalisée dans
-    [-1, 1] — alimente la vue « nébuleuse » p5.js de ucloud.html (parcours
-    spatial + association par sélection multiple). Comme pour `maybe`, les
-    vecteurs 512D eux-mêmes ne quittent jamais ce process.
-
-    Calculé ICI, les vecteurs eux-mêmes ne quittent jamais ce process
-    (récupérés avec `with_vector`, jamais renvoyés au client)."""
+    `photo` = chemin de la photo source dans le cloud (compte des photos
+    d'une personne, cf. « Envoyer ses photos ») ; `sent` = dernier envoi à
+    cette personne (POST /mailjet/person-send) ; `maybe`/`group_id`/`x`/`y` :
+    cf. _annotate_faces(). Le tableau de tri de ucloud.html est construit
+    entièrement sur cette réponse."""
     email, err = _faces_auth(request, email, token)
     if err:
         return err
@@ -1542,69 +1628,49 @@ async def get_mailjet_faces(
         return JSONResponse({"faces": [], "reason": "no_hex"})
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                f"{_QDRANT_URL}/collections/{collection}/points/scroll",
-                headers=_qdrant_headers(),
-                json={"limit": 2000, "with_payload": True, "with_vector": True},
-            )
+        points = await _scroll_all_points(collection, with_vector=True)
     except Exception as exc:
         logger.warning("Qdrant injoignable pour %s : %s", collection, exc)
         return JSONResponse({"faces": [], "reason": "qdrant_unavailable"})
 
-    # 404 = aucun visage encore catalogué sur cette station : pas une erreur.
-    if resp.status_code == 404:
-        return JSONResponse({"faces": []})
-    if resp.status_code != 200:
-        logger.warning("Qdrant scroll %s → HTTP %s", collection, resp.status_code)
-        return JSONResponse({"faces": [], "reason": "qdrant_error"})
-
-    points = resp.json().get("result", {}).get("points", [])
-    named_vectors = []   # [(name, pubkey, vector), ...] — pour le rapprochement
     faces = []
+    refs = []       # visages de RÉFÉRENCE des fiches de contact (routers/contacts.py)
     for point in points:
         payload = point.get("payload") or {}
+        name = payload.get("name") or ""
         pubkey = payload.get("pubkey") or ""
-        vector = point.get("vector")
-        if pubkey and isinstance(vector, list):
-            named_vectors.append((payload.get("name") or "", pubkey, vector))
+        if payload.get("ref") == "contact":
+            refs.append({"id": point.get("id"), "name": name, "pubkey": "", "_named": True,
+                         "contact": payload.get("contact") or "", "email": payload.get("email") or "",
+                         "_vector": point.get("vector")})
+            continue
         faces.append({
             "id":        point.get("id"),
-            "name":      payload.get("name") or "",
+            "name":      name,
             "pubkey":    pubkey,
+            "email":     payload.get("email") or "",
+            "contact":   payload.get("contact") or "",
+            "via":       payload.get("via") or "",
             "timestamp": payload.get("timestamp") or "",
-            # Présent seulement pour les points catalogués après 2026-09-20 —
-            # sans lui, /mailjet/faces/thumbnail n'a rien à recadrer/déchiffrer.
+            # source_path présent seulement pour les points catalogués après
+            # 2026-09-20 — sans lui, aucune miniature ni envoi possible.
             "has_photo": bool(payload.get("source_path")),
-            "_vector":   vector,   # retiré avant la sérialisation finale, cf. plus bas
+            "photo":     payload.get("source_path") or "",
+            "sent":      payload.get("sent") or None,
+            "_named":    _is_named(name, pubkey),
+            "_vector":   point.get("vector"),
         })
 
-    if named_vectors:
-        for f in faces:
-            if f["pubkey"] or not isinstance(f["_vector"], list):
-                continue
-            best_name, best_pubkey, best_score = "", "", 0.0
-            for name, pubkey, vec in named_vectors:
-                score = _cosine(f["_vector"], vec)
-                if score > best_score:
-                    best_name, best_pubkey, best_score = name, pubkey, score
-            if _MAYBE_SAME_MIN <= best_score < _AUTO_MATCH_THRESHOLD:
-                f["maybe"] = {"name": best_name, "pubkey": best_pubkey,
-                              "score": round(best_score, 3)}
-
-    _cluster_unnamed_faces(faces, _MAYBE_SAME_MIN)
-
-    with_vector = [f for f in faces if isinstance(f["_vector"], list)]
-    if with_vector:
-        coords = _pca_2d([f["_vector"] for f in with_vector])
-        for f, (x, y) in zip(with_vector, coords):
-            f["x"], f["y"] = round(x, 4), round(y, 4)
+    try:
+        await asyncio.to_thread(_annotate_faces, faces, refs)
+    except Exception as exc:   # le catalogue reste utilisable sans suggestions
+        logger.warning("FaceID : annotation des visages échouée pour %s : %s", email, exc)
 
     for f in faces:
         f.pop("_vector", None)
-
+        f.pop("_named", None)
     faces.sort(key=lambda f: (not f["pubkey"], f["name"].lower()))
-    return JSONResponse({"faces": faces})
+    return JSONResponse({"faces": faces, "truncated": len(points) >= _FACES_MAX})
 
 
 async def _fetch_face_point(collection: str, point_id: str) -> Optional[dict]:
@@ -1625,6 +1691,44 @@ async def _fetch_face_point(collection: str, point_id: str) -> Optional[dict]:
     return points[0].get("payload") if points else None
 
 
+async def _fetch_face_points(collection: str, ids: list) -> dict:
+    """{point_id: payload} pour plusieurs points (par lots de 256)."""
+    out: dict = {}
+    async with httpx.AsyncClient(timeout=20) as client:
+        for i in range(0, len(ids), 256):
+            try:
+                resp = await client.post(
+                    f"{_QDRANT_URL}/collections/{collection}/points",
+                    headers=_qdrant_headers(),
+                    json={"ids": ids[i:i + 256], "with_payload": True, "with_vector": False},
+                )
+            except Exception as exc:
+                logger.warning("Qdrant get points %s : %s", collection, exc)
+                continue
+            if resp.status_code == 200:
+                for p in resp.json().get("result", []):
+                    out[str(p.get("id"))] = p.get("payload") or {}
+    return out
+
+
+async def _set_points_payload(collection: str, ids: list, payload: dict) -> bool:
+    """Fusionne `payload` dans plusieurs points (par lots de 256)."""
+    ok = True
+    async with httpx.AsyncClient(timeout=20) as client:
+        for i in range(0, len(ids), 256):
+            try:
+                resp = await client.post(
+                    f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
+                    headers=_qdrant_headers(),
+                    json={"payload": payload, "points": ids[i:i + 256]},
+                )
+                ok = ok and resp.status_code == 200
+            except Exception as exc:
+                logger.warning("Qdrant set_payload %s : %s", collection, exc)
+                ok = False
+    return ok
+
+
 async def _decrypt_source_photo(email: str, source_path: str) -> tuple[bytes, str]:
     """Déchiffre la photo source COMPLÈTE (pas recadrée) : (plaintext, mime).
     Lève HTTPException si la photo/clé est introuvable ou le déchiffrement
@@ -1632,8 +1736,10 @@ async def _decrypt_source_photo(email: str, source_path: str) -> tuple[bytes, st
     migration de photo lors d'une invitation FaceCloud acceptée (photo
     complète, jamais juste le visage recadré)."""
     from services import cloud_storage
-    idx = cloud_storage.load_index(email)
-    entry = cloud_storage.get_entry(idx, source_path)
+    try:
+        entry = await asyncio.to_thread(cloud_storage.db_entry, email, source_path)   # UNE ligne SQLite
+    except ValueError:
+        entry = None
     if not entry or not entry.get("cid"):
         raise HTTPException(status_code=404, detail="photo source introuvable (supprimée ?)")
     key_hex = cloud_storage.get_key_hex(email, entry["cid"])
@@ -1654,7 +1760,8 @@ async def _decrypt_source_photo(email: str, source_path: str) -> tuple[bytes, st
     return plaintext, (entry.get("mime") or "application/octet-stream")
 
 
-def _crop_face_jpeg(plaintext: bytes, bbox: Optional[dict]) -> bytes:
+def _crop_face_jpeg(plaintext: bytes, bbox: Optional[dict],
+                    max_side: int = 300, quality: int = 85) -> bytes:
     """Recadre une image quelconque sur `bbox` (marge 50%) et la ré-encode en
     JPEG ≤300px — jamais persisté, juste retourné en mémoire. Lève
     HTTPException si le recadrage échoue (image corrompue, etc.)."""
@@ -1676,9 +1783,9 @@ def _crop_face_jpeg(plaintext: bytes, bbox: Optional[dict]) -> bytes:
             cx2 = min(w, x2 + bw * pad); cy2 = min(h, y2 + bh * pad)
             if cx2 > cx1 and cy2 > cy1:
                 img = img.crop((int(cx1), int(cy1), int(cx2), int(cy2)))
-        img.thumbnail((300, 300))
+        img.thumbnail((max_side, max_side))
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85)
+        img.save(buf, format="JPEG", quality=quality)
         return buf.getvalue()
     except HTTPException:
         raise
@@ -1701,42 +1808,178 @@ def _resize_full_jpeg(plaintext: bytes, max_side: int = 1024) -> bytes:
         raise HTTPException(status_code=500, detail=f"redimensionnement impossible: {type(exc).__name__}")
 
 
+def _open_reduced(plaintext: bytes, need_long_side: int):
+    """Ouvre une image en ne décodant que la résolution nécessaire (`draft`
+    JPEG : réduction 1/2, 1/4, 1/8 DANS le décodeur). Mesuré sur 12 Mpx :
+    135 ms en décodage complet contre ~60 ms. Retourne (image RGB orientée,
+    facteur décodé/original) — le facteur sert à recaler les bbox."""
+    from PIL import Image, ImageOps
+    img = Image.open(io.BytesIO(plaintext))
+    orig_long = max(img.size) or 1
+    if need_long_side and need_long_side < orig_long:
+        ratio = need_long_side / orig_long
+        img.draft("RGB", (max(1, int(img.size[0] * ratio)), max(1, int(img.size[1] * ratio))))
+    img = ImageOps.exif_transpose(img).convert("RGB")
+    return img, max(img.size) / orig_long
+
+
+def _crop_faces(plaintext: bytes, items: list, size: int) -> dict:
+    """Vignettes recadrées de PLUSIEURS visages d'une même photo, décodée une
+    seule fois, juste assez finement pour que le plus petit visage atteigne
+    `size` px. items = [(point_id, bbox)] → {point_id: jpeg}."""
+    from PIL import Image
+    probe = Image.open(io.BytesIO(plaintext))
+    orig_long = max(probe.size) or 1
+    widths = [max(1.0, (float(b.get("x2", 0)) - float(b.get("x1", 0))) * 2) for _pid, b in items if b]
+    need = orig_long if not widths else min(orig_long, int(orig_long * size / min(widths)) + 1)
+    img, factor = _open_reduced(plaintext, need)
+    w, h = img.size
+    out = {}
+    for pid, bbox in items:
+        crop = img
+        if bbox:
+            x1 = float(bbox.get("x1", 0)) * factor; y1 = float(bbox.get("y1", 0)) * factor
+            x2 = float(bbox.get("x2", w / factor)) * factor; y2 = float(bbox.get("y2", h / factor)) * factor
+            bw, bh = max(x2 - x1, 1.0), max(y2 - y1, 1.0)
+            cx1, cy1 = max(0, x1 - bw * .5), max(0, y1 - bh * .5)
+            cx2, cy2 = min(w, x2 + bw * .5), min(h, y2 + bh * .5)
+            if cx2 > cx1 and cy2 > cy1:
+                crop = img.crop((int(cx1), int(cy1), int(cx2), int(cy2)))
+        crop = crop.copy()
+        crop.thumbnail((size, size))
+        buf = io.BytesIO()
+        crop.save(buf, format="JPEG", quality=80)
+        out[pid] = buf.getvalue()
+    return out
+
+
+# Cache DISQUE des vignettes de visages, CHIFFRÉ (AES-256-GCM, même codec
+# UENC que le cloud) avec une clé propre au compte, 0600 à côté du trousseau :
+# jamais de clair sur disque, mais plus besoin de redécoder des centaines de
+# photos à chaque redémarrage du service ou rechargement de page.
+def _tcache_key(email: str) -> str:
+    path = settings.GAME_PATH / "nostr" / email / ".ucloud" / "thumbcache.key"
+    try:
+        key = path.read_text().strip()
+        if len(key) == 64:
+            return key
+    except OSError:
+        pass
+    key = os.urandom(32).hex()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(path), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(key)
+    return key
+
+
+def _tcache_path(email: str, point_id: str, source_path: str, size: int) -> Path:
+    name = hashlib.sha256(f"{point_id}|{source_path}|{size}".encode()).hexdigest()[:40]
+    return settings.GAME_PATH / "nostr" / email / ".ucloud" / "thumbcache" / f"{name}.uenc"
+
+
+def _tcache_get(email: str, key: str, path: Path) -> Optional[bytes]:
+    try:
+        blob = path.read_bytes()
+    except OSError:
+        return None
+    sys.path.insert(0, str(settings.TOOLS_PATH))
+    import uenc_codec  # noqa: E402
+    try:
+        return uenc_codec.decrypt_aes256gcm(blob, key)
+    except Exception:
+        path.unlink(missing_ok=True)
+        return None
+
+
+def _tcache_put(key: str, path: Path, jpeg: bytes) -> None:
+    sys.path.insert(0, str(settings.TOOLS_PATH))
+    import uenc_codec  # noqa: E402
+    payload, _iv = uenc_codec.encrypt_aes256gcm(jpeg, key)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    fd = os.open(str(tmp), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(payload)
+    os.replace(tmp, path)
+
+
+# Photos entières redimensionnées (aperçu au survol / visionneuse) : cache
+# MÉMOIRE seulement, borné — survoler plusieurs visages d'une même photo de
+# groupe ne la redéchiffre qu'une fois.
+_PHOTO_CACHE: "OrderedDict[str, bytes]" = OrderedDict()
+_PHOTO_CACHE_MAX = 80
+
+
 @router.get("/mailjet/faces/photo")
 async def get_face_full_photo(
     request: Request,
     point_id: str = Query(...),
+    max_side: int = Query(default=1024),
+    mark: int = Query(default=0),
     email: Optional[str] = Query(default=None),
     token: Optional[str] = Query(default=None),
 ):
-    """Photo ENTIÈRE (pas recadrée sur le visage) du point `point_id`,
-    déchiffrée à la volée — aperçu au survol d'un point dans la vue
-    nébuleuse (face-nebula.js) : la miniature recadrée identifie le visage,
-    cette route donne le contexte complet de la photo. Même discipline que
-    /mailjet/faces/thumbnail : jamais persistée en clair."""
+    """Photo ENTIÈRE où apparaît le visage `point_id`, déchiffrée à la volée,
+    ≤ `max_side` px (1024 pour l'aperçu au survol, jusqu'à 2048 pour la
+    visionneuse). `mark=1` entoure le visage d'une ellipse — pour retrouver
+    QUI est désigné sur une photo de groupe. Jamais persistée en clair ;
+    cache mémoire borné de la photo redimensionnée (non marquée)."""
     email, err = _faces_auth(request, email, token)
     if err:
         return err
-
     collection = _faces_collection(email)
     if not collection:
         raise HTTPException(status_code=404, detail="no_hex")
-
     payload = await _fetch_face_point(collection, point_id)
     if not payload:
         raise HTTPException(status_code=404, detail="point introuvable")
-
     source_path = payload.get("source_path")
     if not source_path:
         raise HTTPException(status_code=404, detail="pas de photo source enregistrée pour ce visage")
+    max_side = max(256, min(int(max_side or 1024), 2048))
 
-    plaintext, _mime = await _decrypt_source_photo(email, source_path)
-    jpeg = _resize_full_jpeg(plaintext)
+    key = f"{collection}:{source_path}:{max_side}"
+    base = _PHOTO_CACHE.get(key)
+    factor = None
+    if base is None:
+        plaintext, _mime = await _decrypt_source_photo(email, source_path)
 
-    return Response(
-        content=jpeg,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=1800"},
-    )
+        def _resize():
+            img, f = _open_reduced(plaintext, max_side)
+            img.thumbnail((max_side, max_side))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            from PIL import Image
+            return buf.getvalue(), max(img.size) / (max(Image.open(io.BytesIO(plaintext)).size) or 1)
+        base, factor = await asyncio.to_thread(_resize)
+        _PHOTO_CACHE[key] = base
+        _PHOTO_CACHE[key + ":f"] = str(factor).encode()
+        while len(_PHOTO_CACHE) > _PHOTO_CACHE_MAX * 2:
+            _PHOTO_CACHE.popitem(last=False)
+    else:
+        _PHOTO_CACHE.move_to_end(key)
+        factor = float((_PHOTO_CACHE.get(key + ":f") or b"1").decode())
+
+    jpeg = base
+    bbox = payload.get("bbox") or {}
+    if mark and bbox:
+        def _mark():
+            from PIL import Image, ImageDraw
+            img = Image.open(io.BytesIO(base)).convert("RGB")
+            x1, y1 = float(bbox.get("x1", 0)) * factor, float(bbox.get("y1", 0)) * factor
+            x2, y2 = float(bbox.get("x2", 0)) * factor, float(bbox.get("y2", 0)) * factor
+            pad = max(x2 - x1, y2 - y1) * 0.25
+            width = max(3, int(max(img.size) / 250))
+            ImageDraw.Draw(img).ellipse((x1 - pad, y1 - pad, x2 + pad, y2 + pad),
+                                        outline=(91, 143, 240), width=width)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=88)
+            return buf.getvalue()
+        jpeg = await asyncio.to_thread(_mark)
+
+    return Response(content=jpeg, media_type="image/jpeg",
+                    headers={"Cache-Control": "private, max-age=1800"})
 
 
 @router.get("/mailjet/faces/thumbnail")
@@ -1779,6 +2022,116 @@ async def get_face_thumbnail(
     )
 
 
+_THUMB_WORKERS = 4      # photos sources traitées en parallèle par lot
+
+
+@router.post("/mailjet/faces/thumbs")
+async def post_face_thumbs(
+    request: Request,
+    point_ids: str = Form(...),
+    size: int = Form(default=96),
+    email: Optional[str] = Form(default=None),
+    token: Optional[str] = Form(default=None),
+):
+    """Miniatures recadrées de PLUSIEURS visages en un seul appel :
+    {thumbs: {point_id: "data:image/jpeg;base64,…"}} — une signature NIP-98
+    pour 80 visages. `size` 48–320 (la table demande 96, puis 256 pour les
+    visages affichés en grand quand on zoome).
+
+    Coût dominé par le décodage JPEG (mesuré : ipfs cat ~90 ms, AES ~5 ms,
+    décodage 12 Mpx ~135 ms) : chaque photo source n'est décodée qu'une fois
+    pour tous ses visages du lot, à la résolution juste nécessaire
+    (_crop_faces/draft), _THUMB_WORKERS photos en parallèle, et le résultat
+    est gardé dans un cache disque CHIFFRÉ propre au compte
+    (.ucloud/thumbcache/, clé .ucloud/thumbcache.key, 0600) — un rechargement
+    ou un redémarrage du service ne recalcule rien."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+    collection = _faces_collection(email)
+    if not collection:
+        return JSONResponse({"thumbs": {}})
+    size = max(48, min(int(size or 96), 320))
+    ids = [pid.strip() for pid in point_ids.split(",") if pid.strip()][:80]
+    payloads = await _fetch_face_points(collection, ids)
+    ckey = _tcache_key(email)
+
+    thumbs: dict = {}
+    by_photo: dict = {}
+    for pid, payload in payloads.items():
+        sp = payload.get("source_path")
+        if not sp:
+            continue
+        cpath = _tcache_path(email, pid, sp, size)
+        cached = _tcache_get(email, ckey, cpath)
+        if cached:
+            thumbs[pid] = "data:image/jpeg;base64," + base64.b64encode(cached).decode()
+        else:
+            by_photo.setdefault(sp, []).append((pid, payload.get("bbox") or {}, cpath))
+
+    sem = asyncio.Semaphore(_THUMB_WORKERS)
+
+    async def one_photo(source_path: str, items: list) -> None:
+        async with sem:
+            try:
+                plaintext, _mime = await _decrypt_source_photo(email, source_path)
+                crops = await asyncio.to_thread(_crop_faces, plaintext, [(p, b) for p, b, _c in items], size)
+            except Exception as exc:
+                logger.warning("FaceID vignettes : %s ignorée (%s)", source_path, exc)
+                return
+            for pid, _b, cpath in items:
+                jpeg = crops.get(pid)
+                if not jpeg:
+                    continue
+                thumbs[pid] = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
+                try:
+                    await asyncio.to_thread(_tcache_put, ckey, cpath, jpeg)
+                except Exception as exc:
+                    logger.warning("FaceID vignettes : cache non écrit (%s)", exc)
+
+    await asyncio.gather(*(one_photo(sp, items) for sp, items in by_photo.items()))
+    return JSONResponse({"thumbs": thumbs})
+
+
+_VIA_RE = re.compile(r"^(@me|@none|[0-9a-f]{64}|n:[^\x00-\x1f]{1,80})$")
+
+
+def _clean_via(via: str) -> Optional[str]:
+    """`via` = origine du lien social d'une personne : « @me » (je la connais
+    directement → cercle N1), la clé hex de LA personne par qui je l'ai connue (N2),
+    ou « n:<nom> » quand l'introducteur n'a pas encore de clé NOSTR ; « @none » =
+    EXPLICITEMENT non placée (même si je la suis sur NOSTR : mon choix prime sur
+    l'inférence). Vide = inchangé, « - » = effacé ; une valeur invalide est ignorée."""
+    via = (via or "").strip()
+    if via == "-":
+        return "-"
+    via = via.lower() if re.fullmatch(r"[0-9A-Fa-f]{64}", via) else via
+    return via if _VIA_RE.match(via) else None
+
+
+def _identity_payload(name: str, pubkey: str, contact_email: str, contact: str = "", via: str = "") -> dict:
+    """Payload Qdrant d'identité. `contact_email` / `contact` (nom de la fiche
+    du carnet, routers/contacts.py) / `via` (cercle N1/N2) : vide = inchangé ;
+    "-" = effacé (sinon on ne pourrait jamais corriger une erreur)."""
+    payload = {"name": name.strip(), "pubkey": pubkey or None}
+    v = _clean_via(via)
+    if v == "-":
+        payload["via"] = None
+    elif v:
+        payload["via"] = v
+    contact = (contact or "").strip()
+    if contact == "-":
+        payload["contact"] = None
+    elif contact:
+        payload["contact"] = contact
+    contact_email = (contact_email or "").strip().lower()
+    if contact_email == "-":
+        payload["email"] = None
+    elif contact_email and _EMAIL_RE.match(contact_email):
+        payload["email"] = contact_email
+    return payload
+
+
 @router.post("/mailjet/faces-edit")
 async def post_mailjet_faces_edit(
     request: Request,
@@ -1787,9 +2140,12 @@ async def post_mailjet_faces_edit(
     point_id: str = Form(...),
     name: str = Form(...),
     pubkey: str = Form(default=""),
+    contact_email: str = Form(default=""),
+    contact: str = Form(default=""),
+    via: str = Form(default=""),
 ):
-    """Nomme un visage et l'associe à une clé NOSTR (payload merge, le vecteur
-    est inchangé)."""
+    """Nomme un visage et l'associe à une clé NOSTR et/ou un email de contact
+    (payload merge, le vecteur est inchangé)."""
     email, err = _faces_auth(request, email, token)
     if err:
         return err
@@ -1808,7 +2164,7 @@ async def post_mailjet_faces_edit(
             resp = await client.post(
                 f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
                 headers=_qdrant_headers(),
-                json={"payload": {"name": name.strip(), "pubkey": pubkey or None},
+                json={"payload": _identity_payload(name, pubkey, contact_email, contact, via),
                       "points": [point_id]},
             )
     except Exception as exc:
@@ -1830,6 +2186,9 @@ async def post_mailjet_faces_edit_bulk(
     point_ids: str = Form(...),
     name: str = Form(...),
     pubkey: str = Form(default=""),
+    contact_email: str = Form(default=""),
+    contact: str = Form(default=""),
+    via: str = Form(default=""),
 ):
     """Nomme EN UNE FOIS plusieurs visages 'Inconnu' rassemblés — via le
     `group_id` suggéré par GET /mailjet/faces, ou une sélection manuelle dans
@@ -1852,15 +2211,15 @@ async def post_mailjet_faces_edit_bulk(
     ids = [pid.strip() for pid in point_ids.split(",") if pid.strip()]
     if not ids:
         return JSONResponse({"error": "Aucun visage sélectionné."}, status_code=400)
-    if len(ids) > 200:
-        return JSONResponse({"error": "Trop de visages sélectionnés (200 max)."}, status_code=400)
+    if len(ids) > 2000:
+        return JSONResponse({"error": "Trop de visages sélectionnés (2000 max)."}, status_code=400)
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
                 headers=_qdrant_headers(),
-                json={"payload": {"name": name.strip(), "pubkey": pubkey or None},
+                json={"payload": _identity_payload(name, pubkey, contact_email, contact, via),
                       "points": ids},
             )
     except Exception as exc:
@@ -1879,10 +2238,14 @@ async def post_mailjet_faces_delete(
     request: Request,
     email: Optional[str] = Form(default=None),
     token: Optional[str] = Form(default=None),
-    point_id: str = Form(...),
+    point_id: str = Form(default=""),
+    point_ids: str = Form(default=""),
 ):
-    """Oublie définitivement un visage (le vecteur est supprimé : il sera
-    re-catalogué comme inconnu s'il réapparaît sur une future photo)."""
+    """Oublie définitivement un ou plusieurs visages (`point_id`, ou
+    `point_ids` séparés par des virgules, 2000 max — ex. « Oublier » sur une
+    sélection du tableau de tri). Le vecteur est supprimé : il sera
+    re-catalogué comme inconnu s'il réapparaît sur une future photo. Les
+    photos elles-mêmes restent dans le cloud."""
     email, err = _faces_auth(request, email, token)
     if err:
         return err
@@ -1891,12 +2254,15 @@ async def post_mailjet_faces_delete(
     if not collection:
         return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
 
+    ids = [pid.strip() for pid in (point_ids or point_id).split(",") if pid.strip()]
+    if not ids or len(ids) > 2000:
+        return JSONResponse({"error": "Sélection vide ou trop grande (2000 max)."}, status_code=400)
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.post(
                 f"{_QDRANT_URL}/collections/{collection}/points/delete?wait=true",
                 headers=_qdrant_headers(),
-                json={"points": [point_id]},
+                json={"points": ids},
             )
     except Exception as exc:
         logger.warning("Qdrant delete %s : %s", collection, exc)
@@ -1905,20 +2271,20 @@ async def post_mailjet_faces_delete(
     if resp.status_code != 200:
         return JSONResponse({"error": f"Qdrant HTTP {resp.status_code}"}, status_code=502)
 
-    logger.info("FaceID %s : point %s supprimé", email, point_id)
-    return JSONResponse({"ok": True})
+    logger.info("FaceID %s : %d point(s) supprimé(s)", email, len(ids))
+    return JSONResponse({"ok": True, "deleted": len(ids)})
 
 
-# ─── Invitation FaceCloud — inviter un "Inconnu_xxx" à créer son MULTIPASS ──
+# ─── « Envoyer ses photos » — POST /mailjet/person-send (depuis 2026-10-12) ──
 #
-# Flux : quelqu'un catalogue un visage "Inconnu_xxx" sur SES photos (upload
-# normal) → il connaît/devine l'email de cette personne → post_mailjet_faces_invite
-# vérifie D'ABORD si cet email a déjà une identité NOSTR QUELQUE PART (cette
-# station, son cache, ou le swarm — tools/search_for_this_email_in_nostr.sh,
-# jamais seulement ~/.zen/game/nostr/ local) :
-#   - Identité déjà trouvée → migration IMMÉDIATE des photos, pas d'attente.
-#   - Aucune identité nulle part → email d'invitation à créer un MULTIPASS,
-#     avec un jeton de "claim" en attente (7 jours).
+# Remplace /mailjet/faces-invite (4 photos max, seulement pour un inconnu).
+# Le propriétaire désigne une PERSONNE (tous ses visages) et son email ou sa
+# clé ; le serveur choisit le canal :
+#   - MULTIPASS sur cette station → copie directe (cloud_storage.share_copy) ;
+#   - MULTIPASS ailleurs (swarm, tools/search_for_this_email_in_nostr.sh) →
+#     messages fichier NIP-17 (satellite_face_matcher.py --send) ;
+#   - aucune identité nulle part → email d'invitation à créer un MULTIPASS,
+#     avec un jeton de "claim" en attente (7 jours) portant TOUTES les photos.
 #
 # Si la personne crée ensuite son MULTIPASS sur CETTE station avec la même
 # adresse email, process_pending_face_claims() (appelée en tâche de fond juste
@@ -1969,254 +2335,345 @@ async def _search_email_in_nostr_hex(email: str) -> Optional[str]:
     return hex_val if hex_val and len(hex_val) == 64 else None
 
 
-async def _migrate_face_photos(
-    owner_email: str, collection: Optional[str],
-    photos: list[dict], claimant_email: str, claimant_hex: str,
-) -> int:
-    """Copie les photos COMPLÈTES (déchiffrées puis rechiffrées avec une clé
-    propre au destinataire) dans le cloud chiffré de `claimant_email`, et
-    marque chaque point Qdrant correspondant comme identifié chez le
-    propriétaire d'origine. Best-effort par photo — une erreur individuelle
-    n'interrompt pas les suivantes. Retourne le nombre de photos migrées."""
-    from services import cloud_storage
-    migrated = 0
-    for ref in photos:
-        source_path = ref.get("source_path")
-        point_id = ref.get("point_id")
-        if not source_path:
-            continue
-        try:
-            plaintext, mime = await _decrypt_source_photo(owner_email, source_path)
-        except HTTPException as exc:
-            logger.warning("FaceID claim : photo %s ignorée (%s)", source_path, exc.detail)
-            continue
-
-        dest_path = f"/Photos/FaceCloud/{Path(source_path).name}"
-        try:
-            cloud_storage.ingest_plaintext(
-                claimant_email, dest_path, plaintext,
-                content_type=mime, target_pubkey=claimant_hex,
-            )
-            migrated += 1
-        except Exception as exc:
-            logger.warning("FaceID claim : ingestion %s → %s échouée (%s)", source_path, claimant_email, exc)
-            continue
-
-        if collection and point_id:
-            try:
-                async with httpx.AsyncClient(timeout=10) as client:
-                    await client.post(
-                        f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
-                        headers=_qdrant_headers(),
-                        json={"payload": {"pubkey": claimant_hex}, "points": [point_id]},
-                    )
-            except Exception as exc:
-                logger.warning("FaceID claim : maj payload %s échouée (%s)", point_id, exc)
-
-    return migrated
+def _owner_display_name(email: str) -> str:
+    """Nom de l'expéditeur tel qu'il apparaît chez le destinataire
+    (/Reçues/<nom>/…) — même convention que satellite_face_matcher.py."""
+    return email.split("@", 1)[0]
 
 
-@router.post("/mailjet/faces-invite")
-async def post_mailjet_faces_invite(
-    request: Request,
-    email: Optional[str] = Form(default=None),
-    token: Optional[str] = Form(default=None),
-    point_id: str = Form(...),
-    to_email: str = Form(...),
-):
-    """Envoie une invitation MULTIPASS à la personne détectée sur `point_id`,
-    avec un aperçu (miniatures recadrées, jamais la photo entière à ce stade)
-    des photos où elle apparaît. Voir le commentaire de section ci-dessus pour
-    le flux complet (email → création MULTIPASS → migration automatique)."""
-    email, err = _faces_auth(request, email, token)
-    if err:
-        return err
-
-    to_email = to_email.strip().lower()
-    if not _EMAIL_RE.match(to_email):
-        return JSONResponse({"error": "Adresse email invalide"}, status_code=400)
-
-    collection = _faces_collection(email)
-    if not collection:
-        return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
-
-    payload = await _fetch_face_point(collection, point_id)
-    if not payload:
-        return JSONResponse({"error": "Visage introuvable."}, status_code=404)
-    if payload.get("pubkey"):
-        return JSONResponse({"error": "Ce visage est déjà associé à un MULTIPASS."}, status_code=400)
-
-    # Le visage ciblé + les autres points NON nommés dont il est le plus proche
-    # voisin par cosinus (même heuristique "maybe" que GET /mailjet/faces, mais
-    # utilisée ici pour rassembler ce qui est probablement la MÊME personne,
-    # plutôt que de proposer un rapprochement à confirmer).
-    candidates = [(point_id, payload)]
+def _local_hex_for_email(email: str) -> Optional[str]:
+    """HEX du MULTIPASS `email` s'il est hébergé sur CETTE station."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                f"{_QDRANT_URL}/collections/{collection}/points/scroll",
-                headers=_qdrant_headers(),
-                json={"limit": 2000, "with_payload": True, "with_vector": True},
-            )
-        if resp.status_code == 200:
-            points = resp.json().get("result", {}).get("points", [])
-            target_vec = next((p.get("vector") for p in points if p.get("id") == point_id), None)
-            if isinstance(target_vec, list):
-                scored = []
-                for p in points:
-                    pid = p.get("id")
-                    ppayload = p.get("payload") or {}
-                    if pid == point_id or ppayload.get("pubkey"):
-                        continue
-                    vec = p.get("vector")
-                    if not isinstance(vec, list):
-                        continue
-                    score = _cosine(target_vec, vec)
-                    if score >= _MAYBE_SAME_MIN:
-                        scored.append((score, pid, ppayload))
-                scored.sort(key=lambda t: t[0], reverse=True)
-                candidates.extend((pid, ppayload) for _score, pid, ppayload in scored[:3])
-    except Exception as exc:
-        logger.warning("FaceID invite : recherche de photos additionnelles échouée (%s)", exc)
+        hex_val = (settings.GAME_PATH / "nostr" / email / "HEX").read_text().strip()
+    except OSError:
+        return None
+    return hex_val if len(hex_val) == 64 else None
 
-    photo_refs: list[dict] = []   # conservé dans le jeton pour la migration ultérieure
-    attach_files: list[str] = []  # fichiers temporaires JPEG à joindre à l'email
-    for pid, ppayload in candidates[:4]:
-        source_path = ppayload.get("source_path")
-        if not source_path:
-            continue
+
+async def _copy_photos_to(owner_email: str, photo_refs: list,
+                          recipient_email: str) -> dict:
+    """Copie chaque photo dans le cloud de `recipient_email` (même station),
+    via le canal UNIQUE cloud_storage.share_copy (rechiffrée, rangée sous
+    /Reçues/<expéditeur>/, idempotente par contenu, sans analyse FaceID chez
+    le destinataire). Best-effort par photo."""
+    from services import cloud_storage
+    owner_hex = _local_hex_for_email(owner_email) or ""
+    counts = {"copied": 0, "duplicate": 0, "error": 0}
+    for ref in photo_refs:
         try:
-            plaintext, _mime = await _decrypt_source_photo(email, source_path)
-            jpeg = _crop_face_jpeg(plaintext, ppayload.get("bbox") or {})
-        except HTTPException as exc:
-            logger.warning("FaceID invite : aperçu %s ignoré (%s)", source_path, exc.detail)
-            continue
-        photo_refs.append({"point_id": pid, "source_path": source_path, "bbox": ppayload.get("bbox")})
-        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-        tmp.write(jpeg)
-        tmp.close()
-        attach_files.append(tmp.name)
+            res = await asyncio.to_thread(
+                cloud_storage.share_copy, owner_email, ref["source_path"],
+                recipient_email, owner_hex, _owner_display_name(owner_email))
+            counts[res["status"]] = counts.get(res["status"], 0) + 1
+        except Exception as exc:
+            counts["error"] += 1
+            logger.warning("FaceCloud : copie %s → %s échouée (%s)", ref.get("source_path"), recipient_email, exc)
+    return counts
 
-    if not photo_refs:
-        return JSONResponse({"error": "Aucune photo exploitable pour ce visage."}, status_code=404)
 
-    n_photos = len(photo_refs)
+async def _mail(to_email: str, subject: str, body_html: str, attach: Optional[list] = None,
+                expire: Optional[str] = None) -> bool:
+    """Un email via tools/mailjet.sh (canal facecloud-invite)."""
     mailjet_sh = settings.TOOLS_PATH / "mailjet.sh"
     if not mailjet_sh.exists():
-        for af in attach_files:
-            Path(af).unlink(missing_ok=True)
-        return JSONResponse({"error": "Envoi d'email indisponible sur cette station"}, status_code=502)
-
-    # ── Identité déjà existante QUELQUE PART (cette station, son cache, ou le
-    # swarm) ? Si oui, migration IMMÉDIATE — inutile d'attendre une inscription
-    # que la personne ne fera jamais puisqu'elle a déjà un MULTIPASS.
-    existing_hex = await _search_email_in_nostr_hex(to_email)
-    if existing_hex:
-        migrated = await _migrate_face_photos(email, collection, photo_refs, to_email, existing_hex)
-        for af in attach_files:
-            Path(af).unlink(missing_ok=True)
-        if migrated == 0:
-            return JSONResponse({"error": "Identité trouvée mais migration des photos échouée."}, status_code=502)
-
-        body_html = (
-            "<h2>📸 Des photos de vous ont été ajoutées à votre cloud</h2>"
-            f"<p>Quelqu'un a détecté votre visage sur {migrated} photo{'s' if migrated > 1 else ''} "
-            "prise(s) via le réseau UPlanet. Votre MULTIPASS existant a été reconnu automatiquement : "
-            "une copie complète de ces photos est désormais dans votre cloud personnel chiffré.</p>"
-            "<p style=\"color:#888;font-size:.85em\">La personne qui vous a photographié·e garde aussi "
-            "sa copie — ce n'est pas un déplacement.</p>"
-        )
-        html_path = None
-        try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f:
-                f.write(body_html)
-                html_path = f.name
-            proc = await asyncio.create_subprocess_exec(
-                str(mailjet_sh), "--channel", "facecloud-invite", "--no-ipfs-link",
-                to_email, html_path, "📸 Des photos de vous ajoutées à votre cloud UPlanet",
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=30)
-        except Exception as exc:
-            logger.warning("[faces-invite] confirmation email échouée (%s)", exc)
-        finally:
-            if html_path:
-                Path(html_path).unlink(missing_ok=True)
-
-        logger.info("[faces-invite] %s → %s : identité existante (%d photo(s) migrées immédiatement)",
-                    email, to_email, migrated)
-        return JSONResponse({"ok": True, "matched": True, "photos": migrated})
-
-    # ── Aucune identité nulle part : invitation à créer un MULTIPASS. Le jeton
-    # en attente est stocké sous ~/.zen/game/nostr/{owner}/.face_invites/
-    # (DURABLE — jamais sous ~/.zen/tmp/, purgé quotidiennement, qui casserait
-    # silencieusement l'invitation avant les 7 jours annoncés par email).
-    invite_token = secrets.token_urlsafe(24)
-    invites_dir = _face_invites_dir(email)
-    invites_dir.mkdir(parents=True, exist_ok=True)
-    _face_invite_path(email, invite_token).write_text(json.dumps({
-        "owner_email": email,
-        "collection": collection,
-        "to_email": to_email,
-        "photos": photo_refs,
-        "created_at": int(time.time()),
-        "expires_at": int(time.time()) + _FACE_INVITE_TTL,
-    }), encoding="utf-8")
-
-    signup_url = f"{str(settings.uSPOT).rstrip('/')}/earth/GAFAM.html?claim={invite_token}"
-    body_html = (
-        "<h2>📸 Des photos de vous attendent</h2>"
-        f"<p>Quelqu'un a détecté votre visage sur {n_photos} photo{'s' if n_photos > 1 else ''} "
-        "prise(s) via le réseau UPlanet — en pièce jointe, un aperçu recadré.</p>"
-        f"<p><a href='{signup_url}' style=\"display:inline-block;background:#16a34a;color:#fff;"
-        "padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600\">"
-        "Créer mon MULTIPASS pour les récupérer</a></p>"
-        "<p style=\"color:#888;font-size:.85em\">En créant votre MULTIPASS avec CETTE adresse email "
-        "dans les 7 jours, une copie complète de ces photos sera automatiquement ajoutée à votre "
-        "propre cloud personnel chiffré. La personne qui vous a photographié·e garde aussi sa copie — "
-        "ce n'est pas un déplacement.</p>"
-    )
-
+        return False
     html_path = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f:
             f.write(body_html)
             html_path = f.name
-
-        cmd = [str(mailjet_sh), "--channel", "facecloud-invite", "--expire", "7d"]
-        for af in attach_files:
+        cmd = [str(mailjet_sh), "--channel", "facecloud-invite"]
+        cmd += ["--expire", expire] if expire else ["--no-ipfs-link"]
+        for af in attach or []:
             cmd += ["--attach", af]
-        cmd += [to_email, html_path, "📸 Des photos de vous sur UPlanet"]
-
+        cmd += [to_email, html_path, subject]
         proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         try:
             await asyncio.wait_for(proc.communicate(), timeout=30)
         except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
-            _face_invite_path(email, invite_token).unlink(missing_ok=True)
-            return JSONResponse({"error": "Délai d'envoi dépassé"}, status_code=504)
-
-        if proc.returncode != 0:
-            logger.warning("[faces-invite] mailjet.sh code %s", proc.returncode)
-            _face_invite_path(email, invite_token).unlink(missing_ok=True)
-            return JSONResponse({"error": "Échec de l'envoi"}, status_code=502)
+            proc.kill()
+            return False
+        return proc.returncode == 0
+    except Exception as exc:
+        logger.warning("FaceCloud : email à %s échoué (%s)", to_email, exc)
+        return False
     finally:
         if html_path:
             Path(html_path).unlink(missing_ok=True)
-        for af in attach_files:
-            Path(af).unlink(missing_ok=True)
-
-    logger.info("[faces-invite] %s → %s : invitation envoyée (%d photo(s), point=%s)",
-                email, to_email, n_photos, point_id)
-    return JSONResponse({"ok": True, "matched": False, "photos": n_photos})
 
 
-async def process_pending_face_claims(email: str) -> None:
+async def _send_local_and_record(owner_email: str, collection: str, ids: list,
+                                 photo_refs: list, recipient_email: str) -> None:
+    """Tâche de fond de « Envoyer ses photos » (destinataire sur cette station) :
+    copie, mémorise l'envoi sur les points (`sent`, affiché dans ucloud.html),
+    puis UN SEUL email récapitulatif au destinataire — jamais un message par
+    photo."""
+    counts = await _copy_photos_to(owner_email, photo_refs, recipient_email)
+    await _set_points_payload(collection, ids, {"sent": {
+        "at": int(time.time()), "mode": "local",
+        "photos": counts["copied"] + counts["duplicate"], "errors": counts["error"]}})
+    logger.info("FaceCloud : %s → %s : %s", owner_email, recipient_email, counts)
+    if counts["copied"]:
+        who = _owner_display_name(owner_email)
+        n = counts["copied"]
+        await _mail(recipient_email, f"📸 {who} vous a envoyé {n} photo{'s' if n > 1 else ''}", (
+            f"<h2>📸 {n} photo{'s' if n > 1 else ''} de vous dans votre cloud</h2>"
+            f"<p><strong>{who}</strong> vous a reconnu·e sur des photos et vous en a envoyé une copie. "
+            f"Elles sont rangées dans votre cloud personnel chiffré, dossier "
+            f"<code>/Reçues/{who}/</code> — ouvrez FaceCloud pour les voir.</p>"
+            "<p style=\"color:#888;font-size:.85em\">Chaque copie est chiffrée avec votre propre clé ; "
+            "l'expéditeur garde la sienne.</p>"))
+
+
+async def _send_remote(owner_email: str, collection: str, ids: list, photo_refs: list,
+                       recipient_hex: str, name: str) -> bool:
+    """Destinataire sur une AUTRE station. Station connue de la constellation
+    (services/identity_links.py) → canal inter-NODE : sa station range les
+    photos dans son cloud (services/node_share.py), aucun message humain.
+    Station inconnue → message fichier NIP-17 par photo
+    (satellite_face_matcher.py --send), en dernier recours."""
+    from services import identity_links, node_share
+    owner_hex = _local_hex_for_email(owner_email)
+    if not owner_hex:
+        return False
+    account = identity_links.email_for_hex(recipient_hex)
+    paths = [r["source_path"] for r in photo_refs]
+    if account and account.get("where") == "swarm" and node_share.node_hex_for(account.get("node", "")):
+        async def _bg() -> None:
+            res = await asyncio.to_thread(node_share.send, owner_email, _owner_display_name(owner_email),
+                                          account, paths)
+            await _set_points_payload(collection, ids, {"sent": {
+                "at": int(time.time()), "mode": "node", "photos": res.get("photos", 0)}})
+        task = asyncio.create_task(_bg())
+        _BG_TASKS.add(task)
+        task.add_done_callback(_BG_TASKS.discard)
+        return True
+
+    matcher = Path.home() / ".zen" / "Astroport.ONE" / "IA" / "bro" / "satellite_face_matcher.py"
+    if not matcher.exists():
+        return False
+    log = open(Path.home() / ".zen" / "tmp" / "facecloud_send.log", "ab")
+    await asyncio.create_subprocess_exec(sys.executable, str(matcher), "--send", owner_email, owner_hex,
+                                         recipient_hex, name or "?", *paths, stdout=log, stderr=log,
+                                         stdin=asyncio.subprocess.DEVNULL, start_new_session=True)
+    log.close()
+    await _set_points_payload(collection, ids, {"sent": {
+        "at": int(time.time()), "mode": "remote", "photos": len(photo_refs)}})
+    return True
+
+
+async def _send_invite(owner_email: str, collection: str, ids: list, photo_refs: list,
+                       to_email: str) -> Optional[str]:
+    """Aucun MULTIPASS nulle part pour `to_email` : jeton d'invitation durable
+    portant TOUTES les photos (plus seulement 4), email avec un aperçu
+    recadré des premières. process_pending_face_claims() fera la copie à
+    l'inscription. Retourne None si OK, sinon un message d'erreur."""
+    attach_files: list = []
+    for ref in photo_refs[:4]:
+        try:
+            plaintext, _mime = await _decrypt_source_photo(owner_email, ref["source_path"])
+            jpeg = _crop_face_jpeg(plaintext, ref.get("bbox") or {})
+        except HTTPException:
+            continue
+        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp.write(jpeg)
+        tmp.close()
+        attach_files.append(tmp.name)
+
+    invite_token = secrets.token_urlsafe(24)
+    invites_dir = _face_invites_dir(owner_email)
+    invites_dir.mkdir(parents=True, exist_ok=True)
+    _face_invite_path(owner_email, invite_token).write_text(json.dumps({
+        "owner_email": owner_email, "collection": collection, "to_email": to_email,
+        "photos": photo_refs, "created_at": int(time.time()),
+        "expires_at": int(time.time()) + _FACE_INVITE_TTL,
+    }), encoding="utf-8")
+
+    n = len(photo_refs)
+    who = _owner_display_name(owner_email)
+    signup_url = f"{str(settings.uSPOT).rstrip('/')}/earth/GAFAM.html?claim={invite_token}"
+    sent = await _mail(to_email, "📸 Des photos de vous vous attendent sur UPlanet", (
+        "<h2>📸 Des photos de vous vous attendent</h2>"
+        f"<p><strong>{who}</strong> vous a reconnu·e sur {n} photo{'s' if n > 1 else ''} "
+        "et souhaite vous les donner — en pièce jointe, un aperçu.</p>"
+        f"<p><a href='{signup_url}' style=\"display:inline-block;background:#16a34a;color:#fff;"
+        "padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600\">"
+        "Créer mon MULTIPASS pour les récupérer</a></p>"
+        "<p>🔒 Elles sont <strong>chiffrées</strong> : vous seul·e y aurez accès. 🎁 C'est <strong>gratuit</strong>, "
+        "sans rien à installer, et vous gardez la main (tout est supprimable).</p>"
+        "<p style=\"color:#888;font-size:.85em\">Créez votre MULTIPASS avec CETTE adresse email dans les "
+        "7 jours : une copie complète des photos sera ajoutée automatiquement à votre cloud personnel "
+        "chiffré. La personne qui vous les envoie garde aussi sa copie.</p>"
+        f"<p>Et si vous avez des photos de {who}, vous pourrez les lui offrir en retour 😉</p>"),
+        attach=attach_files, expire="7d")
+    for af in attach_files:
+        Path(af).unlink(missing_ok=True)
+    if not sent:
+        _face_invite_path(owner_email, invite_token).unlink(missing_ok=True)
+        return "Échec de l'envoi de l'invitation"
+    await _set_points_payload(collection, ids, {"sent": {
+        "at": int(time.time()), "mode": "invited", "photos": n}})
+    return None
+
+
+async def _photo_refs_for(collection: str, ids: list) -> list:
+    """Une entrée par PHOTO (dédoublonnée) portée par les visages `ids`."""
+    payloads = await _fetch_face_points(collection, ids)
+    refs, seen = [], set()
+    for pid in ids:
+        payload = payloads.get(pid) or {}
+        sp = payload.get("source_path")
+        if sp and sp not in seen:
+            seen.add(sp)
+            refs.append({"point_id": pid, "source_path": sp, "bbox": payload.get("bbox")})
+    return refs
+
+
+_BG_TASKS: set = set()
+
+
+@router.post("/mailjet/person-invite-link")
+async def post_mailjet_person_invite_link(
+    request: Request,
+    point_ids: str = Form(...),
+    name: str = Form(default=""),
+    email: Optional[str] = Form(default=None),
+    token: Optional[str] = Form(default=None),
+):
+    """« Inviter par un lien » — pour WhatsApp, Telegram, SMS, Signal, AirDrop, QR…
+
+    Même idée que l'invitation par email, SANS adresse : un jeton ouvert, à usage UNIQUE, valable
+    7 jours, qui porte TOUTES les photos des visages `point_ids`. La personne ouvre le lien
+    (`ucloud.html#demarrer&claim=<jeton>`), voit un aperçu de ses visages, saisit SON adresse email,
+    et ses photos arrivent dans son MULTIPASS (`process_pending_face_claims(email, claim_token)`).
+    Le jeton est un secret au porteur : à n'envoyer qu'à la personne concernée (l'interface le rappelle).
+    Rend `{url, photos, expires_at}`."""
+    owner_email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+    collection = _faces_collection(owner_email)
+    if not collection:
+        return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
+    ids = [pid.strip() for pid in point_ids.split(",") if pid.strip()]
+    if not ids or len(ids) > 2000:
+        return JSONResponse({"error": "Sélection vide ou trop grande (2000 max)."}, status_code=400)
+    photo_refs = await _photo_refs_for(collection, ids)
+    if not photo_refs:
+        return JSONResponse({"error": "Aucune photo exploitable pour cette personne."}, status_code=404)
+
+    invite_token = secrets.token_urlsafe(24)
+    _face_invites_dir(owner_email).mkdir(parents=True, exist_ok=True)
+    expires = int(time.time()) + _FACE_INVITE_TTL
+    _face_invite_path(owner_email, invite_token).write_text(json.dumps({
+        "owner_email": owner_email, "collection": collection, "to_email": "", "open": True,
+        "photos": photo_refs, "created_at": int(time.time()), "expires_at": expires,
+    }), encoding="utf-8")
+    if name.strip():
+        await _set_points_payload(collection, ids, {"name": name.strip()})
+    await _set_points_payload(collection, ids, {"sent": {
+        "at": int(time.time()), "mode": "link", "photos": len(photo_refs)}})
+    url = f"{str(settings.uSPOT).rstrip('/')}/earth/GAFAM.html?claim={invite_token}"
+    logger.info("[person-invite-link] %s : %d photo(s), lien ouvert créé", owner_email, len(photo_refs))
+    return JSONResponse({"ok": True, "url": url, "photos": len(photo_refs), "expires_at": expires})
+
+
+@router.post("/mailjet/person-send")
+async def post_mailjet_person_send(
+    request: Request,
+    point_ids: str = Form(...),
+    name: str = Form(default=""),
+    pubkey: str = Form(default=""),
+    to_email: str = Form(default=""),
+    email: Optional[str] = Form(default=None),
+    token: Optional[str] = Form(default=None),
+):
+    """« Envoyer ses photos » — UN geste pour donner à une personne TOUTES les
+    photos où apparaissent les visages `point_ids` (une personne du tableau
+    de tri de ucloud.html), quel que soit son statut :
+
+    * MULTIPASS sur CETTE station (clé ou email) → copie directe dans son
+      cloud (`/Reçues/<expéditeur>/`), un seul email récapitulatif ;
+    * MULTIPASS ailleurs dans la constellation → messages fichier NIP-17 ;
+    * aucun MULTIPASS → invitation par email (jeton 7 jours, TOUTES les
+      photos copiées à l'inscription).
+
+    Action EXPLICITE du propriétaire : pas de condition de suivi mutuel
+    (elle reste exigée pour le partage AUTOMATIQUE du matcher). L'identité
+    (nom/clé/email) est mémorisée sur les visages au passage."""
+    owner_email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+    collection = _faces_collection(owner_email)
+    if not collection:
+        return JSONResponse({"error": "MULTIPASS sans HEX sur cette station."}, status_code=404)
+    owner_hex = collection[len("faces_"):]
+
+    ids = [pid.strip() for pid in point_ids.split(",") if pid.strip()]
+    if not ids or len(ids) > 2000:
+        return JSONResponse({"error": "Sélection vide ou trop grande (2000 max)."}, status_code=400)
+    pubkey = pubkey.strip().lower()
+    if pubkey and not re.fullmatch(r"[0-9a-f]{64}", pubkey):
+        return JSONResponse({"error": "La clé publique doit être 64 caractères hexadécimaux."}, status_code=400)
+    to_email = to_email.strip().lower()
+    if to_email and not _EMAIL_RE.match(to_email):
+        return JSONResponse({"error": "Adresse email invalide"}, status_code=400)
+    if not pubkey and not to_email:
+        return JSONResponse({"error": "Indiquez l'email de la personne."}, status_code=400)
+
+    photo_refs = await _photo_refs_for(collection, ids)
+    if not photo_refs:
+        return JSONResponse({"error": "Aucune photo exploitable pour cette personne."}, status_code=404)
+
+    from services import cloud_storage
+    recipient_email = recipient_hex = None
+    if pubkey:
+        recipient_hex = pubkey
+        recipient_email = cloud_storage.email_for_hex(pubkey)
+    elif to_email:
+        local_hex = _local_hex_for_email(to_email)
+        if local_hex:
+            recipient_email, recipient_hex = to_email, local_hex
+        else:
+            # Annuaire de la constellation d'abord (instantané, aucune requête),
+            # recherche réseau ensuite (tools/search_for_this_email_in_nostr.sh).
+            from services import identity_links
+            exact = [a for a in identity_links.accounts_for_emails([to_email]) if a["match"] == "exact"]
+            recipient_hex = exact[0]["hex"] if exact else await _search_email_in_nostr_hex(to_email)
+    if recipient_hex == owner_hex:
+        return JSONResponse({"error": "C'est votre propre visage."}, status_code=400)
+
+    identity = {}
+    if name.strip():
+        identity["name"] = name.strip()
+    if recipient_hex:
+        identity["pubkey"] = recipient_hex
+    if to_email:
+        identity["email"] = to_email
+    if identity:
+        await _set_points_payload(collection, ids, identity)
+
+    n = len(photo_refs)
+    if recipient_email:
+        task = asyncio.create_task(_send_local_and_record(owner_email, collection, ids, photo_refs, recipient_email))
+        _BG_TASKS.add(task)   # référence forte : sinon la tâche peut être ramassée en cours
+        task.add_done_callback(_BG_TASKS.discard)
+        mode = "local"
+    elif recipient_hex:
+        if not await _send_remote(owner_email, collection, ids, photo_refs, recipient_hex, name.strip()):
+            return JSONResponse({"error": "Envoi vers une autre station indisponible."}, status_code=502)
+        mode = "remote"
+    else:
+        problem = await _send_invite(owner_email, collection, ids, photo_refs, to_email)
+        if problem:
+            return JSONResponse({"error": problem}, status_code=502)
+        mode = "invited"
+    logger.info("[person-send] %s → %s/%s : %d photo(s), mode=%s",
+                owner_email, to_email or "-", (recipient_hex or "-")[:12], n, mode)
+    return JSONResponse({"ok": True, "mode": mode, "photos": n, "pubkey": recipient_hex or ""})
+
+
+async def process_pending_face_claims(email: str, claim_token: str = "") -> None:
     """Hook additif appelé en tâche de fond (fire-and-forget, cf.
     routers/identity.py::scan_qr) juste après une création MULTIPASS réussie
     SUR CETTE STATION.
@@ -2264,7 +2721,10 @@ async def process_pending_face_claims(email: str) -> None:
                 invite_file.unlink(missing_ok=True)
                 continue
 
-            if (data.get("to_email") or "").strip().lower() != email_lc:
+            # Invitation par email : l'adresse doit correspondre. Invitation par LIEN (« open », usage unique) :
+            # seul le porteur du jeton exact la réclame, avec n'importe quelle adresse.
+            by_link = bool(data.get("open")) and bool(claim_token) and invite_file.stem == claim_token
+            if not by_link and (data.get("to_email") or "").strip().lower() != email_lc:
                 continue
             if now > int(data.get("expires_at", 0)):
                 invite_file.unlink(missing_ok=True)
@@ -2277,10 +2737,16 @@ async def process_pending_face_claims(email: str) -> None:
                 invite_file.unlink(missing_ok=True)
                 continue
 
-            migrated = await _migrate_face_photos(owner_email, collection, photos, raw_email, claimant_hex)
+            counts = await _copy_photos_to(owner_email, photos, raw_email)
+            ids = [str(p["point_id"]) for p in photos if p.get("point_id")]
+            if collection and ids:
+                await _set_points_payload(collection, ids, {
+                    "pubkey": claimant_hex,
+                    "sent": {"at": int(time.time()), "mode": "local",
+                             "photos": counts["copied"] + counts["duplicate"]}})
             invite_file.unlink(missing_ok=True)
-            logger.info("FaceID claim : %s → %s (%d/%d photo(s) migrées, inscription locale)",
-                        owner_email, raw_email, migrated, len(photos))
+            logger.info("FaceID claim : %s → %s (%s, inscription locale)",
+                        owner_email, raw_email, counts)
     except Exception as exc:
         logger.warning("process_pending_face_claims(%s) : erreur inattendue (%s)", email, exc)
 

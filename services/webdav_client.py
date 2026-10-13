@@ -16,9 +16,13 @@ routes FastAPI et par `webdav_import.py` via `asyncio.run()`).
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
+import os
+import socket
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, List
-from urllib.parse import unquote, urljoin
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 import httpx
 
@@ -47,6 +51,75 @@ def _root_base(root_url: str) -> str:
     return root_url if root_url.endswith("/") else root_url + "/"
 
 
+def _child_url(root_url: str, rel_path: str, folder: bool = False) -> str:
+    """URL de `rel_path` sous `root_url`, SEGMENTS pourcent-encodés.
+
+    `urljoin(base, "Photo: x.jpg")` prenait « Photo: » pour un schéma et rendait
+    `Photo: x.jpg` ; un `#` ou un `?` dans un nom tronquait l'URL — ces fichiers
+    échouaient chaque jour pour toujours. On concatène donc nous-mêmes."""
+    base = _root_base(root_url)
+    rel = rel_path.strip("/")
+    if not rel:
+        return base
+    url = base + quote(rel, safe="/")
+    return url + "/" if folder else url
+
+
+# Le client WebDAV sortant ne doit pas servir de proxy vers l'intérieur de la
+# station (IPFS 5001, API station 12345, métadonnées cloud 169.254.169.254…).
+# Les adresses PRIVÉES (LAN) restent permises : une autre station Astroport
+# chez soi est un usage légitime. Bloqués : boucle locale, link-local, adresses
+# non routables, multicast. (Reste ouvert : le DNS rebinding, qui demanderait de
+# figer l'IP résolue dans le transport.)
+def _forbidden_ip(ip: "ipaddress._BaseAddress") -> bool:
+    return (ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
+            or ip.is_reserved)
+
+
+_HOST_OK: Dict[str, float] = {}
+
+
+async def validate_remote_url(url: str) -> None:
+    """Lève WebdavError si `url` n'est pas un http(s) vers une adresse permise."""
+    parts = urlsplit((url or "").strip())
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise WebdavError("adresse invalide (http:// ou https:// attendu)")
+    host = parts.hostname
+    import time as _t
+    if _t.time() - _HOST_OK.get(host, 0.0) < 300:
+        return                      # déjà validé : un parcours fait des milliers d'appels
+    try:
+        infos = await asyncio.get_running_loop().getaddrinfo(host, parts.port or 443,
+                                                             type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise WebdavError("nom de serveur introuvable")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if _forbidden_ip(ip):
+            raise WebdavError("adresse interdite (boucle locale / réseau réservé)")
+    _HOST_OK[host] = _t.time()
+
+
+_MAX_REDIRECTS = 3
+
+
+async def _request(client: "httpx.AsyncClient", method: str, url: str, **kw) -> "httpx.Response":
+    """Requête avec redirections suivies À LA MAIN (≤ 3) : http→https ou ajout du
+    `/` final d'un Nextcloud étaient rejetés (« HTTP 301 »), et une redirection
+    automatique aurait pu mener vers une adresse interne non revalidée."""
+    for _ in range(_MAX_REDIRECTS + 1):
+        await validate_remote_url(url)
+        resp = await client.request(method, url, **kw)
+        if resp.status_code in (301, 302, 307, 308) and resp.headers.get("location"):
+            nxt = httpx.URL(url).join(resp.headers["location"])
+            if nxt.host != httpx.URL(url).host:
+                raise WebdavError("redirection vers un autre serveur refusée")
+            url = str(nxt)
+            continue
+        return resp
+    raise WebdavError("trop de redirections")
+
+
 async def list_folder(root_url: str, username: str, password: str,
                        rel_path: str = "", timeout: float = 20.0) -> List[Dict[str, Any]]:
     """Enfants DIRECTS (Depth: 1) de `rel_path` (relatif à `root_url`, la
@@ -58,14 +131,13 @@ async def list_folder(root_url: str, username: str, password: str,
     `walk_files`) : de nombreux serveurs (NextCloud par défaut) refusent ou
     limitent Depth: infinity pour raisons de charge — Depth: 1 est le seul
     appel universellement supporté."""
-    base = _root_base(root_url)
     rel = rel_path.strip("/")
-    target_url = urljoin(base, rel + "/") if rel else base
+    target_url = _child_url(root_url, rel, folder=True)
 
     try:
         async with httpx.AsyncClient(timeout=timeout, auth=(username, password)) as client:
-            resp = await client.request(
-                "PROPFIND", target_url,
+            resp = await _request(
+                client, "PROPFIND", target_url,
                 headers={"Depth": "1", "Content-Type": "application/xml"},
                 content=_PROPFIND_BODY,
             )
@@ -130,44 +202,99 @@ async def list_folder(root_url: str, username: str, password: str,
     return items
 
 
+# Plafond du parcours récursif. Il compte TOUS les fichiers vus, déjà
+# importés compris : à 2000 (valeur d'origine), une archive plus grosse
+# restait figée pour toujours une fois ses 2000 premiers fichiers importés
+# (constaté le 2026-10-12). Le parcours ne coûte qu'un PROPFIND par dossier ;
+# les fichiers déjà vus sont écartés par le cache de webdav_import.py sans
+# être téléchargés.
+WALK_MAX_FILES = int(os.environ.get("WEBDAV_WALK_MAX", "50000"))
+
+
+WALK_CONCURRENCY = int(os.environ.get("WEBDAV_WALK_CONCURRENCY", "8"))
+# Garde-fous d'un arbre pathologique (boucle de liens, dossiers fantômes) : sans
+# ces bornes, un arbre de dossiers SANS fichier bouclait indéfiniment.
+WALK_MAX_DIRS = int(os.environ.get("WEBDAV_WALK_MAX_DIRS", "40000"))
+WALK_MAX_DEPTH = int(os.environ.get("WEBDAV_WALK_MAX_DEPTH", "40"))
+
+
 async def walk_files(root_url: str, username: str, password: str,
-                      rel_path: str = "", max_files: int = 2000) -> List[Dict[str, Any]]:
-    """Tous les FICHIERS sous `rel_path`, parcouru récursivement niveau par
-    niveau (pas de Depth: infinity, cf. `list_folder`). Plafonné à
-    `max_files` par prudence (un dossier mal choisi — toute la photothèque —
-    ne doit pas bloquer indéfiniment l'import quotidien). Un sous-dossier qui
-    échoue (404 sur une entrée fantôme du serveur distant, permission refusée
-    sur UN dossier précis, etc.) est ignoré plutôt que de faire échouer tout
-    le reste de l'arborescence."""
+                      rel_path: str = "", max_files: int = WALK_MAX_FILES) -> List[Dict[str, Any]]:
+    """Tous les FICHIERS sous `rel_path`, parcouru niveau par niveau (pas de
+    Depth: infinity, cf. `list_folder`), jusqu'à WALK_CONCURRENCY dossiers
+    interrogés EN PARALLÈLE. Une photothèque rangée par jour compte des
+    milliers de dossiers à ~0,7 s le PROPFIND : en série, le seul parcours
+    dépassait 30 min (constaté le 2026-10-12, archive 2007→2026).
+
+    Plafonné à `max_files` par prudence. Quand le plafond coupe, on garde les
+    fichiers dont le CHEMIN est le plus GRAND : dans une archive rangée par
+    année/mois/jour ce sont les plus RÉCENTS — l'ancien tri croissant écartait
+    précisément les nouvelles photos, qui n'étaient alors jamais importées.
+    Ordre de sortie : plus récent d'abord (stable d'un passage à l'autre).
+    Un sous-dossier qui échoue est ignoré ; seul l'échec de la RACINE est remonté."""
+    sem = asyncio.Semaphore(WALK_CONCURRENCY)
     out: List[Dict[str, Any]] = []
-    entries = await list_folder(root_url, username, password, rel_path)
-    for entry in entries:
-        if len(out) >= max_files:
-            break
-        if entry["is_dir"]:
+
+    async def listing(path: str, root: bool) -> List[Dict[str, Any]]:
+        async with sem:
             try:
-                out.extend(await walk_files(root_url, username, password, entry["path"],
-                                             max_files=max_files - len(out)))
+                return await list_folder(root_url, username, password, path)
             except WebdavError:
-                continue
-        else:
-            out.append(entry)
+                if root:
+                    raise
+                return []
+
+    level = [rel_path]
+    seen = {rel_path.strip("/")}
+    first = True
+    depth = 0
+    while level and len(out) < max_files and depth <= WALK_MAX_DEPTH:
+        results = await asyncio.gather(*(listing(p, first) for p in level))
+        first = False
+        depth += 1
+        level = []
+        for entries in results:
+            for entry in entries:
+                if entry["is_dir"]:
+                    key = entry["path"].strip("/")
+                    if key in seen or len(seen) >= WALK_MAX_DIRS:
+                        continue          # cycle ou arbre démesuré
+                    seen.add(key)
+                    level.append(entry["path"])
+                else:
+                    out.append(entry)
+    out.sort(key=lambda e: e["path"], reverse=True)
     return out[:max_files]
 
 
+MAX_DOWNLOAD_BYTES = int(os.environ.get("WEBDAV_MAX_DOWNLOAD", str(200 * 1024 * 1024)))
+
+
 async def download_file(root_url: str, username: str, password: str, rel_path: str,
-                         timeout: float = 120.0) -> bytes:
-    """Contenu brut d'UN fichier distant (`rel_path`, relatif à `root_url`)."""
-    base = _root_base(root_url)
-    target_url = urljoin(base, rel_path.strip("/"))
+                         timeout: float = 120.0, max_bytes: int = MAX_DOWNLOAD_BYTES) -> bytes:
+    """Contenu brut d'UN fichier distant (`rel_path`, relatif à `root_url`),
+    lu EN FLUX et refusé au-delà de `max_bytes` (jamais un fichier de plusieurs
+    Go entier en RAM, sur un RPi, avant même d'être chiffré)."""
+    target_url = _child_url(root_url, rel_path)
     try:
         async with httpx.AsyncClient(timeout=timeout, auth=(username, password)) as client:
-            resp = await client.get(target_url)
+            await validate_remote_url(target_url)
+            async with client.stream("GET", target_url) as resp:
+                if resp.status_code != 200:
+                    raise WebdavError(f"téléchargement refusé (HTTP {resp.status_code})")
+                declared = resp.headers.get("content-length", "")
+                if declared.isdigit() and int(declared) > max_bytes:
+                    raise WebdavError(f"fichier trop volumineux ({declared} octets)")
+                chunks: List[bytes] = []
+                total = 0
+                async for chunk in resp.aiter_bytes():
+                    total += len(chunk)
+                    if total > max_bytes:
+                        raise WebdavError(f"fichier trop volumineux (> {max_bytes} octets)")
+                    chunks.append(chunk)
     except httpx.HTTPError as exc:
         raise WebdavError(f"téléchargement impossible : {type(exc).__name__}") from exc
-    if resp.status_code != 200:
-        raise WebdavError(f"téléchargement refusé (HTTP {resp.status_code})")
-    return resp.content
+    return b"".join(chunks)
 
 
 async def check_connection(root_url: str, username: str, password: str) -> None:

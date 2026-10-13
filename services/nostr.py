@@ -595,6 +595,7 @@ async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> b
 
 from fastapi import Request
 import base64
+import threading
 
 # Délai de fraîcheur maximal pour un event NIP-98 (anti-rejeu) — aligné sur
 # NIP42_CHALLENGE_TTL ci-dessus, plus permissif que les ~60s du NIP-98 strict
@@ -641,6 +642,96 @@ def _decode_and_verify_nip98_event(auth_header: str) -> dict:
     return auth_event
 
 
+_NIP98_SEEN: "dict[str, float]" = {}
+_NIP98_SEEN_LOCK = threading.Lock()
+_NIP98_SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "PROPFIND"}
+# La liaison `method` + chemin de `u` est appliquée à TOUTES les requêtes qui
+# portent un `Authorization: Nostr` (Nip98BindingMiddleware) : les clients de
+# UPlanet/earth et de generate_ipfs_structure.sh (uDRIVE) signent tous `u` et
+# `method` pour la requête réellement émise (audit du 2026-10-13).
+#
+# L'ANTI-REJEU (un event = une requête) n'est en revanche exigé que là où le
+# client ajoute un tag `nonce` unique (nostrFetch de ucloud.html) : un NIP-98 sans
+# nonce, signé deux fois dans la même seconde pour la même route, donne le même
+# id — le refuser casserait des clients légitimes. Préfixes concernés :
+NIP98_REPLAY_PREFIXES = ("/api/cloud", "/api/contacts", "/mailjet", "/api/facecloud", "/dav")
+NIP98_STRICT_PREFIXES = NIP98_REPLAY_PREFIXES      # alias de compatibilité
+
+
+def check_nip98_binding(event: dict, method: str, path: str, replay: bool = True) -> None:
+    """Lie l'event NIP-98 à LA requête qui le porte (lève ValueError sinon).
+
+    `_decode_and_verify_nip98_event` ne prouve que la possession de la clé : un
+    event capté sur UNE route (même un GET anodin) servait 2 minutes sur TOUTES
+    (suppression de fichiers, /api/cloud/reveal qui rend un token permanent…).
+    On vérifie donc, QUAND l'event les porte (les clients qui n'en mettent pas
+    restent acceptés) :
+      * `method` égale à la méthode HTTP ;
+      * le CHEMIN de `u` égal à celui de la requête — chemin seul, jamais l'hôte
+        ni le schéma, que les proxies réécrivent (comparaison par suffixe pour
+        un préfixe de montage) ;
+    et, si `replay`, pour toute méthode qui MODIFIE, un event ne sert qu'UNE fois
+    (anti-rejeu, mémoire bornée par la fenêtre de fraîcheur)."""
+    from urllib.parse import unquote, urlsplit
+
+    tags = {t[0]: t[1] for t in event.get("tags", []) if isinstance(t, list) and len(t) >= 2}
+    tag_method = tags.get("method")
+    if tag_method and tag_method.upper() != method.upper():
+        raise ValueError(f"NIP-98 method mismatch ({tag_method} ≠ {method})")
+    u = tags.get("u")
+    if u:
+        u_path = unquote(urlsplit(u).path).rstrip("/") or "/"
+        req_path = unquote(path).rstrip("/") or "/"
+        if not (u_path == req_path or u_path.endswith(req_path) or req_path.endswith(u_path)):
+            raise ValueError(f"NIP-98 url mismatch ({u_path} ≠ {req_path})")
+    if replay and method.upper() not in _NIP98_SAFE_METHODS:
+        eid = str(event.get("id", ""))
+        now = time.time()
+        with _NIP98_SEEN_LOCK:
+            for k in [k for k, t in _NIP98_SEEN.items() if now - t > NIP98_MAX_AGE * 2]:
+                _NIP98_SEEN.pop(k, None)
+            if eid in _NIP98_SEEN:
+                raise ValueError("NIP-98 event already used (replay)")
+            _NIP98_SEEN[eid] = now
+
+
+class Nip98BindingMiddleware:
+    """Middleware ASGI : lie TOUT `Authorization: Nostr` à sa requête.
+
+    Centralisé (et non dans chaque `Depends`) pour couvrir aussi les routes qui
+    vérifient l'event elles-mêmes (admin, mailjet, uDRIVE…). `/dav` et `/carddav`
+    sont montés/gérés à part (cloud_storage.Nip98AuthMiddleware fait la même
+    vérification : la faire ici consommerait l'event deux fois). Un en-tête
+    illisible ou une signature invalide ne sont PAS jugés ici : le gestionnaire
+    de la route les refuse comme avant."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and not scope["path"].startswith(("/dav", "/carddav")):
+            header = next((v.decode("latin-1") for k, v in scope["headers"] if k == b"authorization"), "")
+            if header.startswith("Nostr "):
+                try:
+                    event = _decode_and_verify_nip98_event(header)
+                except Exception:
+                    event = None
+                if event is not None:
+                    path = scope["path"]
+                    try:
+                        check_nip98_binding(event, scope["method"], path,
+                                            replay=path.startswith(NIP98_REPLAY_PREFIXES))
+                    except ValueError as exc:
+                        logger.warning("NIP-98 refusé (%s %s) : %s", scope["method"], path, exc)
+                        body = json.dumps({"detail": f"NIP-98 Auth failed: {exc}"}).encode()
+                        await send({"type": "http.response.start", "status": 401,
+                                    "headers": [(b"content-type", b"application/json"),
+                                                (b"content-length", str(len(body)).encode())]})
+                        await send({"type": "http.response.body", "body": body})
+                        return
+        await self.app(scope, receive, send)
+
+
 async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None), force_check: bool = False) -> str:
     """
     FastAPI dependency to require NOSTR authentication.
@@ -650,6 +741,7 @@ async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None),
     # 1. Try NIP-98 Auth first
     try:
         auth_event = _decode_and_verify_nip98_event(request.headers.get("Authorization", ""))
+        # (liaison méthode/chemin/rejeu : Nip98BindingMiddleware, en amont)
         user_pubkey_hex = auth_event["pubkey"]
         from utils.crypto import npub_to_hex, hex_to_npub
         if npub is None:
