@@ -39,7 +39,7 @@ from a2wsgi import WSGIMiddleware
 from services.cloud_storage import build_wsgi_dav_app
 from services.nostr import Nip98BindingMiddleware
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, facecloud
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, api_access, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, facecloud
 
 # Setup logging
 setup_logging()
@@ -114,6 +114,7 @@ app.include_router(robohash.router)
 app.include_router(feedback.router)
 app.include_router(qr.router)
 app.include_router(cookie.router)
+app.include_router(api_access.router)  # identifiants API officielle (Mastodon, Telegram...) par MULTIPASS
 app.include_router(mailjet.router)
 app.include_router(skills.router)
 app.include_router(nostr_sign.router)

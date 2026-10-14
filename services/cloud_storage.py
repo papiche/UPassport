@@ -1874,6 +1874,14 @@ def share_copy(owner_email: str, source_path: str, recipient_email: str,
     if res["status"] == "copied":
         logger.info("ucloud: partage %s:%s → %s:%s (même CID %s…)", owner_email, source_path,
                     recipient_email, res["path"], entry["cid"][:12])
+    if res["status"] in ("copied", "duplicate"):
+        # Qui reçoit mes photos reçoit aussi mon empreinte de visage (une fois, cf. services/face_ref.py) :
+        # sa station me reconnaîtra seule dans les siennes. Best-effort, jamais bloquant.
+        try:
+            from services import face_ref
+            face_ref.give_local(owner_email, recipient_email, from_name)
+        except Exception as exc:
+            logger.warning("ucloud: empreinte non transmise (%s)", exc)
     return res
 
 

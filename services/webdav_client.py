@@ -20,8 +20,9 @@ import asyncio
 import ipaddress
 import os
 import socket
+import time
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 import httpx
@@ -219,7 +220,8 @@ WALK_MAX_DEPTH = int(os.environ.get("WEBDAV_WALK_MAX_DEPTH", "40"))
 
 
 async def walk_files(root_url: str, username: str, password: str,
-                      rel_path: str = "", max_files: int = WALK_MAX_FILES) -> List[Dict[str, Any]]:
+                      rel_path: str = "", max_files: int = WALK_MAX_FILES,
+                      progress: Optional[Callable[[int, int], None]] = None) -> List[Dict[str, Any]]:
     """Tous les FICHIERS sous `rel_path`, parcouru niveau par niveau (pas de
     Depth: infinity, cf. `list_folder`), jusqu'à WALK_CONCURRENCY dossiers
     interrogés EN PARALLÈLE. Une photothèque rangée par jour compte des
@@ -231,18 +233,31 @@ async def walk_files(root_url: str, username: str, password: str,
     année/mois/jour ce sont les plus RÉCENTS — l'ancien tri croissant écartait
     précisément les nouvelles photos, qui n'étaient alors jamais importées.
     Ordre de sortie : plus récent d'abord (stable d'un passage à l'autre).
-    Un sous-dossier qui échoue est ignoré ; seul l'échec de la RACINE est remonté."""
+    Un sous-dossier qui échoue est ignoré ; seul l'échec de la RACINE est remonté.
+
+    `progress(dossiers_lus, fichiers_vus)` est appelé au plus toutes les 10 s : sans lui, un parcours de
+    plusieurs milliers de dossiers ressemble à un programme figé."""
     sem = asyncio.Semaphore(WALK_CONCURRENCY)
     out: List[Dict[str, Any]] = []
+    stats = {"dirs": 0, "files": 0, "t": time.monotonic()}
+
+    def tick(force: bool = False) -> None:
+        if progress and (force or time.monotonic() - stats["t"] >= 10):
+            stats["t"] = time.monotonic()
+            progress(stats["dirs"], stats["files"])
 
     async def listing(path: str, root: bool) -> List[Dict[str, Any]]:
         async with sem:
             try:
-                return await list_folder(root_url, username, password, path)
+                entries = await list_folder(root_url, username, password, path)
             except WebdavError:
                 if root:
                     raise
                 return []
+        stats["dirs"] += 1
+        stats["files"] += sum(1 for e in entries if not e["is_dir"])
+        tick()
+        return entries
 
     level = [rel_path]
     seen = {rel_path.strip("/")}
@@ -263,6 +278,7 @@ async def walk_files(root_url: str, username: str, password: str,
                     level.append(entry["path"])
                 else:
                     out.append(entry)
+    tick(force=True)
     out.sort(key=lambda e: e["path"], reverse=True)
     return out[:max_files]
 

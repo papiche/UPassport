@@ -40,6 +40,7 @@ from services import analysis, nostr_profiles
 from services.admin_auth import require_captain_signature
 from services.nostr import fetch_nostr_profiles, get_followers, get_n1_follows, require_nostr_auth
 from utils.crypto import npub_to_hex
+from utils.observability import log_node_event, log_user_event
 from utils.security import is_safe_email
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,20 @@ def _find_invite(token: str) -> Optional[tuple]:
             return None
         return path, data
     return None
+
+
+def _local_account_name(email: str) -> str:
+    """Nom RÉEL du dossier MULTIPASS hébergé ici pour `email` (casse ignorée), '' s'il n'y en a pas."""
+    root = settings.GAME_PATH / "nostr"
+    if (root / email / "HEX").exists():
+        return email
+    try:
+        for d in root.iterdir():
+            if d.name.lower() == email and (d / "HEX").exists():
+                return d.name
+    except OSError:
+        pass
+    return ""
 
 
 def _mask(email: str) -> str:
@@ -85,12 +100,56 @@ def _coords(lat: str, lon: str) -> tuple:
         return _station_gps()
 
 
+async def _load_invite(token: str) -> Optional[dict]:
+    """L'invitation `token`, où qu'elle ait été créée : fichier local (cette station) puis relais
+    commun (autre station). `{"local": (chemin, données) | None, "record": dict | None}`, ou None si
+    absente, expirée ou déjà réclamée (usage unique, quelle que soit la station qui l'a honorée)."""
+    from services import face_invites
+    found = _find_invite(token)
+    if found:
+        if await asyncio.to_thread(face_invites.is_claimed, token):
+            found[0].unlink(missing_ok=True)
+            return None
+        return {"local": found, "record": None}
+    record = await asyncio.to_thread(face_invites.fetch, token)
+    return {"local": None, "record": record} if record else None
+
+
+def _relay_previews(items: list) -> list:
+    """Aperçus recadrés des 4 premiers visages d'une invitation du relais : le bloc est lu sur IPFS
+    et déchiffré avec la clé portée par l'invitation (aucune dépendance au cloud de l'expéditeur)."""
+    from routers import mailjet
+    from services import cloud_storage
+    previews = []
+    for it in [i for i in items if i.get("bbox")][:4]:
+        try:
+            plaintext = cloud_storage.uenc_codec.decrypt_aes256gcm(cloud_storage.ipfs_cat(it["cid"]), it["key"])
+            crops = mailjet._crop_faces(plaintext, [("x", it["bbox"])], 200)
+            if "x" in crops:
+                previews.append("data:image/jpeg;base64," + base64.b64encode(crops["x"]).decode())
+        except Exception:
+            continue
+    return previews
+
+
 @router.get("/api/facecloud/invitation/{token}")
 async def invitation(token: str):
-    found = _find_invite(token)
-    if not found:
+    loaded = await _load_invite(token)
+    if not loaded:
         return JSONResponse({"error": "Cette invitation n'existe pas ou a expiré."}, status_code=404)
-    _path, data = found
+    if loaded["record"]:
+        rec = loaded["record"]
+        to_email = rec.get("to_email") or ""
+        return JSONResponse({
+            "from_name": rec.get("from_name") or (rec.get("owner_email") or "").split("@", 1)[0],
+            "photos": len(rec["items"]),
+            "previews": await asyncio.to_thread(_relay_previews, rec["items"]),
+            "email": _mask(to_email) if to_email else "",
+            "open": bool(rec.get("open")),
+            "expires_at": rec.get("expires_at"),
+            "has_account": bool(to_email) and (settings.GAME_PATH / "nostr" / to_email / "HEX").exists(),
+        })
+    _path, data = loaded["local"]
     owner = data.get("owner_email") or ""
     photos = data.get("photos") or []
     previews = []
@@ -126,12 +185,13 @@ async def start(
 ):
     invite = None
     if claim:
-        invite = _find_invite(claim)
+        invite = await _load_invite(claim)
         if not invite:
             return JSONResponse({"error": "Cette invitation n'existe pas ou a expiré."}, status_code=404)
         # Invitation par email : l'adresse est celle de l'invitation. Par lien (« open ») : celle que saisit l'invité.
-        if invite[1].get("to_email"):
-            email = invite[1]["to_email"]
+        inv_to = (invite["local"][1] if invite["local"] else invite["record"]).get("to_email")
+        if inv_to:
+            email = inv_to
     email = (email or "").strip().lower()
     if not is_safe_email(email):
         raise HTTPException(status_code=400, detail="Adresse email invalide.")
@@ -140,14 +200,39 @@ async def start(
     from routers.identity import G1NostrForm, _scan_qr_impl
     from routers.mailjet import process_pending_face_claims
 
-    exists = (settings.GAME_PATH / "nostr" / email / "HEX").exists()
+    # Insensible à la casse : un ancien MULTIPASS créé « Prenom@Exemple.org » (le dossier garde la casse
+    # soumise, cf. _scan_qr_impl) est le même compte que « prenom@exemple.org ».
+    real = _local_account_name(email)
+    exists = bool(real)
     if exists:
+        email = real
         # Compte déjà là : les photos de l'invitation sont copiées tout de
         # suite ; la connexion se fait avec le code PASS (jamais de clé
         # renvoyée pour un compte existant sans preuve).
         if invite:
             await process_pending_face_claims(email, claim)
         return JSONResponse({"status": "exists", "email": email})
+
+    # Jamais de doublon : « cet email a-t-il un MULTIPASS ? » se demande au relais commun, pas aux
+    # fichiers de CETTE station — le compte peut être hébergé n'importe où dans la constellation.
+    from services import face_invites
+    try:
+        account = await asyncio.to_thread(face_invites.account_for_email, email)
+    except face_invites.RelayUnavailable:
+        return JSONResponse({"error": "Le relais NOSTR ne répond pas : impossible de vérifier que cette adresse "
+                                      "n'a pas déjà un MULTIPASS. Réessayez dans un instant."}, status_code=503)
+    if not account:
+        # Filet : les profils kind 0 se filtrent à l'identique (« email:x » exact) ; un compte créé avec une
+        # autre casse n'y serait pas trouvé. L'annuaire (comptes locaux + swarm, clés en minuscules) l'est.
+        from services import identity_links
+        known = identity_links.multipass_directory().get(email)
+        account = {"hex": known["hex"]} if known else None
+    if account:
+        delivered = await _deliver_elsewhere(claim, invite, email, account["hex"])
+        logger.info("FaceCloud : %s a déjà un MULTIPASS ailleurs (%s…) — pas de création, %d photo(s) transmises",
+                    email, account["hex"][:8], delivered)
+        log_user_event(email, "multipass", "facecloud_start", False, extra={"status": "elsewhere", "delivered": delivered})
+        return JSONResponse({"status": "elsewhere", "email": email, "delivered": delivered})
 
     result = await _scan_qr_impl(request, G1NostrForm(email=email, lang=lang or "fr", lat=lat, lon=lon,
                                                       format="json"))
@@ -160,8 +245,45 @@ async def start(
         await process_pending_face_claims(email, claim)
         copied = _received_count(email) - before
     logger.info("FaceCloud : MULTIPASS créé pour %s (invitation=%s, %d photo(s) reçues)", email, bool(invite), copied)
+    log_node_event("facecloud_start", True, category="multipass", extra={"invitation": bool(invite), "photos": copied})
+    log_user_event(email, "multipass", "facecloud_start", True, extra={"invitation": bool(invite), "photos": copied})
     return JSONResponse({"status": "created", "email": email, "nsec": data.get("nsec", ""),
                          "npub": data.get("npub", ""), "photos": copied})
+
+
+async def _deliver_elsewhere(claim: str, invite: Optional[dict], email: str, hex_pubkey: str) -> int:
+    """Le MULTIPASS `email` existe sur une AUTRE station : au lieu d'en créer un second, les photos de
+    l'invitation lui sont envoyées de station à station (canal inter-NODE, même bloc, même clé).
+    Rend le nombre de photos transmises ; 0 = station inconnue ou envoi refusé — l'invitation reste
+    alors valable (le destinataire peut ouvrir le lien depuis sa propre station)."""
+    if not invite:
+        return 0
+    from services import cloud_storage, face_invites, identity_links, node_share
+    info = identity_links.email_for_hex(hex_pubkey)
+    if not info or not info.get("node") or not node_share.node_hex_for(info["node"]):
+        return 0
+    if invite["record"]:
+        rec = invite["record"]
+        owner, items = rec.get("owner_email") or "", rec["items"]
+        from_hex, from_name = rec.get("from_hex") or "", rec.get("from_name") or ""
+    else:
+        data = invite["local"][1]
+        owner = data.get("owner_email") or ""
+        items = await asyncio.to_thread(face_invites.items_from_local, owner, data.get("photos") or [])
+        from_hex, from_name = cloud_storage.hex_for_email(owner) or "", owner.split("@", 1)[0]
+    items = [{k: it[k] for k in ("cid", "key", "sha", "name", "mime")} for it in items]
+    ref = (invite["record"] or {}).get("face_ref") if invite["record"] else None
+    if invite["local"]:
+        from services import face_ref
+        ref = await asyncio.to_thread(face_ref.payload_for, owner, hex_pubkey)
+    res = await asyncio.to_thread(node_share.send_items, owner, from_hex, from_name,
+                                  {"email": email, "hex": hex_pubkey, "node": info["node"]}, items, ref)
+    if res.get("status") != "sent":
+        return 0
+    if invite["local"]:
+        invite["local"][0].unlink(missing_ok=True)
+    await asyncio.to_thread(face_invites.mark_claimed, claim, owner)
+    return int(res.get("photos", 0))
 
 
 def _received_count(email: str) -> int:

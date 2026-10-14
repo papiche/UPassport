@@ -423,8 +423,21 @@
             <div id="auth-status"></div>
         </div>
 
+        <!-- Tabs (hidden until authenticated) -->
+        <div id="vault-tabs" style="display:none;margin:20px 0 10px">
+            <button class="button" id="tab-btn-cookies" onclick="switchVaultTab('cookies')"
+                style="padding:8px 20px;margin-right:8px;border-color:var(--terminal-green);color:var(--terminal-green)">
+                🍪 Cookies (scrapers)
+            </button>
+            <button class="button" id="tab-btn-apiaccess" onclick="switchVaultTab('apiaccess')"
+                style="padding:8px 20px;border-color:#555;color:#888">
+                🔑 API officielle
+            </button>
+        </div>
+
         <!-- Upload Section (hidden until authenticated) -->
         <div id="upload-section" style="display: none;">
+          <div id="tab-cookies">
             <div class="section">
                 <h2 data-i18n="upload_title">📤 UPLOAD COOKIE FILE</h2>
                 <div class="upload-zone" id="upload-area" onclick="document.getElementById('cookie-file').click()">
@@ -450,6 +463,17 @@
                     <span id="cookie-vault-status" style="font-size:.85rem;color:#888"></span>
                 </div>
             </div>
+          </div>
+
+          <!-- Tab: API officielle (identifiants Mastodon/Telegram par MULTIPASS) -->
+          <div id="tab-apiaccess" style="display:none">
+            <div class="section">
+                <h2 style="color:var(--terminal-cyan)">🔑 API OFFICIELLE <small style="font-size:.7em;color:#555">(NOSTR kind 31904 · IPFS chiffré, séparé des cookies)</small></h2>
+                <p style="color:var(--text-color)">Connectez vos propres comptes Mastodon et/ou Telegram pour que <strong>votre</strong> BRO puisse vous y parler et relayer vos messages — rien n'est partagé avec les autres MULTIPASS ni avec les autres capitaines de la constellation.</p>
+                <div id="apiaccess-loading" style="text-align:center;padding:20px;color:var(--terminal-cyan)">⏳ Chargement…</div>
+                <div id="apiaccess-list" style="display:none"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Explanatory Sections (always visible) -->
@@ -699,7 +723,9 @@
 
             document.getElementById('upload-section').style.display = 'block';
             document.getElementById('auth-section').style.display = 'none';
+            document.getElementById('vault-tabs').style.display = 'block';
             loadCookieVault();
+            loadApiAccess();
             i18n.applyTranslations();
 
             const navStatus = document.getElementById('nav-status');
@@ -1172,6 +1198,120 @@
                     handleCookieUpload({ target: fileInput });
                 }
             }, false);
+        }
+
+        // ── Tabs : Cookies (scrapers) vs API officielle ──────────────────────
+        function switchVaultTab(name) {
+            const cookies = document.getElementById('tab-cookies');
+            const apiaccess = document.getElementById('tab-apiaccess');
+            const btnCookies = document.getElementById('tab-btn-cookies');
+            const btnApi = document.getElementById('tab-btn-apiaccess');
+            const active = { borderColor: 'var(--terminal-green)', color: 'var(--terminal-green)' };
+            const inactive = { borderColor: '#555', color: '#888' };
+            if (name === 'apiaccess') {
+                cookies.style.display = 'none';
+                apiaccess.style.display = 'block';
+                Object.assign(btnCookies.style, inactive);
+                Object.assign(btnApi.style, active);
+            } else {
+                cookies.style.display = 'block';
+                apiaccess.style.display = 'none';
+                Object.assign(btnCookies.style, active);
+                Object.assign(btnApi.style, inactive);
+            }
+        }
+
+        // ── API officielle (Mastodon, Telegram...) — identifiants par MULTIPASS ──
+        async function loadApiAccess() {
+            const npub = window.userNpub || window.userPubkey;
+            if (!npub) return;
+            const loading = document.getElementById('apiaccess-loading');
+            const list = document.getElementById('apiaccess-list');
+            loading.style.display = 'block';
+            list.style.display = 'none';
+            try {
+                const resp = await fetch(`${USPOT_API_BASE}/api_access?npub=${encodeURIComponent(npub)}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                loading.style.display = 'none';
+                list.style.display = 'block';
+                list.innerHTML = (data.providers || []).map(_renderApiAccessCard).join('');
+            } catch (e) {
+                loading.textContent = `⚠️ Erreur : ${e.message}`;
+            }
+        }
+
+        function _renderApiAccessCard(p) {
+            const fieldsHtml = p.fields.map(f => `
+                <div style="margin:8px 0">
+                    <label style="display:block;font-size:.85em;color:#888;margin-bottom:3px">${f.label}</label>
+                    <input type="${f.secret ? 'password' : 'text'}" id="apif-${p.provider}-${f.key}"
+                        placeholder="${f.placeholder || ''}"
+                        style="width:100%;box-sizing:border-box;padding:8px;background:#0d0d18;
+                            border:1px solid #333;color:#e0e0e0;border-radius:4px;font-family:inherit">
+                </div>`).join('');
+            const statusBadge = p.configured
+                ? `<span style="color:#2ecc71;font-size:.8em">✅ configuré</span>`
+                : `<span style="color:#888;font-size:.8em">non configuré</span>`;
+            return `<div class="section" style="margin-bottom:16px" id="apicard-${p.provider}">
+                <h3 style="color:var(--terminal-cyan);display:flex;justify-content:space-between;align-items:center">
+                    <span>${p.icon} ${p.label}</span> ${statusBadge}
+                </h3>
+                <div class="alert alert-info" style="font-size:.85em;margin:8px 0">💡 ${p.howto}</div>
+                ${fieldsHtml}
+                <div style="margin-top:10px;display:flex;gap:10px">
+                    <button class="button" style="font-size:.85em;padding:8px 16px"
+                        onclick="saveApiAccess('${p.provider}')">💾 Enregistrer</button>
+                    ${p.configured ? `<button onclick="deleteApiAccessProvider('${p.provider}')"
+                        style="background:#7c1c1c;color:#fff;border:none;padding:8px 16px;
+                        border-radius:4px;cursor:pointer;font-size:.85em">🗑️ Supprimer</button>` : ''}
+                    <span id="apistatus-${p.provider}" style="font-size:.85em;color:#888;align-self:center"></span>
+                </div>
+            </div>`;
+        }
+
+        async function saveApiAccess(provider) {
+            const npub = window.userNpub || window.userPubkey;
+            const status = document.getElementById(`apistatus-${provider}`);
+            const card = document.getElementById(`apicard-${provider}`);
+            const inputs = card.querySelectorAll('input[id^="apif-' + provider + '-"]');
+            const values = {};
+            let hasValue = false;
+            inputs.forEach(inp => {
+                const key = inp.id.replace(`apif-${provider}-`, '');
+                if (inp.value) { values[key] = inp.value; hasValue = true; }
+            });
+            if (!hasValue) { status.textContent = '⚠️ Remplissez au moins un champ'; return; }
+            status.textContent = '⏳ Enregistrement…';
+            try {
+                const resp = await fetch(`${USPOT_API_BASE}/api_access/${provider}?npub=${encodeURIComponent(npub)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ values })
+                });
+                if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.detail || resp.status); }
+                status.textContent = '✅ Enregistré';
+                await loadApiAccess();
+            } catch (e) {
+                status.textContent = `⚠️ Erreur : ${e.message}`;
+            }
+        }
+
+        async function deleteApiAccessProvider(provider) {
+            if (!confirm(`Supprimer les identifiants ${provider} ?`)) return;
+            const npub = window.userNpub || window.userPubkey;
+            const status = document.getElementById(`apistatus-${provider}`);
+            status.textContent = '⏳ Suppression…';
+            try {
+                const resp = await fetch(`${USPOT_API_BASE}/api_access/${provider}?npub=${encodeURIComponent(npub)}`,
+                    { method: 'DELETE' });
+                if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.detail || resp.status); }
+                await loadApiAccess();
+            } catch (e) {
+                status.textContent = `⚠️ Erreur : ${e.message}`;
+            }
         }
     </script>
 <!-- 📄 Source: UPassport/templates/cookie.html -->

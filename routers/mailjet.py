@@ -1639,6 +1639,11 @@ async def get_mailjet_faces(
         payload = point.get("payload") or {}
         name = payload.get("name") or ""
         pubkey = payload.get("pubkey") or ""
+        if payload.get("ref") == "shared":
+            # empreinte confiée par un ami (services/face_ref.py) : sert à la reconnaître, jamais affichée en visage
+            refs.append({"id": point.get("id"), "name": name, "pubkey": pubkey, "_named": True,
+                         "contact": "", "email": "", "_vector": point.get("vector")})
+            continue
         if payload.get("ref") == "contact":
             refs.append({"id": point.get("id"), "name": name, "pubkey": "", "_named": True,
                          "contact": payload.get("contact") or "", "email": payload.get("email") or "",
@@ -2318,6 +2323,20 @@ async def _search_email_in_nostr_hex(email: str) -> Optional[str]:
     limité à ~/.zen/game/nostr/ de cette seule station : un MULTIPASS peut
     avoir été créé ailleurs dans la constellation. Retourne None si aucune
     identité n'est trouvée nulle part."""
+    hex_val = await _search_email_via_swarm_files(email)
+    if hex_val:
+        return hex_val
+    # Les fichiers du swarm ne couvrent que ce que cette station a synchronisé : le relais commun
+    # (profils kind 0 portant ["i","email:…"]) répond pour TOUTE la constellation.
+    from services import face_invites
+    try:
+        acct = await asyncio.to_thread(face_invites.account_for_email, email)
+    except face_invites.RelayUnavailable:
+        return None
+    return acct["hex"] if acct else None
+
+
+async def _search_email_via_swarm_files(email: str) -> Optional[str]:
     script = settings.TOOLS_PATH / "search_for_this_email_in_nostr.sh"
     if not script.exists():
         return None
@@ -2463,6 +2482,21 @@ async def _send_remote(owner_email: str, collection: str, ids: list, photo_refs:
     return True
 
 
+async def _publish_portable_invite(owner_email: str, token: str) -> bool:
+    """Publie l'invitation locale `token` sur le relais commun : n'importe quelle station de la
+    constellation pourra l'honorer (et saura si l'email a déjà un MULTIPASS ailleurs). Si aucun
+    relais ne l'accepte, l'invitation reste locale (elle ne marchera que sur CETTE station)."""
+    from services import face_invites
+    try:
+        data = json.loads(_face_invite_path(owner_email, token).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    relays = await asyncio.to_thread(face_invites.publish, owner_email, token, data, _owner_display_name(owner_email))
+    if not relays:
+        logger.warning("FaceCloud : invitation %s… non publiée sur le relais — valable sur cette station seulement", token[:6])
+    return bool(relays)
+
+
 async def _send_invite(owner_email: str, collection: str, ids: list, photo_refs: list,
                        to_email: str) -> Optional[str]:
     """Aucun MULTIPASS nulle part pour `to_email` : jeton d'invitation durable
@@ -2489,6 +2523,7 @@ async def _send_invite(owner_email: str, collection: str, ids: list, photo_refs:
         "photos": photo_refs, "created_at": int(time.time()),
         "expires_at": int(time.time()) + _FACE_INVITE_TTL,
     }), encoding="utf-8")
+    await _publish_portable_invite(owner_email, invite_token)
 
     n = len(photo_refs)
     who = _owner_display_name(owner_email)
@@ -2569,13 +2604,15 @@ async def post_mailjet_person_invite_link(
         "owner_email": owner_email, "collection": collection, "to_email": "", "open": True,
         "photos": photo_refs, "created_at": int(time.time()), "expires_at": expires,
     }), encoding="utf-8")
+    portable = await _publish_portable_invite(owner_email, invite_token)
     if name.strip():
         await _set_points_payload(collection, ids, {"name": name.strip()})
     await _set_points_payload(collection, ids, {"sent": {
         "at": int(time.time()), "mode": "link", "photos": len(photo_refs)}})
     url = f"{str(settings.uSPOT).rstrip('/')}/earth/GAFAM.html?claim={invite_token}"
     logger.info("[person-invite-link] %s : %d photo(s), lien ouvert créé", owner_email, len(photo_refs))
-    return JSONResponse({"ok": True, "url": url, "photos": len(photo_refs), "expires_at": expires})
+    return JSONResponse({"ok": True, "url": url, "photos": len(photo_refs), "expires_at": expires,
+                         "portable": portable})
 
 
 @router.post("/mailjet/person-send")
@@ -2713,6 +2750,8 @@ async def process_pending_face_claims(email: str, claim_token: str = "") -> None
             return
 
         now = int(time.time())
+        from services import face_invites
+        handled: set = set()
 
         for invite_file in list(nostr_root.glob("*/.face_invites/*.json")):
             try:
@@ -2745,8 +2784,19 @@ async def process_pending_face_claims(email: str, claim_token: str = "") -> None
                     "sent": {"at": int(time.time()), "mode": "local",
                              "photos": counts["copied"] + counts["duplicate"]}})
             invite_file.unlink(missing_ok=True)
+            handled.add(invite_file.stem)
+            await asyncio.to_thread(face_invites.mark_claimed, invite_file.stem, raw_email)
             logger.info("FaceID claim : %s → %s (%s, inscription locale)",
                         owner_email, raw_email, counts)
+
+        # Invitation créée sur UNE AUTRE station : elle n'existe que sur le relais commun.
+        if claim_token and claim_token not in handled:
+            record = await asyncio.to_thread(face_invites.fetch, claim_token)
+            if record and (record.get("open") or (record.get("to_email") or "").strip().lower() == email_lc):
+                counts = await asyncio.to_thread(face_invites.adopt_items, raw_email, record)
+                await asyncio.to_thread(face_invites.mark_claimed, claim_token, raw_email)
+                logger.info("FaceID claim : %s → %s (%s, invitation du relais)",
+                            record.get("owner_email"), raw_email, counts)
     except Exception as exc:
         logger.warning("process_pending_face_claims(%s) : erreur inattendue (%s)", email, exc)
 

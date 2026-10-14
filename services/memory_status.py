@@ -41,8 +41,12 @@ except Exception:
     _send_dm_to_owner = None
 
 # Registre des slots réservés — cf. Astroport.ONE/IA/bro/rag.py (13, 14) et
-# memory_manager.py (15). 0-12 : contexte géo/conversation (short_memory.py).
-CONVERSATION_SLOTS = list(range(0, 13))
+# memory_manager.py (15). Simplification 2026-10 : une seule mémoire
+# personnelle par MULTIPASS (plus de slots 1-12 numérotés) — Qdrant seule
+# source de vérité, plus de fichier ~/.zen/flashmem/{email}/slotN.json local
+# (short_memory.py n'en écrit plus). Les compteurs "fichier" ci-dessous
+# retombent donc naturellement à 0, ce qui est exact, pas un bug d'affichage.
+CONVERSATION_SLOTS = [0]
 BRO_MEMORY_SLOT    = 13
 PERSONA_SLOT       = 14
 LOVE_SLOT          = 15

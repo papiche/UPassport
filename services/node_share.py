@@ -161,15 +161,32 @@ def send(owner_email: str, from_name: str, account: Dict[str, str], paths: List[
                       "mime": entry.get("mime") or "image/jpeg"})
     if not items:
         return {"status": "error", "photos": 0}
+    from services import face_ref
+    return send_items(owner_email, from_hex, from_name, account, items,
+                      face_ref=face_ref.payload_for(owner_email, account.get("hex", "")))
 
+
+def send_items(owner_email: str, from_hex: str, from_name: str, account: Dict[str, str],
+               items: List[Dict[str, str]], face_ref: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Envoie des `items` {cid, key, sha, name, mime} déjà prêts (cloud d'un expéditeur OU invitation
+    portable, cf. services/face_invites.py) au MULTIPASS `account` = {email, hex, node}."""
+    node_hex = node_hex_for(account.get("node", ""))
+    if not node_hex:
+        return {"status": "no_node", "photos": 0}
     sent = 0
     for i in range(0, len(items), ITEMS_PER_MESSAGE):
         chunk = items[i:i + ITEMS_PER_MESSAGE]
         message = {"to_email": account["email"], "to_hex": account["hex"], "from_hex": from_hex,
                    "from_name": from_name, "reply_node_hex": _node_secret().get("HEX", ""),
                    "owner_email": owner_email, "items": chunk}
+        if face_ref and i == 0:       # empreinte de visage de l'expéditeur : dans le 1er message seulement
+            message["face_ref"] = {"vectors": face_ref["vectors"]}
         if _intercom_send(node_hex, "ucloud_share", message, SHARE_TTL):
             sent += len(chunk)
+            if face_ref and i == 0:
+                from services import face_ref as _fr
+                if cloud_storage.hex_for_email(owner_email):          # expéditeur hébergé ici : registre à jour
+                    _fr.mark_given(owner_email, account["hex"], face_ref, account.get("email", ""))
     # Plus de copies temporaires à suivre (pending) : le bloc partagé est celui du cloud lui-même.
     logger.info("node_share: %s → %s@%s : %d/%d photo(s)", owner_email, account["email"],
                 account.get("node", "?")[:12], sent, len(items))
@@ -187,6 +204,13 @@ def receive(message: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "refused", "reason": "email invalide"}
     if (cloud_storage.hex_for_email(email) or "") != str(message.get("to_hex") or "").lower():
         return {"status": "refused", "reason": "destinataire non hébergé ici"}
+    from services import face_ref
+    from_hex = str(message.get("from_hex") or "").lower()
+    if message.get("face_ref_revoke"):                      # l'expéditeur retire son empreinte
+        face_ref.forget(email, from_hex)
+        return {"status": "ok", "email": email, "received": [], "copied": 0, "duplicate": 0, "error": 0}
+    if isinstance(message.get("face_ref"), dict):
+        face_ref.store(email, from_hex, str(message.get("from_name") or ""), message["face_ref"].get("vectors") or [])
     counts = {"copied": 0, "duplicate": 0, "error": 0}
     received: List[str] = []
     for it in (message.get("items") or [])[:ITEMS_PER_MESSAGE]:
@@ -230,3 +254,14 @@ def on_ack(message: Dict[str, Any]) -> int:
         pending.pop(c, None)
     _save_pending(email, pending)
     return len(done)
+
+
+def revoke_remote(owner_email: str, account: Dict[str, str]) -> bool:
+    """Demande à la station de `account` ({email, hex, node}) d'effacer mon empreinte de visage."""
+    node_hex = node_hex_for(account.get("node", ""))
+    if not node_hex:
+        return False
+    message = {"to_email": account["email"], "to_hex": account["hex"],
+               "from_hex": cloud_storage.hex_for_email(owner_email) or "", "from_name": "",
+               "owner_email": owner_email, "face_ref_revoke": True, "items": []}
+    return _intercom_send(node_hex, "ucloud_share", message, SHARE_TTL)

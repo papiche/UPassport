@@ -169,6 +169,54 @@ async def set_sender(request: Request, hex: str = Form(...), blocked: str = Form
     return JSONResponse({"ok": True, "blocked_senders": current})
 
 
+@router.get("/api/cloud/face-ref", summary="Mon visage de référence confié aux amis")
+async def face_ref_status(npub: str = Depends(require_nostr_auth)):
+    """`{enabled, has_reference, given:[{hex, name, at}]}` : le réglage, si « Votre visage » est désigné,
+    et à qui l'empreinte a été confiée (donc qui peut me reconnaître dans ses photos)."""
+    from services import face_ref
+    email = _email_for_authenticated_npub(npub)
+    vectors = await asyncio.to_thread(face_ref.reference_vectors, email)
+    return JSONResponse({"enabled": face_ref.sharing_enabled(email), "has_reference": bool(vectors),
+                         "given": [{"hex": h, "name": g.get("name") or "", "at": g.get("at")}
+                                   for h, g in face_ref.given(email).items()]})
+
+
+@router.post("/api/cloud/face-ref", summary="Activer / couper l'envoi de mon empreinte avec mes photos")
+async def face_ref_set(enabled: str = Form(...), npub: str = Depends(require_nostr_auth)):
+    from services import face_ref
+    email = _email_for_authenticated_npub(npub)
+    face_ref.set_sharing(email, enabled not in ("0", "false", ""))
+    return JSONResponse({"ok": True, "enabled": face_ref.sharing_enabled(email)})
+
+
+@router.post("/api/cloud/face-ref/revoke", summary="Retirer mon empreinte chez mes amis (tous, ou un seul)")
+async def face_ref_revoke(hex: str = Form(default=""), npub: str = Depends(require_nostr_auth)):
+    """Les amis hébergés ici l'effacent tout de suite ; ceux d'une autre station reçoivent une demande de retrait
+    (canal inter-NODE). Les photos déjà reçues ne bougent pas. Rend `{revoked, pending}`."""
+    from services import face_ref, identity_links, node_share
+    email = _email_for_authenticated_npub(npub)
+    my_hex = cloud_storage.hex_for_email(email) or ""
+
+    def run() -> dict:
+        revoked, pending = [], []
+        for to_hex in ([hex.lower()] if hex else list(face_ref.given(email))):
+            acct = identity_links.email_for_hex(to_hex)
+            if acct and acct.get("where") == "local":
+                ok = face_ref.forget(acct["email"], my_hex)
+            elif acct and acct.get("node"):
+                ok = node_share.revoke_remote(email, acct)
+            else:
+                ok = False
+            (revoked if ok else pending).append(to_hex)
+        data = face_ref.given(email)
+        for h in revoked:
+            data.pop(h, None)
+        face_ref._write_json(face_ref._given_path(email), data)
+        return {"revoked": revoked, "pending": pending}
+
+    return JSONResponse(await asyncio.to_thread(run))
+
+
 def _reprocess_progress(email: str) -> Optional[dict]:
     """État du dernier rattrapage FaceID (faceid_reprocess.py), ou None.
     `running` est recoupé avec l'existence du PID : un script tué laisse

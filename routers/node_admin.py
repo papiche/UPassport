@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from core.config import settings
-from services.admin_auth import check_admin_auth as _check_admin_auth, require_captain_signature
+from services.admin_auth import check_admin_auth as _check_admin_auth, require_captain_signature, get_node_and_captain_hex
 from services.coop_config import (
     COOP_CONFIG_SCHEMA, ALL_KEYS, is_sensitive, validate_value, CoopConfigError,
     coop_load_raw, coop_set_many, coop_delete,
@@ -49,6 +49,9 @@ _ARBOR_MODEL_RE = re.compile(r"^[A-Za-z0-9_./:-]{1,80}$")
 _ARBOR_SLUG_RE = re.compile(r"^[a-z0-9_-]{1,30}$")
 _ARBOR_DOMAIN_RE = re.compile(r"^[a-z0-9.-]{1,80}$")
 ARBOR_NEED_MAX_CHARS = 500
+ARBOR_BATON_SH = _IA_PATH / "arbor_baton.sh"
+ARBOR_BATON_ELIGIBILITY_SH = _IA_PATH / "arbor_baton_eligibility.sh"
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # ── Purge NOSTR des comptes "étrangers" ─────────────────────────────────────
 PURGE_SCRIPT = REPO_ROOT / "admin" / "system" / "purge_nostr_strangers.sh"
@@ -537,6 +540,163 @@ async def get_arbor_mined_preview(request: Request, uplanetname: Optional[str] =
     import arbor_self_improve
     reports = await asyncio.to_thread(arbor_self_improve.mine_tool_requests, False, True)
     return JSONResponse({"clusters": reports})
+
+
+# ── ARBOR — bâton de parole (cycle automatique quotidien) ──────────────────
+def _swarm_arbor_stations() -> list:
+    """Stations swarm connues (hors soi-même) ayant déclaré arbor_eligible=true
+    dans leur 12345.json (cf. heartbox_analysis.sh) — alimente le sélecteur de
+    cible pour une passation de bâton. Lecture seule, aucun appel réseau."""
+    out = []
+    own_hex, _ = get_node_and_captain_hex()
+    swarm_dir = settings.ZEN_PATH / "tmp" / "swarm"
+    if not swarm_dir.is_dir():
+        return out
+    for json_file in swarm_dir.glob("*/12345.json"):
+        data = _read_json_file(json_file)
+        node_hex = str(data.get("NODEHEX") or "").lower()
+        if not node_hex or node_hex == own_hex:
+            continue
+        if not data.get("capacities", {}).get("arbor_eligible"):
+            continue
+        out.append({
+            "hex": node_hex,
+            "hostname": data.get("hostname") or node_hex[:12],
+            "captain": data.get("captain") or "",
+        })
+    return out
+
+
+async def _run_arbor_baton_sh(*args: str, timeout: float = 30.0) -> dict:
+    if not ARBOR_BATON_SH.is_file():
+        raise HTTPException(status_code=500, detail="arbor_baton.sh introuvable sur cette station.")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(ARBOR_BATON_SH), *args,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            cwd=str(_IA_PATH),
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout arbor_baton.sh (réseau lent ?).")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Échec arbor_baton.sh : {e}")
+    try:
+        return json.loads(stdout.decode().strip() or "{}")
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=500,
+            detail=(stderr.decode(errors="replace") or stdout.decode(errors="replace") or "Sortie invalide")[:300],
+        )
+
+
+@router.get("/api/nostr/admin/arbor_baton_status")
+async def get_arbor_baton_status(request: Request, uplanetname: Optional[str] = None):
+    """Statut du bâton de parole ARBOR (cf. IA/arbor_baton.sh — gouverne
+    UNIQUEMENT le cycle automatique quotidien mine-requests, jamais le
+    déclenchement manuel) + liste des stations swarm éligibles pour une
+    passation. Lecture seule : auth UPLANETNAME ou NIP-98 Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    state = await _run_arbor_baton_sh("status")
+    state["swarm_eligible_stations"] = _swarm_arbor_stations()
+    return JSONResponse(state)
+
+
+@router.post("/api/nostr/admin/arbor_baton_handoff")
+async def post_arbor_baton_handoff(request: Request):
+    """Passe le bâton à une autre station — capitaine EXCLUSIF (NIP-98).
+    arbor_baton.sh handoff revérifie lui-même (défense en profondeur) que
+    CETTE station le détient actuellement et que la cible est une station
+    swarm connue et éligible."""
+    body = await safe_json_body(request)
+    target_hex = (body.get("target_hex") or "").strip().lower()
+    pubkey = await require_captain_signature(request)
+    if not _HEX64_RE.match(target_hex):
+        raise HTTPException(status_code=400, detail="target_hex invalide (64 caractères hex attendus).")
+
+    result = await _run_arbor_baton_sh("handoff", target_hex, timeout=60.0)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "Échec de la passation.")
+    logger.info(f"Admin arbor_baton_handoff: target={target_hex[:16]} (captain={pubkey[:16]})")
+    return JSONResponse(result)
+
+
+@router.post("/api/nostr/admin/arbor_baton_eligibility_check")
+async def post_arbor_baton_eligibility_check(request: Request):
+    """Relance la vérification RÉSEAU d'éligibilité (git push --dry-run sur
+    ARBOR_GIT_REMOTE_NAME) — capitaine EXCLUSIF : déclenche un appel réseau,
+    jamais automatique via le seul repli UPLANETNAME."""
+    pubkey = await require_captain_signature(request)
+    if not ARBOR_BATON_ELIGIBILITY_SH.is_file():
+        raise HTTPException(status_code=500, detail="arbor_baton_eligibility.sh introuvable sur cette station.")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(ARBOR_BATON_ELIGIBILITY_SH), "--force",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+            cwd=str(_IA_PATH),
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout lors de la vérification d'éligibilité (réseau lent ?).")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Échec : {e}")
+    try:
+        result = json.loads(stdout.decode().strip() or "{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Sortie invalide de arbor_baton_eligibility.sh")
+    logger.info(f"Admin arbor_baton_eligibility_check: eligible={result.get('eligible')} (captain={pubkey[:16]})")
+    return JSONResponse(result)
+
+
+@router.post("/api/nostr/admin/arbor_chat")
+async def post_arbor_chat(request: Request):
+    """Dialogue conversationnel avec Arbor — capitaine EXCLUSIF (NIP-98).
+    Body : {message, history: [{role, content}]}. Le contexte (bâton,
+    branches en attente, derniers runs, CLI Claude) est reconstruit ICI,
+    jamais fourni par le client. Ne déclenche RIEN : une action proposée doit
+    être validée explicitement via POST arbor_trigger (même whitelist, même
+    garde) — ce endpoint ne fait que dialoguer."""
+    body = await safe_json_body(request)
+    message = (body.get("message") or "").strip()
+    history = body.get("history") or []
+    if not message:
+        raise HTTPException(status_code=400, detail="message manquant.")
+    if len(message) > 2000:
+        raise HTTPException(status_code=400, detail="message trop long (max 2000 caractères).")
+    if not isinstance(history, list) or len(history) > 40:
+        raise HTTPException(status_code=400, detail="history invalide (liste de 40 entrées maximum).")
+
+    await require_captain_signature(request)
+
+    raw = await coop_load_raw()
+    audit = _read_audit_tail(ARBOR_AUDIT_FILE, limit=5)
+    try:
+        baton_status = await _run_arbor_baton_sh("status", timeout=15.0)
+    except HTTPException:
+        baton_status = {}
+
+    context = {
+        "baton": {k: baton_status.get(k) for k in ("holder", "vacant", "is_local_holder", "timeout_hours")},
+        "branches_awaiting_review": [
+            {"branch": b["branch"], "subject": b["subject"], "commits_ahead": b["commits_ahead"]}
+            for b in _arbor_branches() if not b["already_merged"]
+        ][:10],
+        "recent_runs": [
+            {"mode": a.get("mode"), "rc": a.get("rc"), "finished_at": a.get("finished_at")} for a in audit
+        ],
+        "remote_trigger_enabled": str(raw.get("ARBOR_REMOTE_TRIGGER_ENABLED", "")).strip().lower() == "true",
+        "claude_cli": _claude_cli_status(),
+    }
+
+    # Import LAZY — même raison que arbor_mined_preview (arbor_chat importe
+    # arbor_tool_forge, qui importe bro_watch_core/arbor_self_improve, chaîne
+    # bien plus lourde que ce module à lui seul).
+    import arbor_chat
+    try:
+        result = await asyncio.to_thread(arbor_chat.chat_turn, message, history, context)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Échec dialogue Arbor : {e}")
+    return JSONResponse(result)
 
 
 # ── Jobs bash destructifs en arrière-plan (purge NOSTR, destruction MULTIPASS) ──

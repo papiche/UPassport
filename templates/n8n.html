@@ -1085,13 +1085,9 @@
                                 <option value="llama3.2" ${node.parameters?.model === 'llama3.2' ? 'selected' : ''}>Llama 3.2</option>
                             </select>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Memory Slot</label>
-                            <input type="number" class="form-control" id="nodeSlot" min="0" max="12" value="${node.parameters?.slot || 0}">
-                        </div>
                     `;
                     break;
-                    
+
                 case 'filter':
                     html += `
                         <div class="mb-3">
@@ -1166,7 +1162,6 @@
                 case 'ai_question':
                     selectedNode.parameters.prompt = document.getElementById('nodePrompt').value;
                     selectedNode.parameters.model = document.getElementById('nodeModel').value;
-                    selectedNode.parameters.slot = parseInt(document.getElementById('nodeSlot').value);
                     break;
                 case 'filter':
                     selectedNode.parameters.field = document.getElementById('nodeField').value;

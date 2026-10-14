@@ -239,9 +239,16 @@ async def _import_source(email: str, source: dict, max_import: int,
     index_snapshot = cloud_storage.load_index(email)
     hash_index = _hash_index(index_snapshot)
 
+    _log(f"[{label}] parcours du dossier distant (un PROPFIND par dossier : plusieurs minutes "
+         f"possibles sur une grosse archive)…", quiet)
+    _t0 = time.monotonic()
     try:
         entries = await webdav_client.walk_files(
-            source["url"], source["username"], source["password"], remote_path)
+            source["url"], source["username"], source["password"], remote_path,
+            progress=lambda dirs, files: _log(
+                f"[{label}] parcours : {dirs} dossiers lus, {files} fichiers vus ({int(time.monotonic() - _t0)} s)", quiet))
+        _log(f"[{label}] parcours terminé : {len(entries)} fichiers en {int(time.monotonic() - _t0)} s — "
+             f"téléchargement des nouveautés…", quiet)
     except webdav_client.WebdavError as exc:
         _log(f"ERROR:webdav_import:{label}: connexion impossible : {exc}", quiet)
         return {"at": int(time.time()), "imported": 0, "skipped": 0, "errors": 1,

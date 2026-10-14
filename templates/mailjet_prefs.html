@@ -784,9 +784,9 @@
 
 <div class="mem-card">
   <div class="mem-head">
-    <span class="mem-title">💬 Conversations</span>
+    <span class="mem-title">💬 Mémoire personnelle</span>
     <form method="post" action="/mailjet/memory-reset" style="margin:0;"
-          onsubmit="return confirm('Effacer tout l\'historique de conversation (slots 0 à 12) ?');">
+          onsubmit="return confirm('Effacer votre mémoire personnelle ?');">
       <input type="hidden" name="email" value="{{ email }}">
       <input type="hidden" name="token" value="{{ token }}">
       <input type="hidden" name="scope" value="conversations">
@@ -794,10 +794,7 @@
     </form>
   </div>
   <div class="mem-stats">
-    <b>{{ memory_status.conversations.message_count }}</b> message(s) ·
-    <b>{{ memory_status.conversations.slots_present | length }}</b> slot(s) actif(s) ·
-    {{ (memory_status.conversations.size_bytes / 1024) | round(1) }} Ko ·
-    {{ memory_status.conversations.qdrant_points }} point(s) Qdrant
+    <b>{{ memory_status.conversations.qdrant_points }}</b> souvenir(s) enregistré(s)
   </div>
 </div>
 
