@@ -25,6 +25,8 @@ from services import story_assistant
 PORTRAIT_SIDE = 1024
 HEAD_SHOULDERS = 3.0          # côté du carré = 3 × la hauteur du visage : tête, cou et épaules
 MAX_CANDIDATES = 6
+MAX_PORTRAITS = 4              # photo principale + 3 autres vues : MiniMax H3 accepte 9 images de référence, il en reste pour décor et continuité
+KEEP_RATIO = 0.4               # une photo supplémentaire doit avoir au moins 40 % de la netteté de la meilleure
 NAME_OK = re.compile(r"[^\w \-'’]", re.UNICODE)
 
 
@@ -122,6 +124,20 @@ def sharpness(png: bytes) -> float:
     return float(ImageStat.Stat(img.filter(ImageFilter.FIND_EDGES)).var[0])
 
 
+def rank_portraits(crops: List[Tuple[Any, bytes, int]]) -> List[Tuple[Any, bytes, float]]:
+    """(identifiant, png, côté source) → (identifiant, png, score) du plus net au moins net, même pondération que `best_portrait`."""
+    scored = [(pid, png, sharpness(png) * min(1.0, side / 512.0)) for pid, png, side in crops]
+    return sorted(scored, key=lambda t: -t[2])
+
+
+def auto_pick(ranked: List[Tuple[Any, bytes, float]], n: int = 3) -> List[Tuple[Any, bytes, float]]:
+    """Sélection automatique : la meilleure, puis les suivantes tant qu'elles restent assez nettes (jamais une photo floue de plus)."""
+    if not ranked:
+        return []
+    top = ranked[0][2]
+    return [r for r in ranked[:min(n, MAX_PORTRAITS)] if r is ranked[0] or r[2] >= KEEP_RATIO * top]
+
+
 def best_portrait(crops: List[Tuple[bytes, int]]) -> Optional[Tuple[bytes, float]]:
     """Parmi (png, côté source) : le plus net, pénalisé s'il vient d'une très petite zone de l'image."""
     best, best_score = None, -1.0
@@ -161,8 +177,19 @@ def describe_look(png: bytes, model: str) -> Tuple[str, str]:
     return parse_look(reply)
 
 
-def character_files(name: str, look: str, voice_design: str, portrait_png: bytes) -> Dict[str, bytes]:
-    """Fichiers du paquet personnage : fiche + portrait. La voix (voice.wav) est produite ensuite par le rendu du personnage."""
+def portrait_files(name: str, portraits: List[bytes]) -> Dict[str, bytes]:
+    """`portrait.png` (la photo principale) puis `portrait_2.png`… (autres vues, 4 au plus) : generate_scene.sh les passe toutes
+    au modèle vidéo comme images de référence du même visage."""
+    out = {f"cast/{name}/portrait.png": portraits[0]}
+    for i, png in enumerate(portraits[1:MAX_PORTRAITS], start=2):
+        out[f"cast/{name}/portrait_{i}.png"] = png
+    return out
+
+
+def character_files(name: str, look: str, voice_design: str, portrait_png: Any) -> Dict[str, bytes]:
+    """Fichiers du paquet personnage : fiche + portrait(s) (`portrait_png` = un PNG ou une liste, le premier est le principal).
+    La voix (voice.wav) est produite ensuite par le rendu du personnage."""
+    portraits = portrait_png if isinstance(portrait_png, list) else [portrait_png]
     import json
     # generate_character.sh exige un « look » non vide même quand le portrait existe déjà : repli générique si la vision est indisponible.
     meta = {"name": name, "look": look or "a person, head and shoulders portrait", "voice_design": voice_design or "friendly natural voice, warm and cheerful",
@@ -170,5 +197,4 @@ def character_files(name: str, look: str, voice_design: str, portrait_png: bytes
             "source": "facecloud", "private_only": True,
             "consent": {"given": True, "at": int(time.time()),
                         "note": "Portrait tiré des photos de la personne, avec son accord ; vidéos privées, envoyées à elle ou à ses proches."}}
-    return {f"cast/{name}/character.json": json.dumps(meta, ensure_ascii=False, indent=1).encode("utf-8"),
-            f"cast/{name}/portrait.png": portrait_png}
+    return {f"cast/{name}/character.json": json.dumps(meta, ensure_ascii=False, indent=1).encode("utf-8"), **portrait_files(name, portraits)}

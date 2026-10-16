@@ -39,7 +39,7 @@ from a2wsgi import WSGIMiddleware
 from services.cloud_storage import build_wsgi_dav_app
 from services.nostr import Nip98BindingMiddleware
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, api_access, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, facecloud
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, api_access, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, facecloud, visits
 
 # Setup logging
 setup_logging()
@@ -123,6 +123,7 @@ app.include_router(node_admin.router)
 app.include_router(calendar.router)
 app.include_router(contacts.router)   # carnet FaceCloud (JSON, NIP-98)
 app.include_router(carddav.router)    # synchro téléphone/Thunderbird (CardDAV, Basic)
+app.include_router(visits.router)     # compteur de visites de l'essaim (POST /visit)
 app.include_router(facecloud.router)  # entrée FaceCloud : invitation + création MULTIPASS
 
 if __name__ == "__main__":

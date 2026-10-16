@@ -481,3 +481,60 @@ def test_manual_archive_and_share_of_a_videofun_video(client, monkeypatch):
     part = pub.get(f"/api/story/watch/{token}/video", headers={"Range": "bytes=2-4"})
     assert part.status_code == 206 and part.content == b"234" and part.headers["content-range"] == "bytes 2-4/10"
     assert client.post("/api/story/share", json={"path": "/Photos/secret.jpg"}).status_code == 404, "hors de /VideoFUN/ : refusé"
+
+
+def test_shots_follow_each_other_end_frame_becomes_next_start():
+    """Les plans se suivent : chaque plan IA repart de l'image finale du précédent, sauf image de départ propre ou plan sans image finale."""
+    sa = __import__("services.story_assistant", fromlist=["x"])
+    shoot = sa.clean_shoot({"max_seconds": 12})
+    sb = {"cast": {"Lea": {}}, "shots": [{"cast": ["Lea"], "prompt": "a", "duration": 5}, {"cast": ["Lea"], "prompt": "b", "duration": 5},
+                                          {"prompt": "c", "duration": 5}]}
+    out = sa.apply_shoot(sb, {**shoot, "max_seconds": 15})
+    assert [bool(sh.get("continue")) for sh in out["shots"]] == [False, True, True]
+    own = sa.chain_shots([{"prompt": "a"}, {"prompt": "b", "image": "/x.png"}, {"card": {"title": "fin"}}, {"prompt": "d"}])
+    assert [bool(s.get("continue")) for s in own] == [False, False, False, False], "image propre, carton, et plan après un carton : jamais chaînés"
+    dec = sa.apply_shoot({"cast": {}, "shots": [{"prompt": "a", "continue": True}, {"prompt": "b"}]}, {**shoot, "decor": True, "max_seconds": 12})
+    assert "continue" not in dec["shots"][0], "le premier plan ne peut pas continuer"
+    assert dec["shots"][1]["continue"] is True and dec["shots"][1]["decor"] == sa.DECOR_PATH, "décor et continuité se combinent"
+
+
+def test_portrait_candidates_lists_photos_with_previews_and_a_suggestion(faces):
+    r = faces.post("/api/story/portrait-candidates", json={"point_ids": ["1", "2", "3"]})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    ids = [c["id"] for c in d["candidates"]]
+    assert set(ids) == {"1", "2", "3"} and all(c["preview"].startswith("data:image/jpeg;base64,") for c in d["candidates"])
+    assert d["suggested"] and set(d["suggested"]) <= set(ids) and d["candidates"][0]["id"] in d["suggested"], "la plus nette est toujours proposée"
+    assert faces.post("/api/story/portrait-candidates", json={"point_ids": []}).status_code == 400
+
+
+def _paths(faces, cid):
+    return {f["path"] for f in faces.get(f"/api/story/asset/{cid}").json()["files"]}
+
+
+def test_character_keeps_several_photos_as_extra_references(faces):
+    """Choix explicite : la première photo est la principale, les suivantes deviennent portrait_2.png… (références de visage supplémentaires)."""
+    out = faces.post("/api/story/character-from-person", json={"name": "Léa", "point_ids": ["1", "2", "3"], "photo_ids": ["3", "1"],
+                                                               "consent": True, "render": False}).json()
+    assert out["photos"] == 2
+    assert _paths(faces, out["cid"]) >= {"cast/Léa/portrait.png", "cast/Léa/portrait_2.png", "cast/Léa/character.json"}
+    # plus de 4 photos : plafonné
+    many = faces.post("/api/story/character-from-person", json={"name": "Tim", "point_ids": ["1"], "photo_ids": ["1", "2", "3", "1", "2", "3"],
+                                                                "consent": True, "render": False}).json()
+    assert many["photos"] <= 3 and not any(p.endswith("portrait_5.png") for p in _paths(faces, many["cid"]))
+    # sélection automatique : au moins la photo principale
+    auto = faces.post("/api/story/character-from-person", json={"name": "Auto", "point_ids": ["1", "2", "3"], "consent": True, "render": False}).json()
+    assert auto["photos"] >= 1 and "cast/Auto/portrait.png" in _paths(faces, auto["cid"])
+
+
+def test_changing_photos_keeps_the_sheet_and_drops_stale_views(faces):
+    first = faces.post("/api/story/character-from-person", json={"name": "Léa", "point_ids": ["1", "2", "3"], "photo_ids": ["3", "1", "2"],
+                                                                 "consent": True, "render": False}).json()
+    meta0 = faces.get(f"/api/story/asset/{first['cid']}/file", params={"path": "cast/Léa/character.json"}).content
+    assert {"cast/Léa/portrait_2.png", "cast/Léa/portrait_3.png"} <= _paths(faces, first["cid"])
+    new = faces.post("/api/story/character-from-person", json={"name": "Léa", "point_ids": ["1"], "photo_ids": ["1"], "consent": True,
+                                                               "render": False, "portrait_only": True}).json()
+    assert new["updated"] is True and new["photos"] == 1
+    paths = _paths(faces, new["cid"])
+    assert "cast/Léa/portrait.png" in paths and not (paths & {"cast/Léa/portrait_2.png", "cast/Léa/portrait_3.png"}), "anciennes vues retirées"
+    assert faces.get(f"/api/story/asset/{new['cid']}/file", params={"path": "cast/Léa/character.json"}).content == meta0, "fiche inchangée"

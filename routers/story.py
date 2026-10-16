@@ -356,12 +356,63 @@ async def story_people(npub: str = Depends(require_nostr_auth)):
     return {"people": story_person.group_people(points, me_hex=me_hex)}
 
 
+async def _face_crops(ids, k):
+    """[(point_id, png recadré tête et épaules, côté source)] pour au plus `k` visages de `ids` (un par photo, les plus grands d'abord)."""
+    from routers import mailjet
+    email = settings.CAPTAINEMAIL
+    collection = mailjet._faces_collection(email)
+    if not collection:
+        raise HTTPException(status_code=404, detail="MULTIPASS sans HEX sur cette station")
+    cands = story_person.candidate_faces(await mailjet._fetch_face_points(collection, ids), k)
+    out = []
+    for pid, pl in cands:
+        try:
+            plain, _mime = await mailjet._decrypt_source_photo(email, pl["source_path"])
+            png, side = await asyncio.to_thread(story_person.crop_portrait, plain, pl.get("bbox") or {})
+            out.append((pid, png, side))
+        except HTTPException:
+            continue                    # photo supprimée ou illisible : on essaie le visage suivant
+        except Exception as exc:
+            logger.warning("story: recadrage impossible pour %s : %s", pl.get("source_path"), exc)
+    return out
+
+
+def _preview(png: bytes, side: int = 240) -> str:
+    import io
+    from PIL import Image
+    im = Image.open(io.BytesIO(png)).convert("RGB")
+    im.thumbnail((side, side))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=80)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+@router.post("/api/story/portrait-candidates", summary="Les photos de cette personne parmi lesquelles choisir le visage du personnage")
+async def story_portrait_candidates(request: Request, npub: str = Depends(require_nostr_auth)):
+    """{point_ids} → {candidates:[{id, preview (JPEG 240 px), score}], suggested:[id…]} : une photo par cliché source, la plus nette
+    d'abord ; `suggested` = la sélection automatique (la meilleure puis jusqu'à 2 autres assez nettes). Aucune création."""
+    _require_captain(npub)
+    b = await _json(request)
+    ids = [str(x) for x in (b.get("point_ids") or []) if x][:200]
+    if not ids:
+        raise HTTPException(status_code=400, detail="point_ids requis")
+    crops = await _face_crops(ids, 12)
+    if not crops:
+        raise HTTPException(status_code=404, detail="aucun visage exploitable pour cette personne (photos source introuvables ?)")
+    ranked = await asyncio.to_thread(story_person.rank_portraits, crops)
+    picked = {r[0] for r in story_person.auto_pick(ranked)}
+    return {"candidates": [{"id": pid, "preview": await asyncio.to_thread(_preview, png), "score": round(score, 1)} for pid, png, score in ranked],
+            "suggested": [r[0] for r in ranked if r[0] in picked]}
+
+
 @router.post("/api/story/character-from-person",
              summary="Personnage PRIVÉ tiré d'une personne de l'ucloud (portrait, apparence, voix)")
 async def story_character_from_person(request: Request, npub: str = Depends(require_nostr_auth)):
-    """Le portrait est le plus beau visage de la personne (grand, net), recadré tête et épaules. Le consentement de la
-    personne est EXIGÉ et consigné dans la fiche ; le personnage reste privé. `render` (défaut vrai) lance aussitôt la
-    création de sa voix (rendu du personnage)."""
+    """Le visage du personnage vient de ses photos. Sans `photo_ids`, sélection automatique : la photo la plus nette (carré « tête et
+    épaules » 1024 px) plus jusqu'à 2 autres assez nettes, passées toutes au modèle vidéo comme références du même visage. Avec
+    `photo_ids` (ordre = priorité, 4 au plus) : exactement ces photos, la première est la principale. `portrait_only` (personnage
+    déjà créé) ne remplace QUE les photos : fiche, apparence et voix restent. Le consentement de la personne est EXIGÉ et consigné ;
+    le personnage reste privé. `render` (défaut vrai) lance aussitôt la création de sa voix (rendu du personnage)."""
     _require_captain(npub)
     b = await _json(request)
     if b.get("consent") is not True:
@@ -369,40 +420,39 @@ async def story_character_from_person(request: Request, npub: str = Depends(requ
                                                     "qu'à des vidéos privées, pour elle ou ses proches.")
     name = story_person.clean_name(b.get("name"))
     ids = [str(x) for x in (b.get("point_ids") or []) if x][:200]
-    if not name or not ids:
+    chosen = list(dict.fromkeys(str(x) for x in (b.get("photo_ids") or []) if x))[:story_person.MAX_PORTRAITS]      # sans doublon, ordre conservé
+    if not name or not (ids or chosen):
         raise HTTPException(status_code=400, detail="nom et visages (point_ids) requis")
-    from routers import mailjet
-    email = settings.CAPTAINEMAIL
-    collection = mailjet._faces_collection(email)
-    if not collection:
-        raise HTTPException(status_code=404, detail="MULTIPASS sans HEX sur cette station")
-    cands = story_person.candidate_faces(await mailjet._fetch_face_points(collection, ids))
-    if not cands:
-        raise HTTPException(status_code=404, detail="aucun visage exploitable pour cette personne (photos source introuvables ?)")
-    crops = []
-    for _pid, pl in cands:
-        try:
-            plain, _mime = await mailjet._decrypt_source_photo(email, pl["source_path"])
-            crops.append(await asyncio.to_thread(story_person.crop_portrait, plain, pl.get("bbox") or {}))
-        except HTTPException:
-            continue                    # photo supprimée ou illisible : on essaie le visage suivant
-        except Exception as exc:
-            logger.warning("story: recadrage impossible pour %s : %s", pl.get("source_path"), exc)
-    best = await asyncio.to_thread(story_person.best_portrait, crops)
-    if not best:
-        raise HTTPException(status_code=404, detail="aucun portrait exploitable : les photos source sont illisibles")
-    png, score = best
-    look, voice = await asyncio.to_thread(story_person.describe_look, png, analysis.DESCRIBE_MODEL)
-    look = (b.get("look") or look or "").strip()[:300]
-    voice = (b.get("voice_design") or voice or "").strip()[:120]
-    files = story_person.character_files(name, look, voice, png)
+    if chosen:
+        crops = {pid: (png, side) for pid, png, side in await _face_crops(chosen, len(chosen))}
+        portraits = [crops[pid][0] for pid in chosen if pid in crops]
+        if not portraits:
+            raise HTTPException(status_code=404, detail="les photos choisies sont introuvables ou illisibles")
+        score = (await asyncio.to_thread(story_person.rank_portraits, [(chosen[0], *crops[chosen[0]])]))[0][2] if chosen[0] in crops else 0.0
+    else:
+        crops = await _face_crops(ids, story_person.MAX_CANDIDATES)
+        ranked = await asyncio.to_thread(story_person.rank_portraits, crops)
+        picked = story_person.auto_pick(ranked)
+        if not picked:
+            raise HTTPException(status_code=404, detail="aucun visage exploitable pour cette personne (photos source introuvables ?)"
+                                if not crops else "aucun portrait exploitable : les photos source sont illisibles")
+        portraits, score = [r[1] for r in picked], picked[0][2]
     existing = next((a for a in await _run(story_asset.list_assets)
                      if a.get("type") == "character" and a.get("mine") and a["name"].lower() == name.lower()), None)
-    if existing:
-        cid = existing["cid"]
+    look = voice = ""
+    if existing and b.get("portrait_only"):
+        # Photos seules : on garde fiche, apparence et voix ; les anciennes vues en trop sont retirées
+        files = story_person.portrait_files(name, portraits)
+        stale = {f"cast/{name}/portrait_{i}.png": None for i in range(2, 10) if f"cast/{name}/portrait_{i}.png" not in files}
+        files.update(stale)
     else:
-        cid = (await _run(story_asset.create, "character", name, "private", "Personnage tiré de FaceCloud"))["cid"]
-    entry = await _run(story_asset.new_version, cid, files, "Portrait tiré de FaceCloud", False, False, [])
+        look, voice = await asyncio.to_thread(story_person.describe_look, portraits[0], analysis.DESCRIBE_MODEL)
+        look = (b.get("look") or look or "").strip()[:300]
+        voice = (b.get("voice_design") or voice or "").strip()[:120]
+        files = story_person.character_files(name, look, voice, portraits)
+    cid = existing["cid"] if existing else (await _run(story_asset.create, "character", name, "private", "Personnage tiré de FaceCloud"))["cid"]
+    entry = await _run(story_asset.new_version, cid, files, "Photos du personnage changées" if b.get("portrait_only") and existing else "Portrait tiré de FaceCloud",
+                       False, False, [])
     _LOOKS.pop(cid, None)
     job, job_error = None, None
     if b.get("render", True):
@@ -410,8 +460,8 @@ async def story_character_from_person(request: Request, npub: str = Depends(requ
             job = await _run(story_render.start_render, entry["cid"], [])
         except HTTPException as exc:
             job_error = exc.detail
-    logger.info("story: personnage « %s » %s depuis FaceCloud (%s)", name, "mis à jour" if existing else "créé", entry["cid"])
-    return {"cid": entry["cid"], "name": name, "look": look, "voice_design": voice, "updated": bool(existing),
+    logger.info("story: personnage « %s » %s depuis FaceCloud (%s, %d photo(s))", name, "mis à jour" if existing else "créé", entry["cid"], len(portraits))
+    return {"cid": entry["cid"], "name": name, "look": look, "voice_design": voice, "updated": bool(existing), "photos": len(portraits),
             "sharpness": round(score, 1), "job": job, "job_error": job_error}
 
 

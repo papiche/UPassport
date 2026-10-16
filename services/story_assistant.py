@@ -104,6 +104,25 @@ def fit_shots(shots: List[dict], max_seconds: int) -> List[dict]:
     return kept
 
 
+def is_ai_shot(sh: dict) -> bool:
+    """Plan calculé par le modèle vidéo (donc doté d'une image finale) : ni capture d'écran, ni carton, ni vidéo importée."""
+    return not (sh.get("screen") or sh.get("card") or isinstance(sh.get("video"), str))
+
+
+def chain_shots(shots: List[dict]) -> List[dict]:
+    """Les plans se SUIVENT : chaque plan IA qui en suit un autre repart de l'image finale du précédent (`continue: true`, géré par
+    generate_scene.sh : image de départ, ou référence de plus pour les plans avec acteur ou décor). Un plan qui a sa propre image de
+    départ (`image`, `image_prompt`) ou qui suit un plan sans image finale (écran, carton) est laissé tel quel."""
+    for i, sh in enumerate(shots):
+        if i == 0:
+            sh.pop("continue", None)                              # le premier plan ne peut pas « continuer »
+            continue
+        if not is_ai_shot(sh) or not is_ai_shot(shots[i - 1]) or sh.get("image") or sh.get("image_prompt"):
+            continue
+        sh["continue"] = True
+    return shots
+
+
 def apply_shoot(sb: dict, shoot: Dict[str, Any]) -> dict:
     """Applique les réglages de tournage au storyboard (idempotent) : durée maximale respectée, décor sur chaque plan IA, format
     du décor, bloc `fun` (destinataire, durée, consignes) lu plus tard pour ranger la vidéo dans /VideoFUN/ de l'ami."""
@@ -111,13 +130,14 @@ def apply_shoot(sb: dict, shoot: Dict[str, Any]) -> dict:
     out["shots"] = fit_shots(out.get("shots") or [], shoot["max_seconds"])
     if shoot["decor"]:
         for sh in out["shots"]:
-            if sh.get("screen") or sh.get("card") or isinstance(sh.get("video"), str):
+            if not is_ai_shot(sh):
                 continue
-            for k in ("image", "image_prompt", "continue"):        # incompatibles avec un décor de référence (ref2va)
+            for k in ("image", "image_prompt"):                    # incompatibles avec un décor de référence (ref2va)
                 sh.pop(k, None)
             sh["decor"] = DECOR_PATH
         if shoot["decor_ratio"]:
             out["ratio"] = shoot["decor_ratio"]
+    chain_shots(out["shots"])
     out["fun"] = {k: v for k, v in {"to": shoot["to"], "contact": shoot["contact"], "max_seconds": shoot["max_seconds"],
                                     "brief": shoot["brief"], "decor": shoot["decor"]}.items() if v not in ("", None)}
     return out
