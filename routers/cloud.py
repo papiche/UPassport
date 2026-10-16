@@ -39,7 +39,7 @@ from fastapi.responses import JSONResponse, Response
 
 from core.config import settings
 from services.nostr import require_nostr_auth
-from services import analysis, cloud_storage, webdav_client
+from services import analysis, cloud_storage, ucloud_embed, webdav_client
 from utils.crypto import npub_to_hex
 
 logger = logging.getLogger(__name__)
@@ -451,6 +451,152 @@ async def cloud_quota(request: Request, npub: str = Depends(require_nostr_auth))
         lambda: cloud_storage.storage_quota.status(cloud_storage.nostr_dir(email), fresh=True)))
 
 
+def _kick_embed(email: str, udir) -> None:
+    """Lance en arrière-plan la vectorisation des descriptions qui n'ont pas encore de vecteur (une seule à la fois)."""
+    from services import ucloud_embed
+    try:
+        if ucloud_embed.counts(udir)["pending"] <= 0 or _json_progress(udir / "embed_scan.json").get("running"):
+            return
+        script = settings.BASE_DIR / "ucloud_embed.py"
+        if script.exists():
+            subprocess.Popen([sys.executable, str(script), "scan", email], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             stdin=subprocess.DEVNULL, start_new_session=True)
+    except Exception as exc:
+        logger.warning("ucloud: vectorisation non lancée pour %s: %s", email, exc)
+
+
+@router.get(
+    "/api/cloud/search",
+    summary="Recherche PAR LE SENS dans les photos (descriptions vectorisées + mots)",
+    description="Classement hybride : proximité sémantique de la requête avec la description de chaque photo "
+                "(`paraphrase-multilingual`, Ollama) + bonus quand tous les mots y sont. Même forme de réponse que "
+                "`files/page` (`files`, `total`, `offset`, `counts`) plus `mode` (`semantic` | `keyword` si Ollama ne répond pas), "
+                "`note` et `index` (photos décrites / vectorisées). Les photos sans vecteur restent trouvables par mots ; "
+                "la vectorisation des manquantes est lancée en tâche de fond.",
+)
+async def cloud_search(
+    request: Request,
+    q: str = Query(..., min_length=1, max_length=200),
+    flt: str = Query(default="all", alias="filter"),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=120, ge=1, le=500),
+    since: Optional[int] = Query(default=None),
+    until: Optional[int] = Query(default=None),
+    lat: Optional[float] = Query(default=None),
+    lon: Optional[float] = Query(default=None),
+    npub: str = Depends(require_nostr_auth),
+):
+    email = _email_for_authenticated_npub(npub)
+    from services import ucloud_embed
+
+    def work():
+        udir = cloud_storage.ensure_ucloud_dir(email)
+        qvec, note = None, ""
+        try:
+            qvec = ucloud_embed.query_vec(q)
+        except ucloud_embed.EmbedError as exc:
+            note = f"Recherche par mots seulement : {exc}"
+        ranked = ucloud_embed.search(udir, q, qvec, flt, since, until, lat, lon)
+        page = ranked[offset:offset + limit]
+        rows = ucloud_embed.entries_for(udir, [p for p, _s in page])
+        score = dict(page)
+        files = []
+        for p, e in rows:
+            r = _file_row(p, e)
+            r["score"] = round(score.get(p, 0.0), 3)
+            files.append(r)
+        out = {"files": files, "total": len(ranked), "offset": offset, "mode": "semantic" if qvec is not None else "keyword",
+               "note": note, "index": ucloud_embed.counts(udir)}
+        if offset == 0:
+            out["counts"] = cloud_storage.ucloud_db.gallery_counts(udir)
+            if qvec is not None:
+                _kick_embed(email, udir)
+        return out
+    return JSONResponse(await asyncio.to_thread(work))
+
+
+@router.get(
+    "/api/cloud/videofun",
+    summary="Les vidéos FUN de /VideoFUN/ (dossier DAV), par ami",
+    description="Rend `videos` (récentes d'abord : path, name, to, contact, title, duration, cast, size) et `root`. Le dossier est créé "
+                "s'il n'existe pas. Les vidéos viennent du Studio (story.html) ou ont été déposées par un client DAV.",
+)
+async def cloud_videofun(request: Request, npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    from services import videofun
+
+    def work():
+        videofun.ensure_root(email)
+        return {"root": videofun.ROOT, "videos": videofun.list_videos(email)}
+    return JSONResponse(await asyncio.to_thread(work))
+
+
+@router.get(
+    "/api/cloud/friend",
+    summary="Fiche d'un ami : photos reçues de lui, vidéos FUN pour lui, liens d'envoi vers lui",
+    description="`name` (obligatoire), `hex` (clé NOSTR) et `contact` (UID de la fiche du carnet) précisent la personne. Rend `received` {count, last, items}, "
+                "`videos` (comme /api/cloud/videofun) et `shares` (liens valables, vues comprises : Capitaine seulement). Les photos OÙ elle apparaît "
+                "et celles qu'on lui a envoyées viennent déjà de /mailjet/faces (visages, `sent`).",
+)
+async def cloud_friend(request: Request, name: str = Query(..., min_length=1, max_length=80), hex: str = Query("", max_length=64),
+                       contact: str = Query("", max_length=64), npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    from services import friend_card, story_render
+
+    def work():
+        lib = story_render.story_asset.LIBRARY if email == settings.CAPTAINEMAIL else None
+        return friend_card.card(email, name.strip(), hex.strip().lower(), contact.strip(), lib)
+    return JSONResponse(await asyncio.to_thread(work))
+
+
+@router.post(
+    "/api/cloud/videofun/send",
+    summary="Envoyer une vidéo de /VideoFUN/ dans le cloud d'un ami (cloud à cloud, sans lien)",
+    description="`path`, et `pubkey` (64 hex) ou `to_email` de l'ami. Même station : copie directe ; autre station : canal inter-NODE. "
+                "404 `no_account` si l'ami n'a pas de MULTIPASS connu : proposer alors le lien secret (`POST /api/story/share`).",
+)
+async def cloud_videofun_send(request: Request, path: str = Form(...), pubkey: str = Form(""), to_email: str = Form(""),
+                              npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    from routers import mailjet
+    from services import videofun
+    if pubkey and not re.fullmatch(r"[0-9a-fA-F]{64}", pubkey.strip()):
+        raise HTTPException(status_code=400, detail="clé publique invalide (64 caractères hexadécimaux)")
+    try:
+        res = await asyncio.to_thread(videofun.send_to_friend, email, path, mailjet._owner_display_name(email), pubkey, to_email)
+    except LookupError:
+        return JSONResponse({"error": "no_account", "detail": "Cette personne n'a pas de MULTIPASS connu : envoyez-lui un lien."}, status_code=404)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return JSONResponse({"ok": True, **res})
+
+
+@router.get("/api/cloud/videofun/file", summary="Une vidéo de /VideoFUN/ (déchiffrée en mémoire, 20 Mo au plus)")
+async def cloud_videofun_file(request: Request, path: str = Query(...), npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    from services import videofun
+    try:
+        data, mime = await asyncio.to_thread(videofun.read_video, email, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except (FileNotFoundError, RuntimeError):
+        raise HTTPException(status_code=404, detail="vidéo introuvable")
+    return Response(content=data, media_type=mime, headers={"Cache-Control": "no-store", "Content-Length": str(len(data))})
+
+
+@router.delete("/api/cloud/videofun", summary="Supprimer une vidéo de /VideoFUN/")
+async def cloud_videofun_delete(request: Request, path: str = Query(...), npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    from services import videofun
+    try:
+        ok = await asyncio.to_thread(videofun.delete_video, email, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not ok:
+        raise HTTPException(status_code=404, detail="vidéo introuvable")
+    return JSONResponse({"success": True})
+
+
 @router.post(
     "/api/cloud/photos/info",
     summary="Fiche (date, description…) de photos données — frise d'une personne",
@@ -566,7 +712,10 @@ def _analysis_status(email: str, pubkey_hex: str) -> dict:
         "enrich": {"hashed": c["hashed"], "located": c["located"], "dated": c["dated"], "pending": max(0, images - c["hashed"]),
                    "run": enrich_run, "per_min": rate(enrich_run)},
         "describe": {"done": c["described"], "pending": max(0, images - c["described"] - c["unreadable"]),
-                     "run": desc_run, "per_min": rate(desc_run)},
+                     "run": desc_run, "per_min": rate(desc_run), "model": analysis.DESCRIBE_MODEL,
+                     "stale": cloud_storage.ucloud_db.describe_stale_count(udir, analysis.DESCRIBE_MODEL)},
+        "embed": {**ucloud_embed.counts(udir), "model": ucloud_embed.MODEL, "run": _json_progress(udir / "embed_scan.json"),
+                  "per_min": rate(_json_progress(udir / "embed_scan.json"))},
         "refresh": analysis.refresh_info(cloud_storage.nostr_dir(email)),
     }
 
@@ -591,7 +740,8 @@ async def cloud_analysis(request: Request, npub: str = Depends(require_nostr_aut
                 "celui choisi par le capitaine. 409 si cette tâche tourne déjà.",
 )
 async def cloud_analysis_run(request: Request, task: str = Form(...), paths: str = Form(default=""),
-                             force: str = Form(default="0"), npub: str = Depends(require_nostr_auth)):
+                             force: str = Form(default="0"), redo: str = Form(default="0"),
+                             npub: str = Depends(require_nostr_auth)):
     email = _email_for_authenticated_npub(npub)
     udir = cloud_storage.ensure_ucloud_dir(email)
     if task == "faces":
@@ -611,11 +761,18 @@ async def cloud_analysis_run(request: Request, task: str = Form(...), paths: str
                 extra += ["--paths", *wanted]
         if force in ("1", "true"):
             extra.append("--force")
+        if redo in ("1", "true"):
+            extra.append("--redo")
+    elif task == "embed":
+        script, extra = "ucloud_embed.py", ["scan"]
+        running = bool(_json_progress(udir / "embed_scan.json").get("running"))
     else:
-        raise HTTPException(status_code=400, detail="task inconnue (faces|enrich|describe)")
+        raise HTTPException(status_code=400, detail="task inconnue (faces|enrich|describe|embed)")
     if running:
         return JSONResponse({"success": False, "error": "Cette analyse est déjà en cours"}, status_code=409)
-    route = analysis.resolve("describe" if task == "describe" else "faces") if task != "enrich" else analysis.resolve("enrich")
+    route = analysis.resolve("describe" if task in ("describe", "embed") else "faces") if task != "enrich" else analysis.resolve("enrich")
+    if task == "embed" and not route["direct_ready"]:
+        return JSONResponse({"success": False, "error": "La recherche par le sens a besoin d'Ollama en accès direct (la machine d'IA ne répond pas)."}, status_code=503)
     if route["effective"] == "none":
         return JSONResponse({"success": False, "error": route["why"]}, status_code=503)
     script_path = settings.BASE_DIR / script

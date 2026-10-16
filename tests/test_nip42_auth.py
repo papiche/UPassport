@@ -137,7 +137,7 @@ class TestCheckNip42AuthLocalMarker:
     HEX = "d" * 64
 
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        return asyncio.run(coro)
 
     def setup_method(self):
         from services.nostr import check_nip42_auth_local_marker
@@ -265,7 +265,7 @@ class TestCheckNip42Auth:
     VALID_HEX  = "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d"
 
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        return asyncio.run(coro)
 
     def setup_method(self):
         from services.nostr import check_nip42_auth
@@ -492,7 +492,7 @@ class TestKind22242RelayBehaviour:
     RELAY   = "ws://127.0.0.1:7777"
 
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        return asyncio.run(coro)
 
     @pytest.mark.live_relay
     def test_kind22242_not_stored_in_strfry(self):

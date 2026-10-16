@@ -42,6 +42,9 @@ logger = logging.getLogger(__name__)
 
 GEN_DIR = settings.TOOLS_PATH.parent / "IA" / "generators"
 RENDERS_DIR = story_asset.SCENES / "renders"
+# Crochet appelé quand le rendu d'une SCÈNE est terminé et archivé : fn(job, work_dir) -> dict | None. Découple le moteur de rendu
+# de la destination (aujourd'hui /VideoFUN/ dans l'ucloud, demain d'autres) ; une erreur du crochet n'invalide jamais le rendu.
+ON_SCENE_DONE = None
 JOBS_DIR = story_asset.LIBRARY / "jobs"
 SAFE_NAME = re.compile(r"^(scene\.mp4|portrait\.png|voice\.wav|(shot|part|vo)_\d{2}\.(mp4|wav))$")
 _lock = threading.Lock()
@@ -426,6 +429,14 @@ def _finish(job: Dict[str, Any]) -> None:
     try:
         if job["kind"] == "scene":
             job["render"] = _archive_scene(job, work)
+            if ON_SCENE_DONE:                      # ex. copie dans /VideoFUN/ de l'ucloud (posé par routers/story.py)
+                try:
+                    extra = ON_SCENE_DONE(job, work)
+                    if extra:
+                        job["render"]["videofun"] = extra
+                except Exception as exc:  # noqa: BLE001 - le rendu reste valide, l'archivage est dit à l'utilisateur
+                    logger.warning("story: archivage du rendu %s impossible : %s", job["id"], exc)
+                    job["render"]["videofun_error"] = str(exc)
         elif job["kind"] == "character":
             job["render"] = _apply_character(job, work)
         else:

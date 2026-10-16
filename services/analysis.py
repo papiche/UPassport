@@ -28,6 +28,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 ZEN = Path.home() / ".zen"
+# Modèle vision des descriptions (même défaut que Astroport.ONE/IA/vision_describe.py). Les descriptions IA écrites par
+# un autre modèle sont « périmées » : le bouton « Refaire » de l'interface les reprend (jamais celles écrites à la main).
+DESCRIBE_MODEL = os.environ.get("FACECLOUD_DESCRIBE_MODEL", "qwen3-vl:4b-instruct")
 CONFIG_FILE = ZEN / "game" / "facecloud_analysis.json"
 MODES = ("auto", "direct", "relay")
 COMFYUI_PORT = 8188

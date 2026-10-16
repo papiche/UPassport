@@ -5,7 +5,7 @@ ucloud_describe.py — Décrit les photos d'un cloud FaceCloud avec le modèle v
     python3 ucloud_describe.py scan  <email> [--paths P…] [--mode auto|direct|relay] [--limit N] [--force] [--workers 1]
     python3 ucloud_describe.py --apply            (JSON d'un résultat de Brain sur stdin : mode relais)
 
-Sans `--paths` : toutes les photos SANS description. Une description écrite ou corrigée à la main
+Sans `--paths` : toutes les photos SANS description (`--redo` : celles décrites par l'IA avec un autre modèle que `analysis.DESCRIBE_MODEL`). Une description écrite ou corrigée à la main
 (`desc.src == "user"`) n'est JAMAIS remplacée, même avec --force. Où ça tourne (choix du capitaine,
 services/analysis.py) :
   direct  la photo est déchiffrée en mémoire et passée à `Astroport.ONE/IA/vision_describe.py --stdin`
@@ -38,7 +38,7 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
-from services import analysis, cloud_storage, ucloud_db  # noqa: E402
+from services import analysis, cloud_storage, trace, ucloud_db  # noqa: E402
 
 VISION = Path.home() / ".zen" / "Astroport.ONE" / "IA" / "vision_describe.py"
 RELAY_BATCH = 60              # photos envoyées au Brain par passage (file à TTL 30 min)
@@ -65,12 +65,20 @@ def set_description(email: str, path: str, text: str, src: str = "ai", model: st
 
 def describe_direct(email: str, path: str, runner: Optional[Callable[[bytes], dict]] = None) -> dict:
     """Déchiffre en mémoire et décrit par l'accès direct. `runner` (tests) remplace vision_describe.py."""
-    plain, _mime = cloud_storage.read_plaintext(email, path)
+    with trace.Timer() as t_dec:
+        plain, mime = cloud_storage.read_plaintext(email, path)
+    trace.log("describe", f"déchiffrement {mime or '?'} {len(plain) // 1024} Ko en {t_dec.s:.2f}s (clair en mémoire seulement)", 2)
     if runner:
         return runner(plain)
     if not VISION.exists():
         return {"error": f"{VISION} introuvable"}
-    proc = subprocess.run([sys.executable, str(VISION), "--stdin"], input=plain, capture_output=True, timeout=420)
+    trace.log("describe", f"→ {sys.executable} {VISION.name} --stdin (suivi des sous-processus : FACECLOUD_VERBOSE={trace.level()})", 2)
+    with trace.Timer() as t_vis:
+        proc = subprocess.run([sys.executable, str(VISION), "--stdin"], input=plain, capture_output=True, timeout=420)
+    err = proc.stderr.decode("utf-8", "replace")
+    if trace.level() and err.strip():                 # le suivi de vision_describe.py / describe_image.py, même chronologie
+        sys.stderr.write(err if err.endswith("\n") else err + "\n")
+    trace.log("describe", f"vision_describe.py : code {proc.returncode} en {t_vis.s:.1f}s", 2)
     for line in reversed(proc.stdout.decode("utf-8", "replace").strip().splitlines()):
         try:
             return json.loads(line)
@@ -91,11 +99,17 @@ def submit_relay(email: str, path: str) -> bool:
     if not hex_pub or not trigger.exists():
         return False
     env = dict(os.environ, UCLOUD_DECRYPTION_KEY=key_hex, UCLOUD_TASK="describe")
+    trace.log("describe", f"relais : bash {trigger.name} {email} {hex_pub[:12]}… {path} cid={entry['cid'][:16]}… "
+                          "(la clé AES voyage dans l'environnement, jamais affichée)", 2)
     try:
-        proc = subprocess.run(["bash", str(trigger), email, hex_pub, path, entry["cid"], ""], env=env,
-                              capture_output=True, timeout=120)
-    except Exception:
+        with trace.Timer() as t:
+            proc = subprocess.run(["bash", str(trigger), email, hex_pub, path, entry["cid"], ""], env=env,
+                                  capture_output=True, timeout=120)
+    except Exception as exc:
+        trace.log("describe", f"relais : exception {type(exc).__name__}: {exc}")
         return False
+    trace.log("describe", f"relais : code {proc.returncode} en {t.s:.1f}s"
+              + (f" — {proc.stderr.decode('utf-8', 'replace')[-300:]}" if proc.returncode else ""), 2)
     if proc.returncode != 0:
         return False
     ucloud_db.patch_entry(cloud_storage.ucloud_dir(email), path, lambda e: e.update(desc_job=int(time.time())) or True)
@@ -103,29 +117,47 @@ def submit_relay(email: str, path: str) -> bool:
 
 
 def scan(email: str, paths: Optional[list] = None, mode: Optional[str] = None, limit: int = 0,
-         force: bool = False, runner: Optional[Callable[[bytes], dict]] = None) -> dict:
+         force: bool = False, runner: Optional[Callable[[bytes], dict]] = None, redo: bool = False,
+         verbose: int = 0) -> dict:
+    if verbose:
+        trace.set_level(max(trace.level(), int(verbose)))     # les sous-processus l'héritent : une seule chronologie
+    verbose = trace.level()
     udir = cloud_storage.ensure_ucloud_dir(email)
+    state = None
+    described_cids = set()
     lock_fd = cloud_storage.try_lock_nowait(udir / ".describe.lock")
     if lock_fd is None:
         print("ERROR:describe: un passage est déjà en cours", file=sys.stderr)
         return {"status": "busy"}
     try:
         mode = mode or analysis.get_mode()
-        eff = analysis.resolve("describe", mode)["effective"]
+        route = analysis.resolve("describe", mode)
+        eff = route["effective"]
+        trace.log("describe", f"{email} : mode demandé={mode}, chemin={eff} (accès direct prêt={route.get('direct_ready')}, "
+                              f"relais prêt={route.get('relay_ready')}) — {route.get('why')}")
+        trace.log("describe", f"base {cloud_storage.ucloud_dir(email) / 'ucloud.db'}, modèle vision={analysis.DESCRIBE_MODEL}, "
+                              f"Ollama 127.0.0.1:{analysis.OLLAMA_PORT}, options redo={redo} force={force} limit={limit or 'aucune'} "
+                              f"paths={len(paths) if paths else 'toutes'}")
         if runner:
             eff = "direct"
-        todo = paths if paths else ucloud_db.describe_pending(udir)
-        if not force:
+        # redo : reprend les descriptions IA écrites par un AUTRE modèle (jamais celles saisies à la main).
+        todo = paths if paths else (ucloud_db.describe_stale(udir, analysis.DESCRIBE_MODEL) if redo else ucloud_db.describe_pending(udir))
+        trace.log("describe", f"sélection initiale : {len(todo)} photo(s) ({'refaire' if redo else 'sans description'})")
+        dropped = {"écrite à la main / déjà décrite": 0, "envoyée au Brain récemment": 0}
+        if not force and not redo:
             keep = []
             for p in todo:
                 e = cloud_storage.db_entry(email, p) or {}
                 d = e.get("desc") if isinstance(e.get("desc"), dict) else {}
                 if d.get("text") and (d.get("src") == "user" or not paths):
+                    dropped["écrite à la main / déjà décrite"] += 1
                     continue
                 if eff == "relay" and e.get("desc_job") and time.time() - e["desc_job"] < RELAY_RESEND_AFTER:
+                    dropped["envoyée au Brain récemment"] += 1
                     continue
                 keep.append(p)
             todo = keep
+            trace.log("describe", f"après filtre : {len(todo)} retenue(s), écartées : {dropped}")
         if limit:
             todo = todo[:limit]
         if eff == "relay":
@@ -138,19 +170,37 @@ def scan(email: str, paths: Optional[list] = None, mode: Optional[str] = None, l
             print("ERROR:describe: ni accès direct à Ollama, ni relais NOSTR", file=sys.stderr)
             return state
         _write_progress(email, state)
+        if verbose:
+            print(f"describe: {len(todo)} photo(s) à décrire — chemin {eff} (demandé : {mode}), modèle {analysis.DESCRIBE_MODEL}"
+                  + (" [redo : descriptions IA d'un autre modèle]" if redo else ""), flush=True)
+        t_start = time.time()
         for i, path in enumerate(todo, 1):
+            t_photo = time.time()
+            _e = cloud_storage.db_entry(email, path) or {}
+            _d = _e.get("desc") if isinstance(_e.get("desc"), dict) else {}
+            trace.log("describe", f"[{i}/{len(todo)}] {path} — {_e.get('mime', '?')}, {(_e.get('size_plain') or 0) // 1024} Ko, "
+                                  f"cid={str(_e.get('cid', ''))[:16]}…, ancienne description : {_d.get('src') or 'aucune'}/{_d.get('model', '-')}", 2)
             try:
                 if eff == "relay":
                     ok = submit_relay(email, path)
                     state["submitted" if ok else "failed"] += 1
+                    if verbose:
+                        print(f"[{i}/{len(todo)}] {path}  {'envoyée au Brain' if ok else 'ÉCHEC envoi'}", flush=True)
                 else:
                     out = describe_direct(email, path, runner)
                     if out.get("description"):
-                        set_description(email, path, out["description"], "ai", out.get("model", ""), force=force)
+                        r = set_description(email, path, out["description"], "ai", out.get("model", ""), force=force)
                         state["ok"] = state.get("ok", 0) + 1
+                        if _e.get("cid"):
+                            described_cids.add(_e["cid"])
+                        if verbose:
+                            print(f"[{i}/{len(todo)}] {path}  {time.time() - t_photo:.1f}s  {out.get('model', '?')}  ({r})\n    "
+                                  + out["description"].replace("\n", "\n    "), flush=True)
                     else:
                         state["failed"] += 1
                         print(f"WARN:describe:{path}: {out.get('error', '?')}", file=sys.stderr)
+                        if verbose:
+                            print(f"[{i}/{len(todo)}] {path}  ÉCHEC  {time.time() - t_photo:.1f}s", flush=True)
                         if state["failed"] >= 5 and not state.get("ok"):
                             state["error"] = "model_unavailable"
                             print("ERROR:describe: 5 échecs d'affilée — arrêt (modèle ou tunnel indisponible)", file=sys.stderr)
@@ -161,12 +211,33 @@ def scan(email: str, paths: Optional[list] = None, mode: Optional[str] = None, l
             state["done"] = i
             if i % 5 == 0 or i == len(todo):
                 _write_progress(email, state)
+                trace.log("describe", f"progression écrite : {i}/{len(todo)} (ok={state.get('ok', 0)}, échecs={state['failed']}) → describe_scan.json", 2)
+            if i % 10 == 0 and i < len(todo):
+                _dt = time.time() - t_start
+                trace.log("describe", f"cadence {i / _dt * 60:.0f} photos/min — reste ≈ {(len(todo) - i) / max(i / _dt, 1e-9) / 60:.1f} min")
         state["running"] = False
         _write_progress(email, state)
+        if verbose:
+            dt = time.time() - t_start
+            print(f"describe: terminé en {dt:.0f}s — {state.get('ok', 0)} décrite(s), {state['failed']} échec(s)"
+                  + (f", {dt / max(1, state.get('ok', 0)):.1f}s/photo" if state.get('ok') else ""), flush=True)
         print(json.dumps(state))
-        return state
     finally:
+        if state and state.get("running"):              # Ctrl-C ou erreur : l'état ne doit pas rester « en cours »
+            state.update(running=False, interrupted=True)
+            _write_progress(email, state)
+            print(f"describe: interrompu après {state.get('done', 0)}/{state.get('total', 0)} — ce qui est décrit est conservé", file=sys.stderr, flush=True)
         os.close(lock_fd)
+    # Les descriptions toutes fraîches deviennent cherchables PAR LE SENS : seulement CELLES-LÀ (pas les 21 000 autres,
+    # que la recherche ou `ucloud_embed.py scan` vectorisent à part). Best-effort : jamais bloquant, erreur visible.
+    if described_cids and not runner and not state.get("interrupted"):
+        try:
+            import ucloud_embed
+            trace.log("describe", f"vectorisation des {len(described_cids)} description(s) du passage (recherche par le sens)…")
+            ucloud_embed.scan(email, only_cids=described_cids)
+        except Exception as exc:
+            print(f"WARN:describe: vectorisation des descriptions impossible : {exc}", file=sys.stderr)
+    return state
 
 
 def apply_result(message: dict) -> int:
@@ -194,9 +265,19 @@ def main() -> int:
     ap.add_argument("--mode", choices=analysis.MODES, default=None)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--verbose", "-v", action="count", default=0,
+                    help="-v : chaque étape et chaque photo, horodatées (stderr) + la description (stdout) ; -vv : TOUT — commandes, "
+                         "chargement du modèle, jetons, réponses brutes, nettoyage — y compris les sous-processus "
+                         "vision_describe.py et describe_image.py, dans la même chronologie")
+    ap.add_argument("--redo", action="store_true", help="refaire les descriptions IA d'un autre modèle que le modèle courant")
     args = ap.parse_args()
-    res = scan(args.email, args.paths, args.mode, args.limit, args.force)
-    return 1 if res.get("status") == "busy" or res.get("error") else 0
+    try:
+        res = scan(args.email, args.paths, args.mode, args.limit, args.force, redo=args.redo, verbose=args.verbose)
+    except KeyboardInterrupt:
+        return 130
+    if res.get("status") == "busy":
+        return 75                                   # EX_TEMPFAIL : un autre passage tourne déjà, ce n'est pas une erreur
+    return 1 if res.get("error") else 0
 
 
 if __name__ == "__main__":

@@ -1549,6 +1549,345 @@ class TestMapView(_IngestBase):
         self.assertEqual(len(cs.ucloud_db.geo_points(self.udir)), 1, "la photo apparaît sur la carte")
 
 
+class TestDailyOrchestrator(_IngestBase):
+    """ucloud_daily.py : import → enrich → describe (budget) → embed → backup, étapes isolées et non bloquantes."""
+
+    def setUp(self):
+        super().setUp()
+        import ucloud_daily
+        from services import analysis
+        self.d, self.analysis = ucloud_daily, analysis
+        self.udir = cs.ensure_ucloud_dir(self.email)
+        for i in range(3):
+            cs.ingest_plaintext(self.email, f"/Photos/p{i}.jpg", _photo(900 + i), content_type="image/jpeg", trigger_faceid=False)
+        self._resolve = analysis.resolve
+        analysis.resolve = lambda task, mode=None: {"effective": "direct", "why": "ok", "direct_ready": True, "relay_ready": False}
+
+    def tearDown(self):
+        self.analysis.resolve = self._resolve
+        super().tearDown()
+
+    def test_budget_is_a_share_of_the_station_budget_within_bounds(self):
+        d = self.d
+        self.assertEqual(d.describe_limit(1), d.DESCRIBE_MAX, "un seul compte : plafonné")
+        self.assertEqual(d.describe_limit(10), 240)
+        self.assertEqual(d.describe_limit(500), d.DESCRIBE_MIN, "beaucoup de comptes : plancher")
+        self.assertEqual(d.describe_limit(10, override=7), 7)
+
+    def test_plan_lists_what_is_needed_and_why_the_rest_is_skipped(self):
+        plan = {s: (a, r) for s, a, r in self.d.plan(self.email)}
+        self.assertIsNone(plan["import"][0], "aucune source WebDAV")
+        self.assertIn("aucune source", plan["import"][1])
+        self.assertEqual(plan["describe"][0][:3], ["ucloud_describe.py", "scan", self.email], "3 photos sans description")
+        self.assertIn("--limit", plan["describe"][0])
+        self.assertIsNone(plan["embed"][0], "rien de décrit : rien à vectoriser")
+        self.assertIsNotNone(plan["backup"][0])
+        (self.udir / "webdav_sources.json").write_text('[{"id": "a"}]')
+        self.assertEqual(dict((s, a) for s, a, _r in self.d.plan(self.email))["import"][0], "webdav_import.py")
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "La mer", "ai", "m")
+        self.assertIsNotNone(dict((s, a) for s, a, _r in self.d.plan(self.email))["embed"], "une description nouvelle : à vectoriser")
+        self.assertEqual([st for st, _a, _r in self.d.plan(self.email, only=["describe", "backup"])], ["describe", "backup"], "--only filtre les étapes")
+
+    def test_describe_skipped_when_no_ai_path(self):
+        self.analysis.resolve = lambda task, mode=None: {"effective": "none", "why": "Ni accès direct, ni relais", "direct_ready": False, "relay_ready": False}
+        plan = {s: (a, r) for s, a, r in self.d.plan(self.email)}
+        self.assertIsNone(plan["describe"][0])
+        self.assertIn("Ni accès direct", plan["describe"][1])
+
+    def test_run_executes_steps_in_order_and_a_failure_does_not_stop_the_next(self):
+        import subprocess as sp
+        (self.udir / "webdav_sources.json").write_text('[{"id": "a"}]')
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "La mer", "ai", "m")
+        calls = []
+
+        class R:
+            def __init__(self, c): self.returncode = c
+
+        def fake_run(cmd, timeout=None, **kw):
+            script = os.path.basename(cmd[1])
+            calls.append(script)
+            return R({"webdav_import.py": 1, "ucloud_describe.py": 75}.get(script, 0))
+        real = sp.run
+        self.d.subprocess.run = fake_run
+        try:
+            out = self.d.run(self.email)
+        finally:
+            self.d.subprocess.run = real
+        self.assertEqual(calls, ["webdav_import.py", "ucloud_describe.py", "ucloud_embed.py", "ucloud_backup.py"])
+        self.assertEqual(out["steps"]["import"], "échec(1)")
+        self.assertEqual(out["steps"]["describe"], "occupé", "code 75 : déjà en cours, pas un échec")
+        self.assertEqual(out["steps"]["backup"], "ok", "les étapes suivantes continuent après un échec")
+        self.assertEqual(out["steps"]["enrich"], "skip")
+
+    def test_heavy_steps_are_serialised_between_accounts_but_backup_never_waits(self):
+        import subprocess as sp
+        calls = []
+
+        class R:
+            returncode = 0
+
+        def fake_run(cmd, timeout=None, **kw):
+            calls.append(os.path.basename(cmd[1]))
+            return R()
+        real_run = sp.run                                           # AVANT de patcher : sp est le même module que self.d.subprocess
+        self.d.subprocess.run = fake_run
+        wait_before, self.d.HEAVY_WAIT = self.d.HEAVY_WAIT, 0
+        other = cs.try_lock_nowait(self.d.heavy_lock_path())          # un AUTRE MULTIPASS occupe le GPU
+        try:
+            out = self.d.run(self.email)
+        finally:
+            os.close(other)
+            self.d.HEAVY_WAIT = wait_before
+            self.d.subprocess.run = real_run
+        self.assertEqual(out["steps"]["describe"], "attente", "reporté à demain : verrou non obtenu")
+        self.assertNotIn("ucloud_describe.py", calls)
+        self.assertEqual(out["steps"]["backup"], "ok", "la sauvegarde n'attend pas le GPU")
+        # verrou libre : les étapes lourdes passent, puis le verrou est relâché pour les autres comptes
+        self.d.subprocess.run = fake_run
+        try:
+            out2 = self.d.run(self.email)
+        finally:
+            self.d.subprocess.run = real_run
+        self.assertEqual(out2["steps"]["describe"], "ok")
+        again = cs.try_lock_nowait(self.d.heavy_lock_path())
+        self.assertIsNotNone(again, "verrou des étapes lourdes relâché à la fin")
+        os.close(again)
+
+    def test_second_instance_is_refused_by_the_lock(self):
+        lock_fd = cs.try_lock_nowait(self.udir / ".daily.lock")
+        try:
+            self.assertEqual(self.d.run(self.email)["status"], "busy")
+        finally:
+            os.close(lock_fd)
+
+
+class TestNostrcardRefreshConformity(unittest.TestCase):
+    """Conformité code ↔ Astroport.ONE : le traitement quotidien du .ucloud ne doit JAMAIS bloquer _12345.sh
+    (`pgrep -f NOSTRCARD.refresh.sh`) ni les autres MULTIPASS : processus autonome, pas de sous-shell."""
+    SCRIPT = Path(__file__).resolve().parents[2] / "Astroport.ONE" / "RUNTIME" / "NOSTRCARD.refresh.sh"
+
+    def block(self):
+        if not self.SCRIPT.exists():
+            self.skipTest("Astroport.ONE absent de cet environnement")
+        text = self.SCRIPT.read_text(encoding="utf-8")
+        start = text.index('UCLOUD_DAILY_PY="${HOME}/.zen/UPassport/ucloud_daily.py"')
+        return text[start:text.index("IPNS update skipped", start)]
+
+    def test_daily_job_is_a_detached_autonomous_process(self):
+        b = self.block()
+        self.assertIn("setsid nohup python3", b)
+        self.assertIn("200>&-", b, "le verrou hérité du script est libéré")
+        self.assertIn("< /dev/null", b)
+        code = [l for l in b.splitlines() if not l.strip().startswith("#")]
+        self.assertFalse(any(l.strip().startswith("(") for l in code), "pas de sous-shell « ( … ) & » : il garderait la ligne de commande du script")
+
+    def test_every_background_job_of_the_script_is_detached(self):
+        """Revue complète : AUCUNE tâche d'arrière-plan du script ne garde sa ligne de commande (pgrep -f de _12345.sh)."""
+        import re as _re
+        if not self.SCRIPT.exists():
+            self.skipTest("Astroport.ONE absent de cet environnement")
+        offenders = []
+        joined = self.SCRIPT.read_text(encoding="utf-8").replace("\\\n", " ")        # commandes sur plusieurs lignes (« \\ »)
+        for n, line in enumerate(joined.splitlines(), 1):
+            code = line.split("  #")[0].strip()
+            if code.startswith("#"):
+                continue
+            bare = _re.sub(r"&&|[0-9]*>&[0-9-]*|&>", " ", code)
+            if _re.search(r"&\s*$", bare) and "setsid nohup" not in code:
+                offenders.append((n, code[:90]))
+        self.assertEqual(offenders, [], "tâche d'arrière-plan non détachée (utiliser « setsid nohup … 200>&- & ») : %s" % offenders)
+
+    def test_domain_scrapers_run_through_the_standalone_helper(self):
+        if not self.SCRIPT.exists():
+            self.skipTest("Astroport.ONE absent de cet environnement")
+        text = self.SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("tools/domain_scraper_run.sh", text)
+        helper = self.SCRIPT.parents[1] / "tools" / "domain_scraper_run.sh"
+        self.assertTrue(helper.is_file() and os.access(helper, os.X_OK))
+        self.assertNotIn("NOSTRCARD.refresh.sh", "\n".join(l for l in helper.read_text(encoding="utf-8").splitlines() if "pgrep" not in l and not l.startswith("#")),
+                         "la ligne de commande du helper ne doit pas contenir le nom du script de rafraîchissement")
+
+    def test_missing_ucloud_daily_is_reported_not_silently_replaced(self):
+        b = self.block()
+        self.assertIn('log "ERROR"', b)
+        self.assertNotIn("webdav_import.py", b, "plus de repli silencieux sur l'ancien comportement")
+
+
+class TestVideoFun(_IngestBase):
+    """/VideoFUN/ : les vidéos du Studio rangées dans l'ucloud (DAV), par ami, avec leurs métadonnées."""
+
+    def setUp(self):
+        super().setUp()
+        from services import videofun
+        self.vf = videofun
+        self.mp4 = Path(tempfile.mkdtemp()) / "scene.mp4"
+        self.mp4.write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(2048))
+        self.h = f"{time.time_ns():064x}"[-64:]
+        cs.nostr_dir(self.email).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(self.email) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1x; HEX={self.h};\n")
+        cs._HEX_MAP_AT = 0.0
+
+    def test_archive_creates_dav_folder_per_friend_and_lists_with_metadata(self):
+        out = self.vf.archive(self.email, self.mp4, {"to": "Léa", "contact": "uid-1", "title": "Anniversaire / pirate", "cast": ["Léa"], "max_seconds": 8})
+        self.assertTrue(out["path"].startswith("/VideoFUN/Léa/") and out["path"].endswith("Anniversaire pirate.mp4"), out["path"])
+        e = cs.db_entry(self.email, out["path"])
+        self.assertEqual(e["mime"], "video/mp4")
+        self.assertEqual(cs.db_entry(self.email, "/VideoFUN")["type"], "dir", "dossiers DAV créés")
+        self.assertEqual(cs.db_entry(self.email, "/VideoFUN/Léa")["type"], "dir")
+        vids = self.vf.list_videos(self.email)
+        self.assertEqual(len(vids), 1)
+        v = vids[0]
+        self.assertEqual((v["to"], v["contact"], v["cast"], v["folder"]), ("Léa", "uid-1", ["Léa"], "Léa"))
+        data, mime = self.vf.read_video(self.email, out["path"])
+        self.assertEqual(data, self.mp4.read_bytes())
+
+    def test_same_title_twice_never_overwrites(self):
+        a = self.vf.archive(self.email, self.mp4, {"to": "Tim", "title": "Gag"})
+        self.mp4.write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(2048))              # une AUTRE vidéo du même jour et du même titre
+        b = self.vf.archive(self.email, self.mp4, {"to": "Tim", "title": "Gag"})
+        self.assertNotEqual(a["path"], b["path"], "suffixe -2 : jamais d'écrasement")
+        self.assertEqual(len(self.vf.list_videos(self.email)), 2)
+
+    def test_paths_outside_videofun_are_refused_and_ensure_root_is_idempotent(self):
+        cs.ingest_plaintext(self.email, "/Photos/secret.jpg", b"x" * 400, content_type="image/jpeg", trigger_faceid=False)
+        with self.assertRaises(ValueError):
+            self.vf.read_video(self.email, "/Photos/secret.jpg")
+        with self.assertRaises(ValueError):
+            self.vf.in_root("/VideoFUN/../Photos/secret.jpg")
+        self.assertEqual(self.vf.ensure_root(self.email), "/VideoFUN")
+        self.assertEqual(self.vf.ensure_root(self.email), "/VideoFUN")
+        self.assertEqual(self.vf.list_videos(self.email), [], "un dossier vide : aucune vidéo")
+
+    def test_delete_and_non_video_files_are_not_listed(self):
+        out = self.vf.archive(self.email, self.mp4, {"to": "Emma", "title": "Merci"})
+        cs.ingest_plaintext(self.email, "/VideoFUN/Emma/notes.txt", b"hello" * 100, content_type="text/plain", trigger_faceid=False)
+        self.assertEqual([v["name"] for v in self.vf.list_videos(self.email)], [Path(out["path"]).name])
+        self.assertTrue(self.vf.delete_video(self.email, out["path"]))
+        self.assertEqual(self.vf.list_videos(self.email), [])
+
+    def test_cloud_routes_list_read_and_delete_videofun(self):
+        import asyncio
+        import json as _j
+        from fastapi import HTTPException
+        from routers import cloud
+        out = self.vf.archive(self.email, self.mp4, {"to": "Léa", "title": "Pirate"})
+        d = _j.loads(asyncio.run(cloud.cloud_videofun(None, npub=self.h)).body)
+        self.assertEqual(d["root"], "/VideoFUN")
+        self.assertEqual([v["path"] for v in d["videos"]], [out["path"]])
+        r = asyncio.run(cloud.cloud_videofun_file(None, path=out["path"], npub=self.h))
+        self.assertEqual(r.body, self.mp4.read_bytes())
+        self.assertEqual(r.media_type, "video/mp4")
+        with self.assertRaises(HTTPException) as cm:
+            asyncio.run(cloud.cloud_videofun_file(None, path="/Photos/x.jpg", npub=self.h))
+        self.assertEqual(cm.exception.status_code, 400)
+        asyncio.run(cloud.cloud_videofun_delete(None, path=out["path"], npub=self.h))
+        self.assertEqual(_j.loads(asyncio.run(cloud.cloud_videofun(None, npub=self.h)).body)["videos"], [])
+
+    def test_friend_card_gathers_videos_received_photos_and_shares(self):
+        import asyncio
+        import json as _j
+        import tempfile
+        from pathlib import Path as P
+        from routers import cloud
+        from services import story_share
+        self.vf.archive(self.email, self.mp4, {"to": "Léa", "contact": "uid-1", "title": "Pirate"})
+        self.vf.archive(self.email, self.mp4, {"to": "Tom", "title": "Autre"})
+        cs.ingest_plaintext(self.email, "/Reçues/Léa/2026/10/a.jpg", b"\xff\xd8\xff" + os.urandom(300), content_type="image/jpeg", trigger_faceid=False)
+        cs.ingest_plaintext(self.email, "/Reçues/Tom/2026/10/b.jpg", b"\xff\xd8\xff" + os.urandom(300), content_type="image/jpeg", trigger_faceid=False)
+        lib = P(tempfile.mkdtemp())
+        story_share.create(lib, "", "", "Pirate", "léa", 14, "Moi", {"kind": "ucloud", "email": self.email, "path": "/VideoFUN/Léa/x.mp4"})
+        story_share.create(lib, "", "", "Autre", "Tom", 14, "Moi", {"kind": "ucloud", "email": self.email, "path": "/VideoFUN/Tom/y.mp4"})
+        from services import friend_card
+        c = friend_card.card(self.email, "Léa", "", "", lib)
+        self.assertEqual(c["received"]["count"], 1)
+        self.assertEqual([v["title"] for v in c["videos"]], ["Pirate"])
+        self.assertEqual([s["title"] for s in c["shares"]], ["Pirate"], "nom comparé sans la casse, jamais les liens d'un autre ami")
+        self.assertEqual(friend_card.card(self.email, "Léa", "", "", None)["shares"], [])
+        by_uid = friend_card.card(self.email, "Autre nom", "", "uid-1", lib)
+        self.assertEqual([v["title"] for v in by_uid["videos"]], ["Pirate"], "l'UID de contact retrouve ses vidéos même si le prénom change")
+        d = _j.loads(asyncio.run(cloud.cloud_friend(None, name="Léa", hex="", contact="", npub=self.h)).body)
+        self.assertEqual(d["received"]["count"], 1)
+
+    def test_send_to_friend_copies_the_same_block_into_his_videofun_received(self):
+        """Envoi cloud à cloud : même CID, même clé, rangé dans /VideoFUN/Reçues/<expéditeur>/ du destinataire (visible dans son onglet Vidéos)."""
+        friend = f"ami{time.time_ns()}@example.org"
+        fh = f"{time.time_ns():064x}"[-64:]
+        cs.nostr_dir(friend).mkdir(parents=True, exist_ok=True)
+        (cs.nostr_dir(friend) / ".secret.nostr").write_text(f"NSEC=n; NPUB=npub1y; HEX={fh};\n")
+        out = self.vf.archive(self.email, self.mp4, {"to": "Ami", "title": "Pour toi"})
+        res = self.vf.send_to_friend(self.email, out["path"], "Moi", pubkey=fh)
+        self.assertEqual((res["mode"], res["status"]), ("local", "copied"))
+        self.assertTrue(res["path"].startswith("/VideoFUN/Reçues/Moi/"), res["path"])
+        got = self.vf.list_videos(friend)
+        self.assertEqual([(v["received"], v["from_name"], v["to"]) for v in got], [(True, "Moi", "")])
+        self.assertEqual(cs.db_entry(friend, res["path"])["cid"], cs.db_entry(self.email, out["path"])["cid"], "même bloc, rien de rechiffré")
+        self.assertEqual(self.vf.send_to_friend(self.email, out["path"], "Moi", pubkey=fh)["status"], "duplicate", "idempotent par contenu")
+        from services import friend_card
+        c = friend_card.card(friend, "Moi")
+        self.assertEqual([v["title"] for v in c["videos_received"]], [Path(res["path"]).stem])
+        self.assertEqual(c["videos"], [], "une vidéo reçue n'est pas une vidéo « pour » lui")
+
+    def test_send_to_friend_refuses_unknown_person_and_non_videos(self):
+        out = self.vf.archive(self.email, self.mp4, {"to": "Ami", "title": "Pour toi"})
+        with self.assertRaises(LookupError):
+            self.vf.send_to_friend(self.email, out["path"], "Moi", pubkey="ee" * 32)
+        cs.ingest_plaintext(self.email, "/VideoFUN/notes.txt", b"hello" * 100, content_type="text/plain", trigger_faceid=False)
+        with self.assertRaises(ValueError):
+            self.vf.send_to_friend(self.email, "/VideoFUN/notes.txt", "Moi", pubkey="ee" * 32)
+        with self.assertRaises(ValueError):
+            self.vf.send_to_friend(self.email, "/Photos/x.jpg", "Moi", pubkey="ee" * 32)
+
+    def test_poster_frame_from_bytes_and_cache_cleanup(self):
+        import shutil
+        import subprocess as sp
+        import tempfile
+        if not shutil.which("ffmpeg"):
+            self.skipTest("ffmpeg absent")
+        src = self.mp4.with_name("real.mp4")
+        sp.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x120:rate=12:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)], check=True)
+        out = Path(tempfile.mkdtemp()) / "p.jpg"
+        self.vf.poster_frame(src.read_bytes(), None, out)
+        self.assertEqual(out.read_bytes()[:2], b"\xff\xd8")
+        with self.assertRaises(RuntimeError):
+            self.vf.poster_frame(b"pas une video", None, Path(tempfile.mkdtemp()) / "q.jpg")
+
+    def test_target_path_cleans_names(self):
+        day = time.strftime("%Y-%m-%d", time.localtime(1_700_000_000))
+        self.assertEqual(self.vf.target_path("../Léa/..", 'A "super" <titre>: ok', 1_700_000_000), f"/VideoFUN/Léa/{day} A super titre ok.mp4")
+        self.assertEqual(self.vf.target_path("", "", 1_700_000_000), f"/VideoFUN/Divers/{day} Vidéo FUN.mp4")
+
+
+class TestImportDatedDestination(unittest.TestCase):
+    """webdav_import : rangement /YYYY/MM par la date de PRISE DE VUE EXIF, sinon par la date du serveur."""
+
+    def entry(self):
+        return {"path": "/Photos/IMG_1.jpg", "name": "IMG_1.jpg", "mtime": "Sat, 05 Mar 2022 10:00:00 GMT"}
+
+    def test_exif_date_wins_over_server_date(self):
+        import webdav_import as wi
+        ts = int(time.mktime(time.strptime("2015:07:14 10:00:00", "%Y:%m:%d %H:%M:%S")))
+        self.assertEqual(wi._dated_dest("/Photos/Import", self.entry(), ts), "/Photos/Import/2015/07/IMG_1.jpg")
+
+    def test_server_date_when_no_exif_or_implausible(self):
+        import webdav_import as wi
+        self.assertEqual(wi._dated_dest("/Photos/Import", self.entry()), "/Photos/Import/2022/03/IMG_1.jpg")
+        self.assertEqual(wi._dated_dest("/Photos/Import", self.entry(), 0), "/Photos/Import/2022/03/IMG_1.jpg", "1970 : horloge de l'appareil non réglée")
+        self.assertEqual(wi._dated_dest("/Photos/Import", self.entry(), time.time() + 10 * 86400 * 365), "/Photos/Import/2022/03/IMG_1.jpg", "date dans le futur")
+        self.assertTrue(wi._plausible_taken(time.time() - 3600))
+        self.assertFalse(wi._plausible_taken(None))
+
+    def test_real_exif_is_read_from_original_bytes(self):
+        import webdav_import as wi
+        from PIL import Image
+        im = Image.new("RGB", (40, 30), (1, 2, 3))
+        ex = im.getexif()
+        ex.get_ifd(0x8769)[0x9003] = "2012:12:25 18:30:00"
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", exif=ex.tobytes())
+        taken = cs._inspect_image(buf.getvalue()).get("taken_at")
+        self.assertEqual(wi._dated_dest("/P", self.entry(), taken), "/P/2012/12/IMG_1.jpg")
+
+
 class TestAnalysisAndDescriptions(_IngestBase):
     def setUp(self):
         super().setUp()
@@ -1579,6 +1918,214 @@ class TestAnalysisAndDescriptions(_IngestBase):
         self.assertIn(d["mode"]["describe"]["effective"], ("direct", "relay", "none"))
         self.assertEqual(d["mode"]["enrich"]["effective"], "local")
         self.assertIn("why", d["mode"]["faces"])
+
+    def test_describe_verbose_prints_each_photo_and_summary(self):
+        import contextlib, io, ucloud_describe
+        self.addCleanup(os.environ.pop, "FACECLOUD_VERBOSE", None)
+        self.photos(2)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "ancienne", "ai", "minicpm-v4.6:latest")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ucloud_describe.scan(self.email, mode="direct", redo=True, verbose=True,
+                                 runner=lambda plain: {"description": "Une plage.\nMots-clés : mer", "model": "m2"})
+        out = buf.getvalue()
+        self.assertIn("1 photo(s) à décrire", out)
+        self.assertIn("[1/1] /Photos/p0.jpg", out)
+        self.assertIn("Une plage.", out)
+        self.assertIn("terminé", out)
+        os.environ.pop("FACECLOUD_VERBOSE", None)
+        quiet = io.StringIO()
+        with contextlib.redirect_stdout(quiet):
+            ucloud_describe.scan(self.email, mode="direct", redo=True, runner=lambda plain: {"description": "x", "model": "m"})
+        self.assertNotIn("à décrire", quiet.getvalue(), "sans --verbose : seulement le JSON final")
+
+    def test_trace_vv_gives_one_timestamped_chronology_on_stderr(self):
+        import contextlib, io, re as _re, ucloud_describe
+        self.addCleanup(os.environ.pop, "FACECLOUD_VERBOSE", None)
+        self.photos(3)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "écrite par moi", "user")
+        err, out = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+            ucloud_describe.scan(self.email, mode="direct", verbose=2,
+                                 runner=lambda plain: {"description": "Une plage.\nMots-clés : mer", "model": "m2"})
+        log = err.getvalue()
+        lines = [l for l in log.splitlines() if l.startswith("[")]
+        self.assertTrue(all(_re.match(r"^\[\d\d:\d\d:\d\d\.\d{3}\] \w+: ", l) for l in lines), "horodatage HH:MM:SS.mmm + composant")
+        self.assertIn("chemin=direct", log)
+        self.assertIn("sélection initiale : 2", log, "la photo décrite à la main n'est pas dans la sélection « sans description »")
+        self.assertIn("écartées", log, "pourquoi des photos sont écartées (description écrite à la main)")
+        self.assertIn("[1/2]", log)
+        self.assertIn("ancienne description", log)
+        self.assertIn("progression écrite", log)
+        self.assertNotIn("Une plage.", log, "les descriptions vont sur stdout, le journal sur stderr")
+        self.assertIn("Une plage.", out.getvalue())
+
+    def test_no_trace_without_verbose(self):
+        import contextlib, io, ucloud_describe
+        os.environ.pop("FACECLOUD_VERBOSE", None)
+        self.photos(1)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ucloud_describe.scan(self.email, mode="direct", runner=lambda plain: {"description": "x", "model": "m"})
+        self.assertEqual(err.getvalue(), "")
+
+    def test_search_ignores_accents_case_plurals_and_needs_every_word(self):
+        self.photos(4)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "Des moutons sur la plage.\nMots-clés : mouton, mer, été", "ai", "gemma3:12b")
+        cs.set_photo_description(self.email, "/Photos/p1.jpg", "Une cuisine avec un réfrigérateur ouvert", "ai", "gemma3:12b")
+        cs.set_photo_description(self.email, "/Photos/p2.jpg", "Mariage de Léa à l'église", "user")
+        ud = cs.ucloud_db
+        found = lambda q: sorted(p for p, _e in ud.page(self.udir, q=q)[0])
+        self.assertEqual(found("MOUTON"), ["/Photos/p0.jpg"], "casse")
+        self.assertEqual(found("moutons"), ["/Photos/p0.jpg"], "pluriel")
+        self.assertEqual(found("refrigerateur"), ["/Photos/p1.jpg"], "accents")
+        self.assertEqual(found("Léa eglise"), ["/Photos/p2.jpg"], "accents des deux côtés")
+        self.assertEqual(found("moutons plage"), ["/Photos/p0.jpg"], "tous les mots")
+        self.assertEqual(found("moutons cuisine"), [], "un mot absent : aucune photo")
+        self.assertEqual(found("été"), ["/Photos/p0.jpg"])
+
+    def test_normalised_search_column_is_backfilled_on_old_databases(self):
+        import sqlite3
+        self.photos(1)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "Éléphant à la plage", "ai", "m")
+        conn = cs.ucloud_db.connect(self.udir)
+        conn.execute("UPDATE entries SET desc_text='Éléphant à la plage' WHERE path='/Photos/p0.jpg'")   # ancien format
+        conn.execute("DELETE FROM meta WHERE key='desc_norm'")
+        cs.ucloud_db._ensure_columns(conn)
+        self.assertEqual(conn.execute("SELECT desc_text FROM entries WHERE path='/Photos/p0.jpg'").fetchone()[0], "elephant a la plage")
+        self.assertEqual([p for p, _e in cs.ucloud_db.page(self.udir, q="elephant")[0]], ["/Photos/p0.jpg"])
+
+    def test_stale_descriptions_are_those_of_another_ai_model_only(self):
+        self.photos(3)
+        ud = cs.ucloud_db
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "vieille description", "ai", "minicpm-v4.6:latest")
+        cs.set_photo_description(self.email, "/Photos/p1.jpg", "bonne description", "ai", "gemma3:12b")
+        cs.set_photo_description(self.email, "/Photos/p2.jpg", "écrite par moi", "user")
+        self.assertEqual(ud.describe_stale(self.udir, "gemma3:12b"), ["/Photos/p0.jpg"])
+        self.assertEqual(ud.describe_stale_count(self.udir, "gemma3:12b"), 1)
+
+    # ── Recherche par le sens (embeddings) — Ollama remplacé par un faux modèle à « concepts » ──────────────
+    CONCEPTS = [{"mer", "plage", "sable", "ocean", "vacances"}, {"mouton", "moutons", "ferme", "animaux", "pre"},
+                {"cuisine", "frigo", "refrigerateur", "gaz"}, {"mariage", "eglise", "fete"}]
+
+    def fake_embed(self, texts, model=None, timeout=0):
+        import numpy as np
+        from services import ucloud_db
+        out = []
+        for t in texts:
+            v = np.full(len(self.CONCEPTS) + 1, 0.01, dtype=np.float32)
+            for w in ucloud_db.norm_text(t).replace(".", " ").replace(",", " ").split():
+                for i, group in enumerate(self.CONCEPTS):
+                    if w in group:
+                        v[i] += 1.0
+            out.append(v / np.linalg.norm(v))
+        return np.array(out)
+
+    def index_all(self):
+        import ucloud_embed as script
+        from services import ucloud_embed as ue
+        real = ue.embed_texts
+        ue.embed_texts = self.fake_embed
+        try:
+            return script.scan(self.email, model=ue.MODEL)
+        finally:
+            ue.embed_texts = real
+
+    def test_semantic_search_finds_by_meaning_without_shared_words(self):
+        from services import ucloud_embed as ue
+        self.photos(4)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "Des moutons dans un pré.\nMots-clés : ferme, animaux", "ai", "m")
+        cs.set_photo_description(self.email, "/Photos/p1.jpg", "Du sable et la mer au soleil", "ai", "m")
+        cs.set_photo_description(self.email, "/Photos/p2.jpg", "Un frigo ouvert à côté du gaz", "ai", "m")
+        self.assertEqual(ue.counts(self.udir)["pending"], 3)
+        st = self.index_all()
+        self.assertEqual((st["total"], st["done"]), (3, 3))
+        self.assertEqual(ue.counts(self.udir), {"described": 3, "indexed": 3, "pending": 0})
+        q = self.fake_embed(["vacances à la plage"])[0]
+        ranked = ue.search(self.udir, "vacances à la plage", q)
+        self.assertEqual([p for p, _s in ranked], ["/Photos/p1.jpg"], "aucun mot commun avec « sable et la mer » : trouvé par le sens, rien d'autre")
+        q = self.fake_embed(["animaux de la ferme"])[0]
+        self.assertEqual(ue.search(self.udir, "animaux de la ferme", q)[0][0], "/Photos/p0.jpg")
+
+    def test_keyword_match_outranks_similarity_and_works_without_ollama(self):
+        from services import ucloud_embed as ue
+        self.photos(3)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "La mer", "ai", "m")
+        cs.set_photo_description(self.email, "/Photos/p1.jpg", "Une plage bretonne", "ai", "m")
+        self.index_all()
+        q = self.fake_embed(["plage"])[0]
+        self.assertEqual(ue.search(self.udir, "plage", q)[0][0], "/Photos/p1.jpg", "le mot exact passe devant la simple ressemblance")
+        self.assertEqual([p for p, _s in ue.search(self.udir, "bretonne", None)], ["/Photos/p1.jpg"], "sans embedding : mots seulement")
+
+    def test_description_edit_and_new_photo_make_embeddings_pending(self):
+        from services import ucloud_embed as ue
+        self.photos(2)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "La mer", "ai", "m")
+        self.index_all()
+        self.assertEqual(ue.counts(self.udir)["pending"], 0)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "Une cuisine", "user")
+        self.assertEqual(ue.counts(self.udir)["pending"], 1, "description corrigée : à re-vectoriser")
+        cs.set_photo_description(self.email, "/Photos/p1.jpg", "Un mariage", "ai", "m")
+        self.assertEqual(len(ue.pending(self.udir)), 2)
+        self.assertEqual(ue.counts(self.udir, model="autre-modele")["indexed"], 0, "autre modèle : tout est à refaire")
+
+    def test_search_respects_filters_and_cache_follows_index(self):
+        from services import ucloud_embed as ue
+        self.photos(2)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "La mer", "ai", "m")
+        cs.set_photo_description(self.email, "/Photos/p1.jpg", "La plage", "ai", "m")
+        self.index_all()
+        q = self.fake_embed(["mer"])[0]
+        self.assertEqual(len(ue.search(self.udir, "mer", q)), 2)
+        self.assertEqual(ue.search(self.udir, "mer", q, since=int(time.time()) + 10_000), [], "filtre de dates")
+        cs.delete_paths(self.email, ["/Photos/p0.jpg"], True)
+        self.assertEqual([p for p, _s in ue.search(self.udir, "mer", q)], ["/Photos/p1.jpg"], "une photo supprimée ne ressort plus")
+
+    def test_matrix_cache_reloads_when_another_process_adds_vectors(self):
+        from services import ucloud_embed as ue
+        self.photos(2)
+        cs.set_photo_description(self.email, "/Photos/p0.jpg", "La mer", "ai", "m")
+        cs.set_photo_description(self.email, "/Photos/p1.jpg", "Une plage", "ai", "m")
+        q = self.fake_embed(["mer"])[0]
+        self.assertEqual(ue.search(self.udir, "zzz", q), [], "rien d'indexé : matrice vide mise en cache")
+        self.index_all()                                  # ne touche NI l'index NI sa révision
+        self.assertEqual(len(ue.search(self.udir, "zzz", q)), 2, "la matrice est rechargée")
+
+    def test_embed_scan_limited_to_given_cids_and_interrupt_is_clean(self):
+        import json as _j, ucloud_embed as script
+        from services import ucloud_embed as ue
+        self.photos(3)
+        for i in range(3):
+            cs.set_photo_description(self.email, f"/Photos/p{i}.jpg", f"La mer {i}", "ai", "m")
+        cid1 = cs.db_entry(self.email, "/Photos/p1.jpg")["cid"]
+        real = ue.embed_texts
+        ue.embed_texts = self.fake_embed
+        try:
+            st = script.scan(self.email, only_cids={cid1})
+            self.assertEqual((st["total"], st["done"]), (1, 1), "seulement la photo qui vient d'être décrite")
+            self.assertEqual(ue.counts(self.udir)["indexed"], 1)
+
+            def boom(texts, model=None, timeout=0):
+                raise KeyboardInterrupt
+            ue.embed_texts = boom
+            with self.assertRaises(KeyboardInterrupt):
+                script.scan(self.email)
+        finally:
+            ue.embed_texts = real
+        prog = _j.loads(script.progress_path(self.email).read_text())
+        self.assertFalse(prog["running"], "Ctrl-C : l'état ne reste pas « en cours »")
+        self.assertEqual(prog["error"], "interrompu")
+        self.assertEqual(ue.counts(self.udir)["indexed"], 1, "ce qui était fait est conservé")
+        ue.embed_texts = self.fake_embed
+        try:
+            self.assertEqual(script.scan(self.email)["total"], 2, "le verrou est libéré : on peut relancer et finir")
+        finally:
+            ue.embed_texts = real
+
+    def test_text_for_puts_keywords_first(self):
+        from services import ucloud_embed as ue
+        self.assertEqual(ue.text_for("Une cuisine claire.\nMots-clés : cuisine, gaz, frigo"), "cuisine, gaz, frigo. Une cuisine claire.")
+        self.assertEqual(ue.text_for("Juste une phrase"), "Juste une phrase")
 
     def test_user_description_is_never_overwritten_by_ai(self):
         self.photos(1)

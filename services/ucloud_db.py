@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import unicodedata
 import os
 import sqlite3
 import threading
@@ -154,6 +155,20 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
     if "desc_text" not in cols:
         conn.execute("ALTER TABLE entries ADD COLUMN desc_text TEXT")
         conn.execute("UPDATE entries SET desc_text=json_extract(data,'$.desc.text') WHERE json_extract(data,'$.desc.text') IS NOT NULL")
+    # Schéma v6 : vecteurs de recherche sémantique (services/ucloud_embed.py), clé = CID.
+    conn.execute("CREATE TABLE IF NOT EXISTS embeddings(cid TEXT PRIMARY KEY, model TEXT NOT NULL, dsrc TEXT, vec BLOB NOT NULL) WITHOUT ROWID")
+    # Schéma v5 : `desc_text` normalisé (sans accents, minuscules) pour une recherche tolérante — rattrapé une fois.
+    if conn.execute("SELECT value FROM meta WHERE key='desc_norm'").fetchone() is None:
+        rows = conn.execute("SELECT path, json_extract(data,'$.desc.text') FROM entries "
+                            "WHERE json_extract(data,'$.desc.text') IS NOT NULL").fetchall()
+        conn.execute("BEGIN")
+        try:
+            conn.executemany("UPDATE entries SET desc_text=? WHERE path=?", [(norm_text(t), p) for p, t in rows])
+            conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('desc_norm','1')")
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
 
 
 def connect(udir: Path) -> sqlite3.Connection:
@@ -304,9 +319,26 @@ def _geo(e: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
     return None, None
 
 
+def norm_text(s: str) -> str:
+    """Minuscules, sans accents, espaces réduits : « Éléphant à la plage » → « elephant a la plage »."""
+    s = unicodedata.normalize("NFKD", s or "")
+    return " ".join("".join(c for c in s if not unicodedata.combining(c)).lower().split())
+
+
 def _desc_text(e: Dict[str, Any]) -> Optional[str]:
+    """Texte CHERCHABLE de la description : normalisé (sans accents, minuscules). Le texte lisible reste dans `data`."""
     d = e.get("desc")
-    return d.get("text") if isinstance(d, dict) and d.get("text") else None
+    return norm_text(d["text"]) if isinstance(d, dict) and d.get("text") else None
+
+
+def search_terms(q: str) -> List[str]:
+    """Mots de la recherche, normalisés, sans pluriel simple (« moutons » trouve « mouton »)."""
+    out = []
+    for w in norm_text(q).split():
+        if len(w) > 3 and w[-1] in "sx":
+            w = w[:-1]
+        out.append(w)
+    return out[:8]
 
 
 def _cols(path: str, e: Dict[str, Any]) -> Tuple[Any, ...]:
@@ -581,10 +613,13 @@ def page(udir: Path, flt: str = "all", q: str = "", offset: int = 0, limit: int 
     where = _FILTERS.get(flt, "1")
     args: List[Any] = []
     if q:
-        # Le chemin OU la description (IA ou saisie) contient la recherche.
-        where += " AND (path LIKE ? ESCAPE '\\' OR desc_text LIKE ? ESCAPE '\\')"
-        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        args += [like, like]
+        # CHAQUE mot doit se trouver dans le chemin OU dans la description (IA ou saisie), sans tenir compte des
+        # accents, de la casse ni du pluriel : « moutons plage » trouve « Des moutons sur la plage ».
+        def esc_like(t: str) -> str:
+            return "%" + t.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        for term in search_terms(q) or [q.strip().lower()]:
+            where += " AND (path LIKE ? ESCAPE '\\' OR desc_text LIKE ? ESCAPE '\\')"
+            args += [esc_like(term), esc_like(term)]
     if since is not None:
         where += f" AND {_TAKEN} >= ?"
         args.append(int(since))
@@ -799,6 +834,21 @@ def analysis_counts(udir: Path) -> Dict[str, Any]:
     keys = ("images", "faces_done", "faces_waiting", "faces_pending", "faces_timeout", "unreadable",
             "hashed", "described", "located", "dated")
     return dict(zip(keys, (int(x or 0) for x in row)))
+
+
+def describe_stale(udir: Path, model: str, limit: int = 100000) -> List[str]:
+    """Images dont la description a été écrite par l'IA avec UN AUTRE modèle (jamais celles saisies à la main) —
+    à refaire quand on change de modèle. Récentes d'abord."""
+    return [r[0] for r in connect(udir).execute(
+        f"SELECT path FROM entries WHERE {_IMG} AND desc_text IS NOT NULL "
+        f"AND json_extract(data,'$.desc.src')='ai' AND COALESCE(json_extract(data,'$.desc.model'),'')<>? "
+        f"ORDER BY {_TAKEN} DESC LIMIT ?", (model, limit))]
+
+
+def describe_stale_count(udir: Path, model: str) -> int:
+    return connect(udir).execute(
+        "SELECT COUNT(*) FROM entries WHERE type='file' AND cid IS NOT NULL AND mime LIKE 'image/%' AND desc_text IS NOT NULL "
+        "AND json_extract(data,'$.desc.src')='ai' AND COALESCE(json_extract(data,'$.desc.model'),'')<>?", (model,)).fetchone()[0]
 
 
 def describe_pending(udir: Path, limit: int = 100000) -> List[str]:

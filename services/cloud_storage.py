@@ -1756,6 +1756,22 @@ def set_photo_description(email: str, path: str, text: str, src: str = "ai", mod
     return result["r"]
 
 
+def ensure_folder(email: str, path: str) -> str:
+    """Crée le dossier `path` (et ses parents) s'il n'existe pas — idempotent, sans erreur s'il est déjà là (MKCOL, lui, répond 405).
+    Rend le chemin normalisé. Un fichier de ce nom → ValueError."""
+    p = normalize_path(path)
+    ensure_ucloud_dir(email)
+    with index_lock(email):
+        with ucloud_db.transaction(ucloud_dir(email)) as conn:
+            cur = ucloud_db.get_entry(conn, p)
+            if cur is not None and cur.get("type") != "dir":
+                raise ValueError(f"ERROR:ucloud:{p} existe déjà et n'est pas un dossier")
+            if cur is None:
+                ucloud_db.ensure_parents(conn, p)
+                ucloud_db.put_entry(conn, p, {"type": "dir", "mtime": int(time.time())})
+    return p
+
+
 def read_plaintext(email: str, path: str) -> tuple:
     """(clair, mime) d'un fichier du cloud de `email` — déchiffré EN MÉMOIRE,
     jamais écrit sur disque. Lève FileNotFoundError / RuntimeError."""
@@ -1835,7 +1851,9 @@ def adopt_blob(recipient_email: str, source: Dict[str, Any], key_hex: str, name:
 
     now = int(time.time())
     safe_name = _safe_segment(name, "photo.jpg")
-    base = f"/Reçues/{_safe_segment(from_name, from_hex[:8] or 'Ami')}/{time.strftime('%Y/%m')}"
+    sender = _safe_segment(from_name, from_hex[:8] or 'Ami')
+    # Une vidéo reçue (vidéo FUN d'un ami) va dans /VideoFUN/Reçues/<expéditeur>/ : elle apparaît dans l'onglet Vidéos du destinataire.
+    base = f"/VideoFUN/Reçues/{sender}" if str(meta.get("mime") or "").startswith("video/") else f"/Reçues/{sender}/{time.strftime('%Y/%m')}"
     with index_lock(recipient_email):
         with ucloud_db.transaction(ucloud_dir(recipient_email)) as conn:
             path = _free_path_db(conn, normalize_path(f"{base}/{safe_name}"), set(hashes))

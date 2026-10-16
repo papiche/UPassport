@@ -41,8 +41,10 @@ forcer une valeur (ex. import manuel ponctuel, cf. `--source-id`).
 
 Rangement par date — `{dest_prefix}/YYYY/MM/<nom>` (cf. `_dated_dest()`),
 PAS l'arborescence distante préservée (abandonné le 2026-10-04). L'année/mois
-vient du `getlastmodified` PROPFIND du serveur distant (RFC 1123), pas d'une
-vraie date de prise de vue EXIF — meilleur signal accessible sans
+vient de la date de PRISE DE VUE EXIF quand la photo en porte une (lue sur
+l'image téléchargée, avant toute normalisation), sinon du `getlastmodified`
+PROPFIND du serveur distant (RFC 1123), sinon de la date du jour — avec
+l'option --dry-run, rien n'est téléchargé : seule la date du serveur est connue — meilleur signal accessible sans
 télécharger+décoder l'image rien que pour ça.
 
 Idempotence à TROIS niveaux (cf. `_import_source`) :
@@ -179,7 +181,15 @@ def _guess_image_mime(name: str):
     return {".heic": "image/heic", ".heif": "image/heif"}.get(ext)
 
 
-def _dated_dest(dest_prefix: str, entry: dict) -> str:
+def _plausible_taken(ts) -> bool:
+    """Date EXIF crédible : entre 1990 et demain (les appareils sans horloge écrivent 0000:00:00 ou 2000/1970)."""
+    try:
+        return 631152000 <= int(ts) <= time.time() + 86400
+    except (TypeError, ValueError):
+        return False
+
+
+def _dated_dest(dest_prefix: str, entry: dict, taken_at=None) -> str:
     """`{dest_prefix}/YYYY/MM/<nom>` plutôt que l'ancien
     `{dest_prefix}/<arborescence distante préservée>` (abandonné le
     2026-10-04 — demande explicite d'un rangement par date, cohérent avec ce
@@ -187,10 +197,18 @@ def _dated_dest(dest_prefix: str, entry: dict) -> str:
     PROPFIND du serveur distant (RFC 1123, déjà disponible sans coût
     supplémentaire) — pas une vraie date de prise de vue EXIF, mais le
     meilleur signal accessible sans télécharger+décoder l'image rien que
-    pour ça ; repli sur la date du jour si injustement absent/illisible."""
+    pour ça ; repli sur la date du jour si injustement absent/illisible.
+
+    `taken_at` (secondes, heure locale de l'appareil, tel que lu par
+    `cloud_storage._inspect_image`) PRIME quand il est plausible : l'image est
+    alors rangée à sa vraie date de prise de vue, comme ses voisines envoyées
+    depuis le téléphone."""
     from email.utils import parsedate_to_datetime
     mtime = entry.get("mtime")
     dt = None
+    if taken_at is not None and _plausible_taken(taken_at):
+        t = time.localtime(int(taken_at))
+        return f"{dest_prefix}/{t.tm_year:04d}/{t.tm_mon:02d}/{Path(entry['path']).name}"
     if mtime:
         try:
             dt = parsedate_to_datetime(mtime)
@@ -321,7 +339,7 @@ async def _import_source(email: str, source: dict, max_import: int,
 
         base_dest = cloud_storage.normalize_path(_dated_dest(dest_prefix, entry))
         if dry_run:
-            _log(f"[{label}] (dry-run) importerait {entry['path']} → {base_dest}", quiet)
+            _log(f"[{label}] (dry-run) importerait {entry['path']} → {base_dest} (date du serveur : l'EXIF n'est lue qu'au téléchargement)", quiet)
             imported += 1
             continue
 
@@ -340,6 +358,15 @@ async def _import_source(email: str, source: dict, max_import: int,
             errors += 1
             _log(f"ERROR:webdav_import:{label}:{entry['path']}: {exc}", quiet)
             continue
+
+        # Date de prise de vue EXIF (lue sur l'ORIGINAL téléchargé) : prime sur la date du serveur pour le rangement.
+        taken = cloud_storage._inspect_image(plaintext).get("taken_at")
+        if _plausible_taken(taken):
+            exif_dest = cloud_storage.normalize_path(_dated_dest(dest_prefix, entry, taken))
+            if exif_dest != base_dest:
+                _log(f"[{label}] {entry['name']} : rangée à sa date de prise de vue "
+                     f"({time.strftime('%Y-%m-%d', time.localtime(int(taken)))}) plutôt qu'à la date du serveur", quiet)
+            base_dest = exif_dest
 
         content_hash = hashlib.sha256(plaintext).hexdigest()
 
