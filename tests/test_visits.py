@@ -54,6 +54,33 @@ def test_station_refuses_new_sites_beyond_the_cap_but_keeps_counting_known_ones(
     assert visits.count_visit("s0.fr", "2.2.2.2") is True
 
 
+def test_contribute_clicks_are_counted_per_placement_and_ip_and_do_not_change_visits():
+    assert visits.count_visit("g1sms.fr", "1.1.1.1") is True
+    assert visits.count_visit("g1sms.fr", "1.1.1.1", "contribute", "hero") is True
+    assert visits.count_visit("g1sms.fr", "1.1.1.1", "contribute", "hero") is False      # même IP, même bouton, même jour
+    assert visits.count_visit("g1sms.fr", "1.1.1.1", "contribute", "header") is True     # autre bouton
+    assert visits.count_visit("g1sms.fr", "2.2.2.2", "contribute", "hero") is True       # autre IP
+    t = visits.station_totals()["g1sms.fr"]
+    assert t["total"] == 1 and t["events"] == {"contribute:hero": 2, "contribute:header": 1}
+
+
+def test_click_placements_are_capped_per_site(monkeypatch):
+    monkeypatch.setattr(visits, "MAX_EVENT_KEYS", 2)
+    assert visits.count_visit("g1sms.fr", "1.1.1.1", "contribute", "a") is True
+    assert visits.count_visit("g1sms.fr", "1.1.1.1", "contribute", "b") is True
+    assert visits.count_visit("g1sms.fr", "1.1.1.1", "contribute", "c") is None
+    assert visits.count_visit("g1sms.fr", "2.2.2.2", "contribute", "a") is True          # emplacement connu : toujours compté
+
+
+def test_route_validates_click_events(client):
+    post = lambda body, **kw: client.post("/visit", content=json.dumps(body), **kw)
+    assert post({"site": "g1sms.fr", "event": "contribute", "label": "hero"}).json() == {"ok": True, "counted": True}
+    assert post({"site": "g1sms.fr", "event": "contribute", "label": "hero"}).json()["counted"] is False
+    assert post({"site": "g1sms.fr", "event": "inconnu", "label": "hero"}).status_code == 400
+    assert post({"site": "g1sms.fr", "event": "contribute", "label": "Pas Valide!"}).status_code == 400
+    assert post({"site": "g1sms.fr", "event": "contribute", "label": 3}).status_code == 400
+
+
 def test_route_counts_and_checks_origin(client):
     assert client.post("/visit", content=json.dumps({"site": "g1sms.fr"}), headers={"origin": "https://g1sms.fr"}).json() == {"ok": True, "counted": True}
     assert client.post("/visit", content=json.dumps({"site": "g1sms.fr"}), headers={"origin": "https://g1sms.fr"}).json()["counted"] is False
@@ -68,7 +95,7 @@ def test_swarm_word_sums_member_stations_only_and_ignores_garbage():
               ev(STRANGER, {"g1sms.fr": {"total": 999999}}),                       # n'est pas une station de l'essaim
               ev(NODE_A, {"g1sms.fr": {"total": 12}}, created_at=2),               # plus récent : remplace le précédent
               ev(NODE_A, {"g1sms.fr": {"total": 7}}, created_at=1)]                # plus ancien : ignoré
-    assert visits.aggregate(events, members) == {"g1sms.fr": {"total": 17, "stations": 2}, "x.org": {"total": 1, "stations": 1}}
+    assert visits.aggregate(events, members) == {"g1sms.fr": {"total": 17, "stations": 2, "events": {}}, "x.org": {"total": 1, "stations": 1, "events": {}}}
 
 
 @pytest.mark.parametrize("bad", [{"g1sms.fr": {"total": -1}}, {"g1sms.fr": {"total": True}}, {"g1sms.fr": {"total": "9"}},
@@ -77,9 +104,15 @@ def test_swarm_word_ignores_invalid_values(bad):
     assert visits.aggregate([ev(NODE_A, bad)], {NODE_A: ""}) == {}
 
 
+def test_swarm_word_sums_click_events_and_ignores_invalid_keys():
+    a = ev(NODE_A, {"g1sms.fr": {"total": 1, "events": {"contribute:hero": 3, "contribute:band": 1, "n'importe quoi": 9, "contribute:x": -1}}})
+    b = ev(NODE_B, {"g1sms.fr": {"total": 1, "events": {"contribute:hero": 2}}})
+    assert visits.aggregate([a, b], {NODE_A: "", NODE_B: ""})["g1sms.fr"]["events"] == {"contribute:hero": 5, "contribute:band": 1}
+
+
 def test_swarm_word_survives_a_broken_event():
     broken = {"pubkey": NODE_A, "created_at": 1, "content": "pas du json"}
-    assert visits.aggregate([broken, ev(NODE_B, {"g1sms.fr": {"total": 4}})], {NODE_A: "", NODE_B: ""}) == {"g1sms.fr": {"total": 4, "stations": 1}}
+    assert visits.aggregate([broken, ev(NODE_B, {"g1sms.fr": {"total": 4}})], {NODE_A: "", NODE_B: ""}) == {"g1sms.fr": {"total": 4, "stations": 1, "events": {}}}
 
 
 def test_only_first_bootstrap_station_speaks_for_the_swarm(tmp_path, monkeypatch):

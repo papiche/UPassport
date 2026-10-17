@@ -9,7 +9,8 @@ Tout site peut embarquer le compteur (assets/visits.js) : la visite arrive en PO
      (`~/.zen/game/uplanet.G1.nostr`). Si VISITS_SWARM_PERMIT est défini (ex. PERMIT_DRAGON), seules comptent les stations dont
      le Capitaine détient une accréditation ORACLE valide (kind 30503, d=<permis>, p=<capitaine>).
 
-Seul un hash (sel secret + jour + site + IP) est conservé, jamais l'IP.
+Un clic sur un bouton « Contribuer » (event=contribute, label=emplacement du bouton) est compté de la même façon :
+une IP = un clic par jour et par emplacement. Seul un hash (sel secret + jour + site + événement + IP) est conservé, jamais l'IP.
 CLI (cron quotidien) : `python3 -m services.visits station` puis, sur la station bootstrap, `python3 -m services.visits swarm`.
 """
 
@@ -43,6 +44,11 @@ TOP_SITES = 100                                             # sites publiés par
 KEEP_DAYS = 14
 SWARM_PERMIT = os.environ.get("VISITS_SWARM_PERMIT", "")
 
+EVENTS = {"contribute"}                                     # événements acceptés en plus de la visite
+LABEL = re.compile(r"^[a-z0-9-]{1,40}$")                    # emplacement du bouton : header, hero, band, tier-<palier>…
+EVENT_KEY = re.compile(r"^[a-z]+:[a-z0-9-]{1,40}$")
+MAX_EVENT_KEYS = 50                                         # clés d'événements suivies par site (anti-pollution)
+
 _HOST = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 
 
@@ -64,10 +70,25 @@ def _salt() -> str:
     return SALT_FILE.read_text().strip()
 
 
-def count_visit(site: str, ip: str) -> Optional[bool]:
-    """True : nouvelle visite du jour. False : déjà comptée. None : site refusé (trop de sites suivis)."""
+def _load(file: Path) -> dict:
+    return json.loads(file.read_text()) if file.exists() else {}
+
+
+def _bump(file: Path, key: Optional[str], day: str) -> None:
+    """Incrémente le compteur du jour. Sans clé : {jour: n} (visites) ; avec clé : {clé: {jour: n}} (événements)."""
+    data = _load(file)
+    target = data if key is None else data.setdefault(key, {})
+    target[day] = target.get(day, 0) + 1
+    tmp = file.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data))
+    tmp.replace(file)
+
+
+def count_visit(site: str, ip: str, event: Optional[str] = None, label: str = "") -> Optional[bool]:
+    """True : nouvelle visite (ou nouveau clic) du jour. False : déjà compté. None : refusé (trop de sites ou d'emplacements suivis)."""
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    h = hashlib.sha256(f"{_salt()}:{day}:{site}:{ip}".encode()).hexdigest()[:20]
+    key = f"{event}:{label}" if event else None
+    h = hashlib.sha256(f"{_salt()}:{day}:{site}:{key or ''}:{ip}".encode()).hexdigest()[:20]
     BASE.mkdir(parents=True, exist_ok=True)
     with open(BASE / ".lock", "a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -79,26 +100,25 @@ def count_visit(site: str, ip: str) -> Optional[bool]:
         seen = d / f"{day}.seen"
         if seen.exists() and h in seen.read_text().split():
             return False
+        events_file = d / "events.json"
+        known = _load(events_file) if key else {}
+        if key and key not in known and len(known) >= MAX_EVENT_KEYS:
+            return None
         with seen.open("a") as f:
             f.write(h + "\n")
-        counts_file = d / "counts.json"
-        counts = json.loads(counts_file.read_text()) if counts_file.exists() else {}
-        counts[day] = counts.get(day, 0) + 1
-        tmp = counts_file.with_suffix(".tmp")
-        tmp.write_text(json.dumps(counts))
-        tmp.replace(counts_file)
+        _bump(events_file if key else d / "counts.json", key, day)
     return True
 
 
 def station_totals() -> Dict[str, dict]:
-    """{site: {total, days}} pour les TOP_SITES sites les plus visités ; purge les hash d'IP de plus de 2 jours."""
+    """{site: {total, days, events}} pour les TOP_SITES sites les plus visités ; purge les hash d'IP de plus de 2 jours."""
     sites = {}
     for d in (p for p in BASE.glob("*") if p.is_dir()):
-        counts_file = d / "counts.json"
-        if not counts_file.exists():
+        counts, events = _load(d / "counts.json"), _load(d / "events.json")
+        if not counts and not events:
             continue
-        counts = json.loads(counts_file.read_text())
-        sites[d.name] = {"total": sum(counts.values()), "days": dict(sorted(counts.items())[-KEEP_DAYS:])}
+        sites[d.name] = {"total": sum(counts.values()), "days": dict(sorted(counts.items())[-KEEP_DAYS:]),
+                         "events": {k: sum(v.values()) for k, v in events.items()}}
         for seen in d.glob("*.seen"):
             if seen.stat().st_mtime < time.time() - 2 * 86400:
                 seen.unlink()
@@ -170,7 +190,7 @@ def credentialed_captains(captains: List[str], permit: str) -> set:
 
 
 def aggregate(events: List[dict], members: Dict[str, str]) -> Dict[str, dict]:
-    """Additionne le dernier événement de chaque station membre. {site: {total, stations}}."""
+    """Additionne le dernier événement de chaque station membre. {site: {total, stations, events}}."""
     latest: Dict[str, dict] = {}
     for ev in events:
         pk = ev.get("pubkey")
@@ -182,9 +202,12 @@ def aggregate(events: List[dict], members: Dict[str, str]) -> Dict[str, dict]:
             for site, v in json.loads(ev["content"])["sites"].items():
                 total = v["total"]
                 if normalize_site(site) and type(total) is int and total >= 0:
-                    s = sites.setdefault(site, {"total": 0, "stations": 0})
+                    s = sites.setdefault(site, {"total": 0, "stations": 0, "events": {}})
                     s["total"] += total
                     s["stations"] += 1
+                    for k, n in (v.get("events") or {}).items():
+                        if EVENT_KEY.match(k) and type(n) is int and n >= 0:
+                            s["events"][k] = s["events"].get(k, 0) + n
         except (ValueError, KeyError, TypeError, AttributeError):
             logger.info("visits: événement ignoré (contenu invalide) de %s", ev.get("pubkey", "")[:12])
     return dict(sorted(sites.items(), key=lambda kv: -kv[1]["total"])[:TOP_SITES])

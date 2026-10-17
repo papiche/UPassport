@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from core.config import settings
-from utils.helpers import run_script, get_myipfs_gateway, is_origin_mode, get_oc_tier_urls, get_uplanet_home_url
+from utils.helpers import run_script, get_myipfs_gateway, is_origin_mode, get_oc_tier_urls, get_uplanet_home_url, get_env_from_mysh
 from utils.security import is_multipass_user, is_safe_email
 from utils.crypto import npub_to_hex, hex_to_npub, verify_nostr_event
 from utils.observability import log_node_event, log_user_event
@@ -266,6 +266,21 @@ def _check_pass(email: str, pass_code: str, context: str, ip: str = "?") -> Opti
 # /g1/onboard, même risque de double création concurrente pour un même email)
 _g1nostr_in_progress: set[str] = set()
 
+_uplanetname_g1_cache: str = ""
+
+
+async def _get_uplanetname_g1() -> str:
+    """UPLANETNAME_G1 (wallet coopératif) — source de vérité : tools/my.sh.
+
+    Le service UPassport ne source pas my.sh et UPassport/.env ne doit pas
+    servir à ça : on interroge my.sh (mis en cache une fois non vide). Sans
+    cette valeur, Zelkova affiche ":ZEN" sans tag ":ZEN:XXXXXXXX".
+    """
+    global _uplanetname_g1_cache
+    if not _uplanetname_g1_cache:
+        _uplanetname_g1_cache = await get_env_from_mysh("UPLANETNAME_G1")
+    return _uplanetname_g1_cache
+
 
 async def _create_multipass_and_wait(
     email: str, lang: str, lat: str, lon: str, salt: str, pepper: str,
@@ -313,7 +328,7 @@ async def _create_multipass_and_wait(
         data["is_origin"]      = is_origin_mode()
         data["oc_urls"]        = get_oc_tier_urls()
         data["uplanet_home"]   = await get_uplanet_home_url()
-        data["uplanetname_g1"] = settings.UPLANETNAME_G1
+        data["uplanetname_g1"] = await _get_uplanetname_g1()
         if proc.returncode is None:
             data["status"] = "creating"
         return data
@@ -455,7 +470,7 @@ async def _scan_qr_impl(
                             data["is_origin"]      = is_origin_mode()
                             data["oc_urls"]        = get_oc_tier_urls()
                             data["uplanet_home"]   = await get_uplanet_home_url()
-                            data["uplanetname_g1"] = settings.UPLANETNAME_G1
+                            data["uplanetname_g1"] = await _get_uplanetname_g1()
                             logger.info(f"Silent recovery for {email} (npub match)")
                             return JSONResponse(data)
                 except Exception as e:
@@ -516,7 +531,7 @@ async def _scan_qr_impl(
             data["is_origin"]      = is_origin_mode()
             data["oc_urls"]        = get_oc_tier_urls()
             data["uplanet_home"]   = await get_uplanet_home_url()
-            data["uplanetname_g1"] = settings.UPLANETNAME_G1
+            data["uplanetname_g1"] = await _get_uplanetname_g1()
             logger.info(f"MULTIPASS recovery via PASS OK for {email}")
             return JSONResponse(data)
         except Exception as e:

@@ -362,14 +362,18 @@ async def get_arbor_status(request: Request, uplanetname: Optional[str] = None, 
         "claude_cli": _claude_cli_status(),
         "cookies_without_scraper": _cookies_without_scraper(),
     }
-    if log and state.get("log"):
+    # Journal du dernier run (en cours OU terminé) toujours renvoyé : l'UI
+    # l'affiche en direct pendant le run et garde le diagnostic après un échec.
+    if state.get("log"):
         log_path = Path(state["log"])
+        result["log_tail"] = ""
         if log_path.is_file():
             try:
                 lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
-                result["log_tail"] = "\n".join(lines[-80:])
+                result["log_tail"] = "\n".join(lines[-200:])
+                result["log_lines"] = len(lines)
             except Exception:
-                result["log_tail"] = ""
+                pass
     return JSONResponse(result)
 
 

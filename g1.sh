@@ -72,6 +72,7 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
                 if [[ "$(grep -c "email" "$JSON_FILE")" -eq 0 ]]; then RECONSTRUCT="yes"; fi
                 G1PUB_JSON=$(grep -o '"g1pub": *"[^"]*"' "$JSON_FILE" 2>/dev/null | cut -d'"' -f4)
                 if [[ "${G1PUB_JSON:0:2}" != "g1" ]]; then RECONSTRUCT="yes"; fi
+                if ! grep -q '"pepper_g1"' "$JSON_FILE"; then RECONSTRUCT="yes"; fi
             fi
 
             if [[ "$RECONSTRUCT" == "yes" ]]; then
@@ -126,6 +127,7 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
   "nostrns": "${NOSTRNS}",
   "salt": "${SALT}",
   "pepper": "${PEPPER}",
+  "pepper_g1": "${PEPPER}_$(echo -n "${UPLANETNAME}" | sha256sum | cut -c1-16)",
   "email": "${EMAIL}",
   "lat": "${ZLAT}",
   "lon": "${ZLON}",
