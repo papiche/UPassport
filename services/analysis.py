@@ -76,6 +76,20 @@ def port_open(port: int, ttl: float = 20.0) -> bool:
     return ok
 
 
+def model_on_cpu(model: str = "", port: int = 0) -> bool:
+    """True si Ollama a chargé le modèle SANS aucune VRAM (GPU perdu : bus PCIe tombé, CUDA indisponible…).
+    Faux si on ne peut pas le savoir, si le modèle n'est pas chargé, ou si FACECLOUD_ALLOW_CPU=1 (station sans GPU)."""
+    if os.environ.get("FACECLOUD_ALLOW_CPU") == "1":
+        return False
+    try:
+        import urllib.request
+        with urllib.request.urlopen(f"http://127.0.0.1:{port or OLLAMA_PORT}/api/ps", timeout=5) as r:
+            models = json.load(r).get("models") or []
+    except Exception:
+        return False
+    return any(m.get("size") and not m.get("size_vram") for m in models if not model or m.get("name") == model)
+
+
 def relay_ready() -> bool:
     return INTERCOM.exists() and NODE_SECRET.exists()
 

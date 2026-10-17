@@ -209,6 +209,11 @@ def scan(email: str, paths: Optional[list] = None, mode: Optional[str] = None, l
                 state["failed"] += 1
                 print(f"WARN:describe:{path}: {exc}", file=sys.stderr)
             state["done"] = i
+            if eff != "relay" and not runner and (i == 1 or i % 10 == 0) and analysis.model_on_cpu(analysis.DESCRIBE_MODEL):
+                state["error"] = "gpu_unavailable"
+                print("ERROR:describe: le modèle tourne sur le CPU (size_vram=0) : GPU perdu ? Arrêt pour ne pas saturer le CPU "
+                      "— corriger le GPU/redémarrer la machine d'IA, ou FACECLOUD_ALLOW_CPU=1 pour forcer", file=sys.stderr)
+                break
             if i % 5 == 0 or i == len(todo):
                 _write_progress(email, state)
                 trace.log("describe", f"progression écrite : {i}/{len(todo)} (ok={state.get('ok', 0)}, échecs={state['failed']}) → describe_scan.json", 2)
