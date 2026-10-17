@@ -282,6 +282,24 @@ async def _get_uplanetname_g1() -> str:
     return _uplanetname_g1_cache
 
 
+async def _add_pepper_g1(data: dict) -> None:
+    """Ajoute `pepper_g1` (= PEPPER_<UPLANET_SALT>) à la réponse si absent.
+
+    Le wallet Ğ1 du MULTIPASS est dérivé de (SALT, PEPPER_<UPLANET_SALT>) avec
+    UPLANET_SALT = sha256(UPLANETNAME)[:16] (cf. make_NOSTRCARD.sh). Les clients
+    (Zelkova) ne connaissent pas UPLANETNAME et ne peuvent pas le calculer.
+    Les `.multipass.json` créés avant l'ajout du champ ne le contiennent pas :
+    on le complète ici, UPLANETNAME venant de tools/my.sh (jamais de .env).
+    """
+    if data.get("pepper_g1") or not data.get("pepper"):
+        return
+    uplanetname = await get_env_from_mysh("UPLANETNAME")
+    if not uplanetname:
+        return
+    uplanet_salt = hashlib.sha256(uplanetname.encode()).hexdigest()[:16]
+    data["pepper_g1"] = f"{data['pepper']}_{uplanet_salt}"
+
+
 async def _create_multipass_and_wait(
     email: str, lang: str, lat: str, lon: str, salt: str, pepper: str,
     birth_datetime: str = "", birth_place: str = "", birth_weight: str = "",
@@ -329,6 +347,7 @@ async def _create_multipass_and_wait(
         data["oc_urls"]        = get_oc_tier_urls()
         data["uplanet_home"]   = await get_uplanet_home_url()
         data["uplanetname_g1"] = await _get_uplanetname_g1()
+        await _add_pepper_g1(data)
         if proc.returncode is None:
             data["status"] = "creating"
         return data
@@ -471,6 +490,7 @@ async def _scan_qr_impl(
                             data["oc_urls"]        = get_oc_tier_urls()
                             data["uplanet_home"]   = await get_uplanet_home_url()
                             data["uplanetname_g1"] = await _get_uplanetname_g1()
+                            await _add_pepper_g1(data)
                             logger.info(f"Silent recovery for {email} (npub match)")
                             return JSONResponse(data)
                 except Exception as e:
@@ -532,6 +552,7 @@ async def _scan_qr_impl(
             data["oc_urls"]        = get_oc_tier_urls()
             data["uplanet_home"]   = await get_uplanet_home_url()
             data["uplanetname_g1"] = await _get_uplanetname_g1()
+            await _add_pepper_g1(data)
             logger.info(f"MULTIPASS recovery via PASS OK for {email}")
             return JSONResponse(data)
         except Exception as e:
