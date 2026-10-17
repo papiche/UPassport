@@ -836,13 +836,23 @@ def analysis_counts(udir: Path) -> Dict[str, Any]:
     return dict(zip(keys, (int(x or 0) for x in row)))
 
 
+def _prefs():
+    """services.analysis_prefs (paquet UPassport) ou analysis_prefs (module à plat, importé par le matcher)."""
+    try:
+        from services import analysis_prefs as m
+    except ImportError:
+        import analysis_prefs as m
+    return m
+
+
 def describe_stale(udir: Path, model: str, limit: int = 100000) -> List[str]:
     """Images dont la description a été écrite par l'IA avec UN AUTRE modèle (jamais celles saisies à la main) —
-    à refaire quand on change de modèle. Récentes d'abord."""
+    à refaire quand on change de modèle. Récentes d'abord. Les dossiers exclus par le membre sont ignorés."""
+    excl, xp = _prefs().sql_not_excluded(udir)
     return [r[0] for r in connect(udir).execute(
         f"SELECT path FROM entries WHERE {_IMG} AND desc_text IS NOT NULL "
-        f"AND json_extract(data,'$.desc.src')='ai' AND COALESCE(json_extract(data,'$.desc.model'),'')<>? "
-        f"ORDER BY {_TAKEN} DESC LIMIT ?", (model, limit))]
+        f"AND json_extract(data,'$.desc.src')='ai' AND COALESCE(json_extract(data,'$.desc.model'),'')<>? {excl} "
+        f"ORDER BY {_TAKEN} DESC LIMIT ?", (model, *xp, limit))]
 
 
 def describe_stale_count(udir: Path, model: str) -> int:
@@ -852,7 +862,9 @@ def describe_stale_count(udir: Path, model: str) -> int:
 
 
 def describe_pending(udir: Path, limit: int = 100000) -> List[str]:
-    """Images sans description, récentes d'abord (les copies reçues sont décrites aussi : on les voit)."""
+    """Images sans description, récentes d'abord (les copies reçues sont décrites aussi : on les voit).
+    Les dossiers exclus par le membre (analysis_prefs) ne sont jamais proposés."""
+    excl, xp = _prefs().sql_not_excluded(udir)
     return [r[0] for r in connect(udir).execute(
-        f"SELECT path FROM entries WHERE {_IMG} AND desc_text IS NULL AND COALESCE(faceid_status,'')<>'unreadable' "
-        f"ORDER BY {_TAKEN} DESC LIMIT ?", (limit,))]
+        f"SELECT path FROM entries WHERE {_IMG} AND desc_text IS NULL AND COALESCE(faceid_status,'')<>'unreadable' {excl} "
+        f"ORDER BY {_TAKEN} DESC LIMIT ?", (*xp, limit))]

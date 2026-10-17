@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from core.config import settings
 from utils.helpers import get_myipfs_gateway, get_env_from_mysh
-from services.nostr import verify_nostr_auth, generate_nip42_challenge, NIP42_CHALLENGE_TTL
+from services.nostr import verify_nostr_auth, generate_nip42_challenge, nip98_signer_hex, NIP42_CHALLENGE_TTL
 from utils.crypto import hex_to_npub, npub_to_hex
 from utils.security import find_user_directory_by_hex
 from services.roaming import resolve_home_station as _resolve_home_station
@@ -254,7 +254,32 @@ async def get_nip42_challenge(npub: str):
 
 
 @router.get("/api/myGPS")
-async def get_my_gps_coordinates(npub: str):
+async def get_my_gps_coordinates(request: Request, npub: Optional[str] = None):
+    """Statut de roaming + position UMAP de l'utilisateur authentifié : NIP-98 (une requête, sans état, valable
+    sur n'importe quelle station — `npub` devient facultatif, il se déduit de la signature) ou, en repli
+    historique journalisé « NIP42-FALLBACK », NIP-42 (défi → kind 22242 publié sur le relais → nouvel essai).
+
+    Les coordonnées sont à 0,01° (clé UMAP, ~1 km) et l'email/le uDRIVE sont de toute façon lisibles publiquement
+    via le lien IPNS NOSTRNS de l'utilisateur : rien de plus sensible n'est renvoyé ici. Seul le bloc `debug`
+    (chemins de fichiers du SERVEUR) est retiré — il n'a rien à faire dans une réponse HTTP."""
+    signer = nip98_signer_hex(request)
+    if signer:
+        if npub:
+            expected = (npub_to_hex(npub) if npub.startswith("npub1") else npub or "").lower()
+            if expected != signer:
+                raise HTTPException(status_code=403, detail="La signature NIP-98 ne correspond pas à l'npub demandé.")
+        npub = npub or hex_to_npub(signer)
+    elif not npub:
+        raise HTTPException(status_code=422, detail="npub requis sans en-tête NIP-98.")
+    else:
+        logger.warning(f"NIP42-FALLBACK path=/api/myGPS npub={npub[:14]}… ua={request.headers.get('user-agent', '')[:40]!r}")
+    res = await _my_gps_impl(npub, pre_authenticated=bool(signer))
+    if isinstance(res, dict):
+        res.pop("debug", None)
+    return res
+
+
+async def _my_gps_impl(npub: str, pre_authenticated: bool = False):
     """Get GPS coordinates for authenticated user.
 
     If the user is not yet authenticated the response is HTTP 403 with a fresh
@@ -267,7 +292,7 @@ async def get_my_gps_coordinates(npub: str):
         }
     """
     try:
-        is_authenticated = await verify_nostr_auth(npub, force_check=True)
+        is_authenticated = pre_authenticated or await verify_nostr_auth(npub, force_check=True)
 
         if not is_authenticated:
             # Issue a fresh challenge so the client can authenticate immediately

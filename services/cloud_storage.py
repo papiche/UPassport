@@ -1999,6 +1999,14 @@ def _trigger_faceid_analysis(email: str, path: str, cid: str, key_hex: str,
     if not hex_pubkey:
         logger.warning("ucloud: FaceID non déclenché pour %s — HEX introuvable", email)
         return
+    try:   # choix du membre : visages désactivés ou dossier exclu → aucune analyse (le fichier reste simplement stocké)
+        from services import analysis_prefs
+        _p = analysis_prefs.load(ucloud_dir(email))
+        if not _p["faces"] or analysis_prefs.is_excluded(ucloud_dir(email), path, _p):
+            logger.info("ucloud: FaceID non déclenché pour %s — désactivé ou dossier exclu par le membre", path)
+            return
+    except Exception as exc:
+        logger.warning("ucloud: préférences d'analyse illisibles pour %s (%s) — analyse par défaut", email, exc)
     trigger_sh = settings.TOOLS_PATH / "trigger_bro_vision_analysis.sh"
     if not trigger_sh.exists():
         logger.warning("ucloud: FaceID non déclenché — %s introuvable", trigger_sh)

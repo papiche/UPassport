@@ -76,8 +76,17 @@ def _email_for_authenticated_npub(npub: str) -> str:
     return email
 
 
+def _sync_urls(dav_url: str) -> dict:
+    """Adresses de synchro téléphone/Thunderbird (même hôte et mêmes identifiants que /dav)."""
+    base = re.sub(r"/dav/?$", "", dav_url)
+    return {"caldav_url": base + "/caldav/", "carddav_url": base + "/carddav/"}
+
+
 def _mount_instructions(dav_url: str, email: str) -> dict:
+    urls = _sync_urls(dav_url)
     return {
+        **urls,
+        "android": f"DAVx⁵ → compte « URL et identifiant » → {urls['caldav_url']} (agenda) puis {urls['carddav_url']} (contacts)",
         "login": email,
         "password": "le champ `token` de cette réponse",
         "linux": f"sudo mount -t davfs {dav_url} ~/UPlanet",
@@ -111,6 +120,7 @@ async def enroll_cloud(request: Request, npub: str = Depends(require_nostr_auth)
         {
             "success": True,
             "dav_url": dav_url,
+            **_sync_urls(dav_url),
             "email": email,
             "token": token,
             "instructions": _mount_instructions(dav_url, email),
@@ -142,6 +152,7 @@ async def cloud_status(request: Request, npub: str = Depends(require_nostr_auth)
         {
             "enrolled": bool(desc),
             "dav_url": dav_url,
+            **_sync_urls(dav_url),
             "email": email,
             "enrolled_at": (desc or {}).get("created_at"),
             "files": files,
@@ -339,6 +350,7 @@ async def reveal_cloud_token(request: Request, npub: str = Depends(require_nostr
         {
             "success": True,
             "dav_url": dav_url,
+            **_sync_urls(dav_url),
             "email": email,
             "token": desc["token"],
             "instructions": _mount_instructions(dav_url, email),

@@ -2,7 +2,7 @@
 """
 ucloud_daily.py — Traitement QUOTIDIEN du `.ucloud` d'un MULTIPASS (lancé par RUNTIME/NOSTRCARD.refresh.sh).
 
-    python3 ucloud_daily.py <email> [--only import,enrich,describe,embed,backup] [--describe-limit N] [-v|-vv]
+    python3 ucloud_daily.py <email> [--only import,enrich,describe,embed,calendar,backup] [--describe-limit N] [-v|-vv]
 
 Étapes, dans cet ordre, chacune dans son propre sous-processus (délai propre, échec NON bloquant pour les suivantes) :
   import    webdav_import.py       sources WebDAV externes → nouvelles photos (rangées à leur date de prise de vue EXIF)
@@ -10,6 +10,7 @@ ucloud_daily.py — Traitement QUOTIDIEN du `.ucloud` d'un MULTIPASS (lancé par
                                    les reçoivent à l'envoi) — seulement s'il en reste
   describe  ucloud_describe.py     description IA des photos SANS description, dans la limite d'un BUDGET GPU
   embed     ucloud_embed.py        vecteurs de recherche par le sens des descriptions nouvelles ou corrigées
+  calendar  calendar_nostr_bridge.py  agenda CalDAV ↔ NOSTR (rattrapage quotidien ; le pont se lance aussi à chaque synchro du téléphone)
   backup    ucloud_backup.py       sauvegarde chiffrée hors station, EN DERNIER : elle contient les descriptions du jour
 
 Plusieurs MULTIPASS peuvent avoir leur heure quotidienne en même temps : les étapes qui sollicitent le GPU ou le CPU lourdement
@@ -46,8 +47,8 @@ from pathlib import Path
 from services import analysis, cloud_storage, ucloud_db  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-STEPS = ["import", "enrich", "describe", "embed", "backup"]
-TIMEOUT = {"import": 3 * 3600, "enrich": 3600, "describe": 2 * 3600, "embed": 1800, "backup": 1200}
+STEPS = ["import", "enrich", "describe", "embed", "calendar", "backup"]
+TIMEOUT = {"import": 3 * 3600, "enrich": 3600, "describe": 2 * 3600, "embed": 1800, "calendar": 600, "backup": 1200}
 DESCRIBE_DAILY_STATION_BUDGET = int(os.environ.get("FACECLOUD_DESCRIBE_BUDGET", "2400"))
 DESCRIBE_MIN, DESCRIBE_MAX = 30, 600
 HEAVY = ("enrich", "describe", "embed")
@@ -93,9 +94,13 @@ def plan(email: str, only=None, describe_override: int = 0) -> list:
                 f"{enrich_pending} photo(s) sans empreinte/date/lieu" if enrich_pending
                 else f"toutes les photos ont déjà date, lieu et empreinte ({images})"))
 
+    from services import analysis_prefs
+    prefs = analysis_prefs.load(udir)
     desc_pending = max(0, images - c["described"] - c["unreadable"])
     route = analysis.resolve("describe")
-    if not desc_pending:
+    if not prefs["describe"]:
+        out.append(("describe", None, "descriptions désactivées par le membre (Mon compte → espace de données)"))
+    elif not desc_pending:
         out.append(("describe", None, "toutes les photos sont décrites"))
     elif route["effective"] == "none":
         out.append(("describe", None, "ni Ollama en accès direct ni relais NOSTR : " + route["why"]))
@@ -105,10 +110,16 @@ def plan(email: str, only=None, describe_override: int = 0) -> list:
                     f"{desc_pending} photo(s) sans description, {min(lim, desc_pending)} aujourd'hui (budget), chemin {route['effective']}"))
 
     embed_pending = ucloud_embed.counts(udir)["pending"]
-    out.append(("embed", ["ucloud_embed.py", "scan", email] if embed_pending else None,
-                f"{embed_pending} description(s) à vectoriser" if embed_pending else "tous les vecteurs sont à jour"))
+    if not prefs["embed"]:
+        out.append(("embed", None, "recherche par le sens désactivée par le membre"))
+    else:
+        out.append(("embed", ["ucloud_embed.py", "scan", email] if embed_pending else None,
+                    f"{embed_pending} description(s) à vectoriser" if embed_pending else "tous les vecteurs sont à jour"))
 
     has_cloud = ucloud_db.exists(udir) or (udir / "index.json").is_file()
+    out.append(("calendar", ["calendar_nostr_bridge.py", "sync", email] if has_cloud else None,
+                "agenda CalDAV ↔ NOSTR (événements de « Mes calendriers » ramenés, ceux du téléphone publiés chiffrés)"
+                if has_cloud else "pas de cloud : pas d'agenda"))
     out.append(("backup", ["ucloud_backup.py", "snapshot", email] if has_cloud else None,
                 "archive chiffrée hors station (avec les descriptions du jour)" if has_cloud else "pas de cloud à sauvegarder"))
     return [(s_, a_, r_) for s_, a_, r_ in out if only is None or s_ in only]

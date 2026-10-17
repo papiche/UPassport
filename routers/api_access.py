@@ -17,7 +17,7 @@ from services.api_access_store import (
     set_provider_config,
     delete_provider_config,
 )
-from services.nostr import require_nostr_auth
+from services.nostr import require_nip98_only
 from utils.crypto import npub_to_hex
 from utils.security import find_user_directory_by_hex
 
@@ -46,7 +46,7 @@ async def list_api_access(
     request: Request,
     npub: Optional[str] = Query(None, description="User npub (requis sans en-tête NIP-98)"),
 ):
-    auth_npub = await require_nostr_auth(request, npub, force_check=False)
+    auth_npub = await require_nip98_only(request, npub)
     user_dir = _user_dir(auth_npub)
     manifest = load_manifest(user_dir)
 
@@ -77,7 +77,7 @@ async def get_api_access(
     npub: Optional[str] = Query(None),
 ):
     _validate_provider(provider)
-    auth_npub = await require_nostr_auth(request, npub, force_check=False)
+    auth_npub = await require_nip98_only(request, npub)
     user_dir = _user_dir(auth_npub)
 
     values = await get_provider_config(user_dir, provider)
@@ -107,7 +107,7 @@ async def set_api_access(
     npub: Optional[str] = Query(None),
 ):
     _validate_provider(provider)
-    auth_npub = await require_nostr_auth(request, npub, force_check=False)
+    auth_npub = await require_nip98_only(request, npub)
     user_dir = _user_dir(auth_npub)
 
     spec = API_PROVIDERS[provider]
@@ -136,7 +136,7 @@ async def delete_api_access(
     npub: Optional[str] = Query(None),
 ):
     _validate_provider(provider)
-    auth_npub = await require_nostr_auth(request, npub, force_check=False)
+    auth_npub = await require_nip98_only(request, npub)
     user_dir = _user_dir(auth_npub)
 
     cid = await delete_provider_config(user_dir, provider)

@@ -7,6 +7,7 @@ Vérifié par Astroport.ONE/tools/mailjet.sh avant tout envoi.
 import asyncio
 import base64
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -206,6 +207,13 @@ def _relay_url() -> str:
 def _token_for(email: str) -> str:
     """sha256(email:UPLANETNAME)[:16] — même algo que mailjet.sh bash."""
     return hashlib.sha256(f"{email}:{_uplanetname()}".encode()).hexdigest()[:16]
+
+
+def _token_ok(email: str, token: Optional[str]) -> bool:
+    """Jeton valide — comparaison à temps constant. Un jeton ABSENT est toujours
+    invalide : sans cela, `GET /mailjet?email=X` rendait la page de préférences
+    (code PASS compris) à quiconque connaissait l'adresse."""
+    return bool(email) and bool(token) and hmac.compare_digest(_token_for(email), str(token))
 
 
 def _mailjet_path(email: str) -> Path:
@@ -729,7 +737,7 @@ async def get_questionnaire(
             {"message": "Lien de questionnaire invalide.", "captain": captain},
             status_code=400,
         )
-    if _token_for(email) != token:
+    if not _token_ok(email, token):
         return templates.TemplateResponse(
             request,
             "mailjet_error.html",
@@ -757,7 +765,7 @@ async def post_questionnaire(
 ):
     """Traite les réponses, calcule le langage, redirige vers les prefs."""
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
-    if not email or not token or _token_for(email) != token:
+    if not _token_ok(email, token):
         return templates.TemplateResponse(
             request,
             "mailjet_error.html",
@@ -797,6 +805,7 @@ async def get_mailjet(
     onboarded: Optional[str] = Query(None),
     vibeq: Optional[str] = Query(None),
     vibea: Optional[str] = Query(None),
+    legacy: Optional[str] = Query(None),
 ):
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
 
@@ -804,7 +813,11 @@ async def get_mailjet(
         return templates.TemplateResponse(request, "mailjet_landing.html")
 
     expected = _token_for(email)
-    if token and token != expected:
+    if not token:
+        # Pas de jeton : jamais la page de préférences — retour à l'authentification
+        # (challenge NIP-42) qui, seule, délivre un lien avec jeton.
+        return templates.TemplateResponse(request, "mailjet_landing.html")
+    if not _token_ok(email, token):
         return templates.TemplateResponse(
             request,
             "mailjet_error.html",
@@ -827,6 +840,12 @@ async def get_mailjet(
     # ── Onboarding : rediriger vers le questionnaire si aucune réponse encore ─
     if not kin.get("vibe_answers") and not onboarded:
         return RedirectResponse(f"/mailjet/questionnaire?email={email}&token={expected}", status_code=303)
+
+    # Les réglages vivent désormais dans « Mon compte » (signature NOSTR, sans jeton dans l'URL).
+    # Le lien reçu par e-mail arrive donc ici puis est redirigé ; `?legacy=1` garde l'ancien écran
+    # (le jeton n'est PAS transmis à la page de destination).
+    if not legacy:
+        return RedirectResponse("/earth/moncompte.html", status_code=303)
 
     _langage = kin.get("langage", "")
     _vibe_icons  = {"pragmatique": "🔬", "curieux": "🌱", "symbolique": "🌀", "cosmique": "✨"}
@@ -935,7 +954,7 @@ async def post_mailjet(
             {"message": "Paramètres manquants.", "captain": captain},
             status_code=400,
         )
-    if _token_for(email) != token:
+    if not _token_ok(email, token):
         return templates.TemplateResponse(
             request,
             "mailjet_error.html",
@@ -999,7 +1018,7 @@ async def post_mailjet(
 
 def _require_token(request: Request, email: str, token: str, captain: str):
     """Retourne une TemplateResponse d'erreur si le token est invalide, None sinon."""
-    if _token_for(email) != token:
+    if not _token_ok(email, token):
         return templates.TemplateResponse(
             request,
             "mailjet_error.html",
@@ -1220,7 +1239,7 @@ async def get_mailjet_nostr_events(
     - kind 31903 d=cookies : manifest BRO/cookie vault (strfry local)
     - kind 30078 : données app-specific (strfry local)
     """
-    if _token_for(email) != token:
+    if not _token_ok(email, token):
         return JSONResponse({"error": "Token invalide."}, status_code=403)
 
     user_dir = settings.GAME_PATH / "nostr" / email
@@ -1573,7 +1592,7 @@ def _faces_auth(
             {"error": "Authentification requise (NIP-98, ou email+token)."},
             status_code=403,
         )
-    if _token_for(email) != token:
+    if not _token_ok(email, token):
         return None, JSONResponse({"error": "Token invalide."}, status_code=403)
     return email, None
 
@@ -2808,7 +2827,7 @@ async def get_scraper_log(
     token: str = Query(...),
     domain: str = Query(...),
 ):
-    if _token_for(email) != token:
+    if not _token_ok(email, token):
         return HTMLResponse("Token invalide.", status_code=403)
 
     log_text = _scraper_log_tail(email, domain) or "(aucun log pour l'instant — le scraper n'a pas encore tourné)"

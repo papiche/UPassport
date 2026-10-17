@@ -256,7 +256,48 @@ async def coop_get(key: str, timeout: float = 15.0) -> str:
         return ""
 
 
+# Cache court de la configuration brute : chaque lecture lance un shell qui source
+# cooperative_config.sh (~0,5 s) et les consoles admin la demandent plusieurs fois par
+# écran. Seuls les chargements RÉUSSIS (non vides) sont mémorisés, jamais un échec ;
+# toute écriture (coop_set_many / coop_delete) invalide le cache.
+_COOP_CACHE_TTL = 8.0
+_coop_cache: dict = {"at": 0.0, "data": None}
+_coop_lock = asyncio.Lock()
+
+
+def coop_cache_invalidate() -> None:
+    _coop_cache["data"] = None
+
+
+def _invalidates_cache(fn):
+    """Invalide le cache AVANT et APRÈS l'écriture : une lecture concurrente pendant l'écriture
+    ne doit pas remettre l'ancienne valeur en cache une fois l'écriture terminée."""
+    import functools
+
+    @functools.wraps(fn)
+    async def wrapper(*a, **k):
+        coop_cache_invalidate()
+        try:
+            return await fn(*a, **k)
+        finally:
+            coop_cache_invalidate()
+    return wrapper
+
+
 async def coop_load_raw(timeout: float = 20.0) -> dict:
+    import time as _t
+    if _coop_cache["data"] is not None and _t.monotonic() - _coop_cache["at"] < _COOP_CACHE_TTL:
+        return dict(_coop_cache["data"])
+    async with _coop_lock:   # une seule lecture à la fois : les appels concurrents attendent son résultat
+        if _coop_cache["data"] is not None and _t.monotonic() - _coop_cache["at"] < _COOP_CACHE_TTL:
+            return dict(_coop_cache["data"])
+        data = await _coop_load_raw_uncached(timeout)
+        if data:
+            _coop_cache["data"], _coop_cache["at"] = data, _t.monotonic()
+        return dict(data)
+
+
+async def _coop_load_raw_uncached(timeout: float = 20.0) -> dict:
     """Config brute complète — les valeurs non sensibles y sont déjà en clair,
     les sensibles au format "hex32:base64" (jamais déchiffrées ici : un seul
     appel suffit pour tout afficher, cf. is_sensitive côté appelant)."""
@@ -276,6 +317,7 @@ async def coop_load_raw(timeout: float = 20.0) -> dict:
         return {}
 
 
+@_invalidates_cache
 async def coop_set_many(entries: list, timeout: float = 120.0) -> None:
     """Écrit plusieurs clés en UN seul cycle load/encrypt/save/publish (cf.
     coop_config_set_batch dans cooperative_config.sh). Valeurs transmises par
@@ -307,6 +349,7 @@ async def coop_set_many(entries: list, timeout: float = 120.0) -> None:
         raise CoopConfigError(err.strip() or "Échec d'écriture de la configuration.")
 
 
+@_invalidates_cache
 async def coop_delete(key: str, timeout: float = 60.0) -> None:
     if not _COOP_SCRIPT.exists():
         raise CoopConfigError("cooperative_config.sh introuvable.")

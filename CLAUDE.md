@@ -34,21 +34,21 @@ templates/        ← Jinja2 HTML templates
 - `GET  /api/getN2` — Réseau N² (amis d'amis depuis relay)
 - `POST /sendmsg` — Envoi message NOSTR signé
 - `POST /api/test-nostr` — Test publication événement NOSTR
-- `GET  /api/nostr/admin/events` — Requête générique d'events (kind/author/tag_d/tag_p/tag_t/since/until), admin NIP-98/UPLANETNAME — utilisée par nostr_admin.html seulement pour les actions qui ne sont pas de simples lectures (le reste passe désormais en direct par le relay, cf. `UPlanet/earth/relay.js`)
-- `POST /api/nostr/admin/delete`, `POST /api/nostr/admin/constellation_delete` — Suppression d'events (locale / constellation via DM-BRO), admin NIP-98/UPLANETNAME
+- `GET  /api/nostr/admin/events` — Requête générique d'events (kind/author/tag_d/tag_p/tag_t/since/until), admin NIP-98 Capitaine (le repli UPLANETNAME a été retiré) — utilisée par nostr_admin.html seulement pour les actions qui ne sont pas de simples lectures (le reste passe désormais en direct par le relay, cf. `UPlanet/earth/relay.js`)
+- `POST /api/nostr/admin/delete`, `POST /api/nostr/admin/constellation_delete` — Suppression d'events (locale / constellation via DM-BRO), admin NIP-98 Capitaine (le repli UPLANETNAME a été retiré)
 
 ### node_admin.py — config NODE, ARBOR, purge NOSTR (préfixe `/api/nostr/admin/*` partagé avec nostr.py par convention)
 - `GET/POST /api/nostr/admin/node_config`, `POST .../node_config/delete` — Config coopérative (whitelist stricte, cf. `services/coop_config.py`)
 - `GET  /api/nostr/admin/arbor_status`, `POST .../arbor_trigger`, `GET .../arbor_mined_preview` — Auto-amélioration ARBOR (déclenchement NIP-98 Capitaine EXCLUSIF)
 - `GET  /api/nostr/admin/arbor_baton_status`, `POST .../arbor_baton_handoff`, `POST .../arbor_baton_eligibility_check` — Bâton de parole ARBOR (délègue à `Astroport.ONE/IA/arbor_baton.sh`/`arbor_baton_eligibility.sh`) : gouverne UNIQUEMENT le cycle automatique quotidien `mine-requests` (une seule station de la constellation à la fois) — jamais le déclenchement manuel ci-dessus. Éligibilité = `git push --dry-run` réel sur `ARBOR_GIT_REMOTE_NAME` (config coop, défaut `origin`), pas une déclaration. Passation NIP-98 Capitaine EXCLUSIF vers une station swarm connue et éligible ; vacance auto-résolue après `ARBOR_BATON_TIMEOUT_HOURS` (défaut 72h)
 - `POST /api/nostr/admin/arbor_chat` — Dialogue conversationnel avec Arbor (NIP-98 Capitaine EXCLUSIF), backend Claude CLI (délègue à `Astroport.ONE/IA/arbor_chat.py`, jamais Ollama — même doctrine que `arbor_tool_forge.py`). Contexte (bâton, branches, audit) reconstruit serveur, jamais fourni par le client. Peut répondre avec une `proposed_action` structurée que le capitaine valide explicitement via `arbor_trigger` — ne déclenche jamais rien seul
-- `GET  /api/nostr/admin/purge_strangers` — Analyse des comptes NOSTR "étrangers" (délègue à `Astroport.ONE/admin/system/purge_nostr_strangers.sh --list-json`), admin NIP-98/UPLANETNAME
+- `GET  /api/nostr/admin/purge_strangers` — Analyse des comptes NOSTR "étrangers" (délègue à `Astroport.ONE/admin/system/purge_nostr_strangers.sh --list-json`), admin NIP-98 Capitaine (le repli UPLANETNAME a été retiré)
 - `POST /api/nostr/admin/purge_strangers/clean` — Lance la purge en arrière-plan (`--clean`, suppression irréversible), NIP-98 Capitaine EXCLUSIF — verrou PID (`~/.zen/tmp/purge_nostr_strangers.pid`) contre les lancements concurrents
-- `GET  /api/nostr/admin/destroy_multipass/status` — Statut du dernier lancement de `nostr_DESTROY_TW.sh` (running + tail log), admin NIP-98/UPLANETNAME
+- `GET  /api/nostr/admin/destroy_multipass/status` — Statut du dernier lancement de `nostr_DESTROY_TW.sh` (running + tail log), admin NIP-98 Capitaine (le repli UPLANETNAME a été retiré)
 - `POST /api/nostr/admin/destroy_multipass` — Lance `Astroport.ONE/tools/nostr_DESTROY_TW.sh <email> <reason>` en arrière-plan (désactivation MULTIPASS + backup chiffré + cashback Ğ1, irréversible sur cette station), NIP-98 Capitaine EXCLUSIF — `email` validé contre `list_multipass_emails()`, `reason` en whitelist (`INSOLVENCY|INTRUSION|INCOMPATIBLE_KEY`), verrou PID (`~/.zen/tmp/nostr_destroy_tw.pid`)
 
 ### finance.py
-- `POST /zen_send` — Envoi ẐEN entre comptes (transaction G1)
+- ~~`POST /zen_send`~~ — RETIRÉE (2026-10-17, répond 410) : autorisait un envoi avec `npub` + présence NIP-42 (npub public). Payer un membre = réaction Kind 7 `+N` signée (`NIP-101/…/filter/7.sh`) ; sinon virement Duniter via Ẑelkova. Le prototype Coinflip (qui en dépendait) a été supprimé.
 - `GET  /check_balance` — Solde G1 d'une clé publique
 - `GET  /check_balances` — Solde G1 batch (g1pubs=pub1,pub2,… max 20) — une seule requête Squid GraphQL
 - `POST /oc_webhook` — Webhook OpenCollective (recharge MULTIPASS immédiate)
@@ -56,9 +56,8 @@ templates/        ← Jinja2 HTML templates
 - `GET  /check_revenue` — Revenus coopératifs
 - `GET  /check_zencard` — État ZenCard
 - `GET  /check_impots` — Calcul fiscal coopératif
-- `POST /coinflip/start|flip|payout` — Jeu pile/face ẐEN
 - `GET  /api/parrains_ranking` — Classement PUBLIC des parrains sociétaires (tiers Satellite/Constellation), pseudonymisé (sans email), délègue à `oc2uplanet.sh --json --parrain-ranking`, cache 1h. Affiché sur `UPlanet/earth/parrains.html`
-- `GET  /api/oc_admin/contributions` — Contributions €→Ẑen (délègue à `oc2uplanet.sh --json --sync`), admin NIP-98/UPLANETNAME
+- `GET  /api/oc_admin/contributions` — Contributions €→Ẑen (délègue à `oc2uplanet.sh --json --sync`), admin NIP-98 Capitaine (le repli UPLANETNAME a été retiré)
 - `GET  /api/oc_admin/expenses` — Dépenses OpenCollective (lecture `OC2UPlanet/data/expenses.json`)
 - `GET  /api/oc_admin/dues` — Découverte stations sœurs + PAF/capacités (pas de calcul de montant dû)
 - `POST /api/oc_admin/invoice/burn` — Déclenche `ZEN.INVOICE.sh` (burn Ẑen + soumission OC), jamais automatique
@@ -155,6 +154,47 @@ anniversaire, champs Apple/Google…).
   qu'au champ `maybe` de `GET /mailjet/faces` (`maybe.contact`, `maybe.email`)
 - Les visages portent le lien vers leur fiche (`contact` dans le payload Qdrant,
   `faces-edit[-bulk]` paramètre `contact`, `-` = effacé)
+
+
+### caldav.py + calendar_store.py + calendar_nostr_bridge.py — Agenda CalDAV ↔ NOSTR (depuis 2026-10-17)
+Même schéma que le carnet : chaque événement est un `.ics` rangé chiffré sous
+`/Calendar/<agenda>/<n>.ics` (`personal` existe toujours ; `<agenda>` = d-tag
+kind 31924). Résumé chiffré `.ucloud/calendar.enc` (+ `calendar.key`) : titre, dates,
+ETag, CID, jetons de synchro RFC 6578 et état du pont. Reconstruit depuis l'index si
+perdu (non sauvegardé, comme le carnet).
+- **CalDAV** (`routers/caldav.py`, RFC 4791) : `/.well-known/caldav` → 301 `/caldav/` ;
+  principal, home `/caldav/calendars/`, agendas `/caldav/calendars/<agenda>/`. Mêmes
+  identifiants Basic que `/dav` et `/carddav` ; exclu du limiteur de débit. Rapports :
+  calendar-multiget, calendar-query (composant + période ; récurrences toujours
+  renvoyées), sync-collection. MKCALENDAR refusé (les agendas naissent côté NOSTR),
+  PROPPATCH répond 403 poliment. `enroll`/`reveal`/`status` renvoient `caldav_url` et
+  `carddav_url` ; `ucloud.html` a un onglet « Téléphone » (DAVx⁵ / iOS).
+- **Pont NOSTR** (`calendar_nostr_bridge.py`, process COURT séparé — le NSEC ne vit
+  jamais dans UPassport) : `sync` = pull puis push, un seul à la fois (flock). Lancé
+  détaché par `caldav.py` après chaque écriture (et à chaque lecture, ≤ 1 fois / 2 min),
+  et chaque jour par `ucloud_daily.py` (étape `calendar`). Format = `calendars.html`
+  (31922, `a`=31924:pub:agenda). Tout ce qui part du téléphone est chiffré NIP-44 pour
+  soi (`private=nip44`, titre « 🔒 », contenu `{title, description, ics, cid}`) ; un
+  événement public créé dans calendars.html le reste quand on le modifie, un nouvel
+  événement du téléphone n'est JAMAIS publié en clair. Suppressions = kind 5 (`a`).
+  Conflit : la modification locale non poussée gagne ; sinon created_at le plus récent.
+  Lit aussi les kind 31923 (NIP-52, date Unix). VTODO/VJOURNAL restent sur CalDAV seul.
+  `calendar_nostr_bridge.py status <email>` : dernier passage, éléments en attente.
+  Tests : `tests/test_caldav.py` (stockage, parcours DAVx⁵, relais NOSTR en mémoire).
+
+
+### visio.py + NIP-98 sur /api/myGPS (depuis 2026-10-17)
+- `POST /api/visio/room` (NIP-98) → `{room, password, base, join_url, expires_at}` : salle vdo.ninja
+  ET mot de passe tirés au sort (20 + 16 hex), rien n'est conservé côté station (`expires_at` est
+  indicatif ; l'invitation porte son échéance). Plafond 30 salles/h par clé, 600/h pour la station.
+  `GET /api/visio/config` → `{base}` (variable `VDONINJA` de `tools/my.sh`, https obligatoire).
+  Remplace `uplanet_<npub[:10]>` de minelife.html (npub public → salle devinable, sans mot de passe).
+- `/api/myGPS` accepte NIP-98 (npub facultatif, déduit de la signature ; refusé 403 s'il ne
+  correspond pas) ET garde le repli NIP-42 journalisé `NIP42-FALLBACK`. Une requête, valable sur
+  toute station, sans relais ni marqueur d'1 h. `roaming.js` tente NIP-98 puis retombe sur NIP-42
+  (stations anciennes). `uplanet-header.js` reste sans signature (statut sans invite). À faire :
+  migrer dev.js/youtube.html/templates/*.html, puis ajouter `/api/myGPS` à `NIP98_ONLY_PREFIXES`.
+  Tests : `tests/test_visio.py`.
 
 ### facecloud.py — entrée dans FaceCloud (depuis 2026-10-12)
 - `GET  /api/facecloud/invitation/{token}` — PUBLIC : expéditeur, nombre de
@@ -638,6 +678,17 @@ rend `email`/`token` inutiles. Interface : `UPlanet/earth/ucloud.html` (FaceClou
 - `mailjet_prefs.html` — Page préférences complète avec section KIN
 - `mailjet_success.html` — Confirmation sauvegarde
 - `mailjet_error.html` — Page d'erreur
+
+
+### account.py — « Mon compte » du MULTIPASS (NIP-98, remplace /mailjet à terme)
+- `GET  /api/account/overview` — état complet (offre, quota, g1pub, sécurité, flux de notification, mémoire) ; interface : `UPlanet/earth/moncompte.html`
+- `POST /api/account/prefs` — canaux e-mail/NOSTR par flux + préférences KIN (champs présents seulement, clés inconnues refusées)
+- `POST /api/account/pass`, `POST /api/account/pass/reveal` — bloquer/réactiver la récupération par PASS ; révéler le PASS (POST, no-store)
+- Même stockage que `/mailjet` (`.mailjet`) : les deux écrans restent cohérents pendant la transition. `/mailjet` exige désormais TOUJOURS un jeton valide (absence de jeton → page de connexion).
+
+### savoirs.py — révisions chaînées (logique git sur 30500-30505)
+- `POST /api/savoirs/pin` (NIP-98) — épingle un événement de savoir signé, renvoie son CID (JSON canonique)
+- `GET  /api/savoirs/history?cid=` — remonte la chaîne `prev` (public, lecture seule). Convention : `UPlanet/earth/CLAUDE.md`
 
 ### Autres routers
 - `analytics.py` — Statistiques d'usage

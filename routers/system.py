@@ -111,7 +111,11 @@ async def get_cookie_or_list(
     if "application/json" in accept:
         from routers.cookie import list_cookies
         return await list_cookies(request, npub=npub, html=html)
-    return render_page(request, "cookie.html")
+    # L'ancien gestionnaire HTML s'authentifiait par simple npub (NIP-42, sans preuve de
+    # possession) : les routes /cookie exigent maintenant une signature NIP-98. La gestion
+    # des cookies vit dans « Mon compte » (signature par l'extension / la clé du membre).
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/earth/moncompte.html#liens", status_code=303)
 
 @router.get("/terms", response_class=HTMLResponse, summary="Terms of Service", description="Serve Terms of Service template.")
 async def get_terms_of_service(request: Request):

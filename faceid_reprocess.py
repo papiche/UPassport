@@ -251,6 +251,12 @@ def analyze_quick(email: str, paths: list) -> tuple:
     juste après un import. Retourne (chemins non traités, compteurs par
     statut) ; les chemins non traités (ComfyUI injoignable) sont à confier
     au relais NOSTR par l'appelant."""
+    from services import analysis_prefs
+    _udir = cloud_storage.ucloud_dir(email)
+    _prefs = analysis_prefs.load(_udir)
+    if not _prefs["faces"]:
+        return [], {}
+    paths = [p for p in paths if not analysis_prefs.is_excluded(_udir, p, _prefs)]   # dossiers exclus : jamais analysés
     counts: dict = {}
     durations: list = []
     lock = threading.Lock()
@@ -352,6 +358,12 @@ def main() -> int:
         print(f"ERROR:faceid_reprocess:{email}: un rattrapage est déjà en cours", file=sys.stderr)
         return 1
 
+    from services import analysis_prefs
+    _udir = cloud_storage.ucloud_dir(email)
+    _prefs = analysis_prefs.load(_udir)
+    if not _prefs["faces"]:
+        _log(f"{email} : reconnaissance des visages désactivée par le membre — rien à faire")
+        return 0
     idx = cloud_storage.load_index(email)
     todo = sorted(
         path for path, e in idx["entries"].items()
@@ -360,6 +372,7 @@ def main() -> int:
         and e.get("origin") != "facecloud-share"
         and _status_of(e) in wanted
         and _checked_before(e, before)
+        and not analysis_prefs.is_excluded(_udir, path, _prefs)
     )
     if args.limit:
         todo = todo[: args.limit]

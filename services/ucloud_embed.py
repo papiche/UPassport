@@ -132,11 +132,12 @@ def pending(udir: Path, model: str = MODEL, limit: int = 100000) -> List[Tuple[s
     """[(cid, desc_text normalisé, texte lisible de la description)] à vectoriser (plus récentes d'abord)."""
     conn = ucloud_db.connect(udir)
     ensure_table(conn)
+    excl, xp = ucloud_db._prefs().sql_not_excluded(udir, "e.path")     # dossiers exclus par le membre
     rows = conn.execute(
         "SELECT e.cid, e.desc_text, json_extract(e.data,'$.desc.text') FROM entries e LEFT JOIN embeddings m ON m.cid=e.cid "
         "WHERE e.type='file' AND e.cid IS NOT NULL AND e.mime LIKE 'image/%' AND e.desc_text IS NOT NULL "
-        "AND (m.cid IS NULL OR m.model<>? OR m.dsrc IS NOT e.desc_text) "
-        f"ORDER BY {ucloud_db._TAKEN.replace('taken_at', 'e.taken_at').replace('mtime', 'e.mtime')} DESC LIMIT ?", (model, limit)).fetchall()
+        f"AND (m.cid IS NULL OR m.model<>? OR m.dsrc IS NOT e.desc_text) {excl} "
+        f"ORDER BY {ucloud_db._TAKEN.replace('taken_at', 'e.taken_at').replace('mtime', 'e.mtime')} DESC LIMIT ?", (model, *xp, limit)).fetchall()
     seen, out = set(), []
     for cid, norm, text in rows:           # une photo en plusieurs exemplaires (même CID) : un seul calcul
         if cid not in seen:

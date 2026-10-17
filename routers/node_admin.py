@@ -183,7 +183,7 @@ def _serialize_schema(raw_config: dict, only_category: Optional[str] = None) -> 
 @router.get("/api/nostr/admin/node_config")
 async def get_node_config(request: Request, uplanetname: Optional[str] = None):
     """Config coopérative en whitelist stricte — valeurs masquées si sensibles.
-    Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    Auth signature NIP-98 du Capitaine."""
     await _check_admin_auth(request, uplanetname)
     raw = await coop_load_raw()
     return JSONResponse({"categories": _serialize_schema(raw)})
@@ -345,7 +345,7 @@ def _arbor_branches() -> list:
 async def get_arbor_status(request: Request, uplanetname: Optional[str] = None, log: int = 0):
     """Statut ARBOR : seuils effectifs (même moteur de rendu que ⚙️ NODE),
     branches en attente de revue, derniers runs (audit), état du run en
-    cours. Lecture seule — auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    cours. Lecture seule — auth signature NIP-98 du Capitaine."""
     await _check_admin_auth(request, uplanetname)
     raw = await coop_load_raw()
     state = _read_json_file(ARBOR_STATE_FILE)
@@ -375,6 +375,831 @@ async def get_arbor_status(request: Request, uplanetname: Optional[str] = None, 
             except Exception:
                 pass
     return JSONResponse(result)
+
+
+# ── STATION — état en direct + journaux (lecture seule) ─────────────────────
+# Complète 12345.json (instantané mis en cache par _12345.sh) par des mesures
+# prises à l'appel : services systemd, disque, mémoire, charge. Aucune action
+# n'est exposée ici (pas de restart HTTP) : la console affiche la commande à copier.
+_STATION_UNITS = ("astroport", "upassport", "ipfs", "strfry", "docker")
+_STATION_FILE_LOGS = {
+    "file:54321": ("UPassport (54321.log)", "54321.log"),
+    "file:IA": ("IA (IA.log)", "IA.log"),
+    "file:multipass": ("MULTIPASS refresh", "MULTIPASS.refresh.log"),
+    "file:bro_dm": ("BRO DM daemon", "bro_dm_daemon.log"),
+    "file:mailjet": ("Mailjet", "mailjet.log"),
+    "file:purge": ("Purge étrangers", "purge_nostr_strangers.log"),
+    "file:destroy": ("Destruction MULTIPASS", "nostr_destroy_tw.log"),
+    "file:synastry": ("Synastrie", "kin_synastry_trigger.log"),
+}
+STATION_LOG_MAX_LINES = 1000
+
+
+def _station_own_json() -> dict:
+    cands = [p for p in (settings.ZEN_PATH / "tmp").glob("*/12345.json") if p.is_file()]
+    if not cands:
+        return {}
+    data = _read_json_file(max(cands, key=lambda p: p.stat().st_mtime))
+    data.pop("boots", None)
+    return data
+
+
+def _station_swarm() -> list:
+    out = []
+    swarm_dir = settings.ZEN_PATH / "tmp" / "swarm"
+    if not swarm_dir.is_dir():
+        return out
+    for f in sorted(swarm_dir.glob("*/12345.json")):
+        d = _read_json_file(f)
+        cap = d.get("capacities") or {}
+        out.append({
+            "id": f.parent.name, "hostname": d.get("hostname"), "captain": d.get("captain"),
+            "city": d.get("IPCity"), "power_score": cap.get("power_score"), "tier": cap.get("provider_tier"),
+            "arbor_eligible": cap.get("arbor_eligible"), "date": d.get("date"), "created": d.get("created"),
+            "astroport": d.get("astroport"),
+        })
+    return out
+
+
+def _station_live() -> dict:
+    services = []
+    for unit in _STATION_UNITS:
+        try:
+            r = subprocess.run(["systemctl", "show", f"{unit}.service", "-p", "LoadState", "-p", "ActiveState",
+                                "-p", "SubState", "-p", "ActiveEnterTimestamp"],
+                               capture_output=True, text=True, timeout=5)
+            kv = dict(l.split("=", 1) for l in r.stdout.splitlines() if "=" in l)
+        except Exception as e:
+            kv = {"LoadState": "error", "ActiveState": str(e)[:60]}
+        if kv.get("LoadState") == "not-found":
+            continue
+        services.append({"unit": unit, "active": kv.get("ActiveState") == "active", "state": kv.get("ActiveState"),
+                         "sub": kv.get("SubState"), "since": kv.get("ActiveEnterTimestamp", "")})
+    disks = []
+    for mount in ("/", str(Path.home() / ".ipfs")):
+        try:
+            du = shutil.disk_usage(mount)
+            disks.append({"mount": mount, "total": du.total, "used": du.used, "free": du.free,
+                          "pct": round(du.used * 100 / du.total, 1)})
+        except Exception:
+            pass
+    mem = {}
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            k, v = line.split(":", 1)
+            if k in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree"):
+                mem[k] = int(v.strip().split()[0]) * 1024
+    except Exception:
+        pass
+    try:
+        load = list(os.getloadavg())
+    except Exception:
+        load = []
+    try:
+        uptime = float(Path("/proc/uptime").read_text().split()[0])
+    except Exception:
+        uptime = None
+    return {"services": services, "disks": disks, "mem": mem, "load": load, "cpu_count": os.cpu_count(),
+            "uptime_s": uptime, "now": int(time.time())}
+
+
+def _station_log_sources() -> list:
+    tmp = settings.ZEN_PATH / "tmp"
+    src = [{"key": f"journal:{u}", "label": f"journal · {u}", "kind": "journal"} for u in _STATION_UNITS]
+    for key, (label, fname) in _STATION_FILE_LOGS.items():
+        f = tmp / fname
+        if f.is_file():
+            src.append({"key": key, "label": label, "kind": "file", "size": f.stat().st_size})
+    runs = sorted(tmp.glob("arbor_run.*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if runs:
+        src.append({"key": "file:arbor_last", "label": "ARBOR · dernier run", "kind": "file", "size": runs[0].stat().st_size})
+    return src
+
+
+def _station_read_log(source: str, lines: int, level: str) -> dict:
+    lines = max(10, min(int(lines), STATION_LOG_MAX_LINES))
+    tmp = settings.ZEN_PATH / "tmp"
+    if source.startswith("journal:"):
+        unit = source.split(":", 1)[1]
+        if unit not in _STATION_UNITS:
+            raise HTTPException(status_code=400, detail="Source inconnue.")
+        cmd = ["journalctl", "-u", f"{unit}.service", "-n", str(lines), "--no-pager", "-o", "short-iso"]
+        if level == "warn":
+            cmd += ["-p", "warning"]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        if r.returncode != 0 and not r.stdout:
+            raise HTTPException(status_code=500, detail=(r.stderr or "journalctl indisponible").strip()[:300])
+        return {"source": source, "text": r.stdout}
+    if source == "file:arbor_last":
+        runs = sorted(tmp.glob("arbor_run.*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+        path = runs[0] if runs else None
+    elif source in _STATION_FILE_LOGS:
+        path = tmp / _STATION_FILE_LOGS[source][1]
+    else:
+        raise HTTPException(status_code=400, detail="Source inconnue.")
+    if not path or not path.is_file():
+        raise HTTPException(status_code=404, detail="Journal absent.")
+    size = path.stat().st_size
+    with open(path, "rb") as f:
+        f.seek(max(0, size - 400_000))
+        chunk = f.read().decode("utf-8", errors="replace")
+    out = chunk.splitlines()[-lines:]
+    if level == "warn":
+        out = [l for l in out if re.search(r"error|warn|erreur|échec|fail|❌|⚠️|traceback", l, re.I)]
+    return {"source": source, "text": "\n".join(out)}
+
+
+@router.get("/api/nostr/admin/station_live")
+async def get_station_live(request: Request, uplanetname: Optional[str] = None):
+    """État de la station pour la console Capitaine : 12345.json (instantané),
+    mesures en direct (services systemd, disque, mémoire, charge), essaim connu
+    et sources de journaux disponibles. Lecture seule — NIP-98."""
+    await _check_admin_auth(request, uplanetname)
+    live = await asyncio.to_thread(_station_live)
+    return JSONResponse({
+        "station": _station_own_json(), "live": live,
+        "swarm": _station_swarm(), "log_sources": _station_log_sources(),
+    })
+
+
+@router.get("/api/nostr/admin/station_log")
+async def get_station_log(request: Request, source: str, lines: int = 200, level: str = "all",
+                          uplanetname: Optional[str] = None):
+    """Fin de journal (lecture seule, sources en liste blanche : unités systemd
+    de la station et journaux ~/.zen/tmp connus). level=warn : erreurs/alertes."""
+    await _check_admin_auth(request, uplanetname)
+    return JSONResponse(await asyncio.to_thread(_station_read_log, source, lines, level if level in ("all", "warn") else "all"))
+
+
+# ── TUNNELS IPFS P2P (DRAGONS & TUNNELS) ────────────────────────────────────
+# Lecture : `ipfs p2p ls` (sens déterminé par la 2e colonne : /p2p/<soi> =
+# service PUBLIÉ par cette station ; /ip4|/ip6/… = tunnel CLIENT vers un autre
+# nœud), ~/.zen/tunnels/enabled (tunnels persistants, watchdog 20h12) et les
+# x_<service>.sh du swarm (services proposés par les autres stations).
+# Écriture : UNIQUEMENT via astrosystemctl (jamais de commande ipfs libre),
+# arguments validés (service/nœud en liste blanche), NIP-98 Capitaine exclusif.
+_TUNNEL_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,29}$")
+_TUNNEL_NODE_RE = re.compile(r"^12D3KooW[A-Za-z0-9]{30,60}$")
+_TUNNEL_ACTIONS = ("connect", "enable", "disable", "close", "share", "hide")
+ASTROSYSTEMCTL_SH = REPO_ROOT / "admin" / "system" / "astrosystemctl.sh"
+TUNNELS_ENABLED_DIR = Path.home() / ".zen" / "tunnels" / "enabled"
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _tunnel_env():
+    env = dict(os.environ)
+    env["PATH"] = f"{Path.home()}/.local/bin:/usr/local/bin:" + env.get("PATH", "")
+    return env
+
+
+def _own_node_id() -> str:
+    own = _station_own_json()
+    return own.get("ipfsnodeid") or ""
+
+
+def _p2p_ls() -> list:
+    """[{proto, a, b}] — 3 colonnes de `ipfs p2p ls`. Erreur → exception HTTP 503."""
+    try:
+        r = subprocess.run(["ipfs", "p2p", "ls"], capture_output=True, text=True, timeout=10, env=_tunnel_env())
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"ipfs injoignable : {e}")
+    if r.returncode != 0:
+        raise HTTPException(status_code=503, detail=(r.stderr or "ipfs p2p ls a échoué").strip()[:300])
+    out = []
+    for line in r.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0].startswith("/x/"):
+            out.append({"proto": parts[0], "a": parts[1], "b": parts[2]})
+    return out
+
+
+def _private_services() -> list:
+    env = REPO_ROOT / ".env"
+    try:
+        for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = re.match(r'^DRAGON_PRIVATE_SERVICES=["\']?([^"\']*)', line)
+            if m:
+                return m.group(1).split()
+    except Exception:
+        pass
+    return []
+
+
+def _tcp_open(port: int) -> bool:
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", int(port)), timeout=0.6):
+            return True
+    except Exception:
+        return False
+
+
+def _tunnels_state() -> dict:
+    own = _own_node_id()
+    private = _private_services()
+    published, consumed = {}, {}
+    for e in _p2p_ls():
+        slug_node = e["proto"][3:]
+        if e["a"].startswith("/p2p/"):
+            slug = slug_node.rsplit("-12D3", 1)[0]
+            m = re.search(r"tcp/(\d+)", e["b"])
+            published[e["proto"]] = {"slug": slug, "proto": e["proto"], "port": int(m.group(1)) if m else None,
+                                     "private": slug in private}
+        else:
+            remote = e["b"].replace("/p2p/", "")
+            slug = slug_node[: -(len(remote) + 1)] if slug_node.endswith("-" + remote) else slug_node
+            m = re.search(r"tcp/(\d+)", e["a"])
+            c = consumed.setdefault(e["proto"], {"slug": slug, "proto": e["proto"], "remote": remote, "lports": []})
+            if m:
+                c["lports"].append(int(m.group(1)))
+    for c in consumed.values():
+        c["lports"] = sorted(set(c["lports"]))
+        c["reachable"] = any(_tcp_open(p) for p in c["lports"])
+    persistent = []
+    if TUNNELS_ENABLED_DIR.is_dir():
+        for f in sorted(TUNNELS_ENABLED_DIR.glob("x_*.sh")):
+            m = re.match(r"^x_(.+?)[_.](12D3KooW[A-Za-z0-9]+)\.sh$", f.name)
+            if m:
+                persistent.append({"service": m.group(1), "node_id": m.group(2), "file": f.name})
+    consumed_keys = {(c["slug"], c["remote"]) for c in consumed.values()}
+    persistent_keys = {(x["service"], x["node_id"]) for x in persistent}
+    available = []
+    swarm_dir = settings.ZEN_PATH / "tmp" / "swarm"
+    if swarm_dir.is_dir():
+        for nd in sorted(swarm_dir.iterdir()):
+            if not nd.is_dir() or not _TUNNEL_NODE_RE.match(nd.name):
+                continue
+            j = _read_json_file(nd / "12345.json")
+            cap = j.get("capacities") or {}
+            for xs in sorted(nd.glob("x_*.sh")):
+                svc = xs.stem[2:]
+                try:
+                    pm = re.search(r'NATIVE_PORT="(\d+)"', xs.read_text(encoding="utf-8", errors="replace"))
+                except Exception:
+                    pm = None
+                available.append({
+                    "service": svc, "node_id": nd.name, "hostname": j.get("hostname"), "captain": j.get("captain"),
+                    "power_score": cap.get("power_score"), "tier": cap.get("provider_tier"), "port": int(pm.group(1)) if pm else None,
+                    "connected": (svc, nd.name) in consumed_keys, "persistent": (svc, nd.name) in persistent_keys,
+                })
+    return {"own_id": own, "published": list(published.values()), "consumed": list(consumed.values()),
+            "persistent": persistent, "available": available, "private": private}
+
+
+def _tunnel_action(action: str, service: str, node_id: str) -> dict:
+    env = _tunnel_env()
+    if action == "close":
+        # tunnel client non persistant : protocole exact lu dans `ipfs p2p ls`, jamais fourni tel quel
+        target = f"/x/{service}-{node_id}"
+        if not any(e["proto"] == target and not e["a"].startswith("/p2p/") for e in _p2p_ls()):
+            raise HTTPException(status_code=404, detail="Tunnel client introuvable.")
+        r = subprocess.run(["ipfs", "p2p", "close", "-p", target], capture_output=True, text=True, timeout=20, env=env)
+        return {"ok": r.returncode == 0, "output": (r.stdout + r.stderr).strip()[-600:]}
+    if action in ("connect", "enable", "disable"):
+        arg = service if action == "disable" else f"{service}@{node_id}"
+        cmd = [str(ASTROSYSTEMCTL_SH), action, arg]
+    else:  # share / hide : DRAGON_PRIVATE_SERVICES
+        cmd = [str(ASTROSYSTEMCTL_SH), "local", action, service]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=90, env=env, stdin=subprocess.DEVNULL)
+    out = _ANSI_RE.sub("", (r.stdout + r.stderr)).strip()
+    failed = r.returncode != 0 or out.lstrip().startswith("❌") or "\n❌" in out
+    return {"ok": not failed, "output": out[-1500:]}
+
+
+@router.get("/api/nostr/admin/tunnels")
+async def get_tunnels(request: Request, uplanetname: Optional[str] = None):
+    """Tunnels IPFS P2P de la station : services publiés, tunnels clients ouverts
+    (avec test TCP du port local), tunnels persistants (watchdog) et services
+    disponibles chez les autres stations. Lecture seule — NIP-98."""
+    await _check_admin_auth(request, uplanetname)
+    return JSONResponse(await asyncio.to_thread(_tunnels_state))
+
+
+@router.post("/api/nostr/admin/tunnel_action")
+async def post_tunnel_action(request: Request):
+    """Pilote un tunnel via astrosystemctl. Body : {action, service, node_id?}.
+    connect/enable (service+node_id du swarm), disable/close, share/hide (publication
+    du service local au swarm). NIP-98 Capitaine EXCLUSIF."""
+    body = await safe_json_body(request)
+    action = (body.get("action") or "").strip()
+    service = (body.get("service") or "").strip()
+    node_id = (body.get("node_id") or "").strip()
+    pubkey = await require_captain_signature(request)
+    if action not in _TUNNEL_ACTIONS:
+        raise HTTPException(status_code=400, detail=f"action invalide (attendu : {', '.join(_TUNNEL_ACTIONS)})")
+    if not _TUNNEL_SLUG_RE.match(service):
+        raise HTTPException(status_code=400, detail="service invalide.")
+    if action in ("connect", "enable", "close"):
+        if not _TUNNEL_NODE_RE.match(node_id):
+            raise HTTPException(status_code=400, detail="node_id invalide.")
+        if action != "close" and not (settings.ZEN_PATH / "tmp" / "swarm" / node_id).is_dir():
+            raise HTTPException(status_code=404, detail="Nœud absent du swarm.")
+    if not ASTROSYSTEMCTL_SH.is_file():
+        raise HTTPException(status_code=500, detail="astrosystemctl.sh introuvable sur cette station.")
+    result = await asyncio.to_thread(_tunnel_action, action, service, node_id)
+    _arbor_audit("tunnel", mode=f"tunnel-{action}", service=service, node_id=node_id, rc=0 if result["ok"] else 1, captain_hex=pubkey)
+    logger.info(f"Admin tunnel_action: {action} {service} {node_id[:14]} ok={result['ok']} captain={pubkey[:16]}")
+    return JSONResponse(result, status_code=200 if result["ok"] else 422)
+
+
+# ── DOCKER — conteneurs et piles (compose) : voir, arrêter, démarrer ─────────
+# Lecture : `docker ps -a` regroupé par projet compose (une « pile » = Dify, Open WebUI…) et
+# consommation (`docker stats`, à la demande). Écriture : stop | start | restart d'UN conteneur ou
+# d'UNE pile, NIP-98 Capitaine exclusif ; la cible doit exister dans `docker ps -a` (jamais de nom
+# ou de commande libre) ; aucune suppression, aucun `docker run` : rien n'est détruit, tout se redémarre.
+_DOCKER_ACTIONS = ("stop", "start", "restart")
+_DOCKER_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$")
+_DOCKER_FMT = "{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.Label \"com.docker.compose.project\"}}|{{.Label \"com.docker.compose.service\"}}|{{.Label \"com.docker.compose.project.working_dir\"}}"
+
+
+def _docker_app(c: dict) -> dict:
+    """Application (« pile ») d'un conteneur : le projet compose seul est trompeur — ici Dify ET le Qdrant
+    d'Astroport partagent le projet « docker » ; arrêter ce projet entier couperait la mémoire de BRO."""
+    name, image, project = c["name"], c["image"], c["project"]
+    if name == "astroport-qdrant" or ("qdrant" in image and project):
+        return {"app": "qdrant", "label": "Qdrant — mémoire vectorielle", "critical": True,
+                "impact": "Mémoire de BRO, recherche sémantique et reconnaissance des visages de FaceCloud"}
+    workdir = c.get("workdir", "")
+    if project == "dify" or "/dify/" in workdir + "/" or (project == "docker" and name.startswith("docker-")):
+        return {"app": "dify", "label": "Dify — workflows IA", "critical": False,
+                "impact": "Les workflows Dify (aucun autre service de la station n'en dépend)"}
+    if project == "ai-company" or "open-webui" in image:
+        return {"app": "open-webui", "label": "Open WebUI — chat IA", "critical": False,
+                "impact": "L'interface de chat Open WebUI"}
+    if "bgutil" in name or "bgutil" in image:
+        return {"app": "bgutil", "label": "Jetons YouTube (yt-dlp)", "critical": False,
+                "impact": "Les téléchargements YouTube de la station"}
+    key = project or name
+    return {"app": key, "label": key, "critical": False, "impact": ""}
+
+
+def _docker(*args, timeout=60):
+    return subprocess.run(["docker", *args], capture_output=True, text=True, timeout=timeout, env=_tunnel_env())
+
+
+def _docker_list() -> list:
+    r = _docker("ps", "-a", "--format", _DOCKER_FMT, timeout=20)
+    if r.returncode != 0:
+        raise HTTPException(status_code=503, detail=("Docker indisponible : " + (r.stderr or "").strip())[:300])
+    out = []
+    for line in r.stdout.splitlines():
+        f = line.split("|")
+        if len(f) < 8:
+            continue
+        c = {"id": f[0], "name": f[1], "image": f[2], "state": f[3], "status": f[4], "ports": f[5],
+             "project": f[6], "service": f[7], "workdir": f[8] if len(f) > 8 else ""}
+        c.update(_docker_app(c))
+        out.append(c)
+    return out
+
+
+def _docker_stats() -> dict:
+    r = _docker("stats", "--no-stream", "--format", "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}", timeout=40)
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split("|")
+        if len(f) == 4:
+            out[f[0]] = {"cpu": f[1], "mem": f[2].split("/")[0].strip(), "mem_pct": f[3]}
+    return out
+
+
+def _docker_act(action: str, kind: str, target: str) -> dict:
+    items = _docker_list()
+    if kind == "app":
+        ids = [c["id"] for c in items if c["app"] == target]
+    else:
+        ids = [c["id"] for c in items if c["name"] == target]
+    if not ids:
+        raise HTTPException(status_code=404, detail="Cible introuvable parmi les conteneurs Docker.")
+    # on n'agit que sur ce qui a un sens : arrêter ce qui tourne, démarrer ce qui est arrêté
+    byid = {c["id"]: c for c in items}
+    if action == "stop":
+        ids = [i for i in ids if byid[i]["state"] == "running"]
+    elif action == "start":
+        # « created » = jamais démarré (ex. conteneur de modèle) : on ne le démarre pas par un geste de pile
+        ids = [i for i in ids if byid[i]["state"] in ("exited", "paused", "dead")]
+    if not ids:
+        return {"ok": True, "changed": 0, "output": "Rien à faire : déjà dans l'état demandé."}
+    args = [action] + (["-t", "20"] if action in ("stop", "restart") else []) + ids
+    r = _docker(*args, timeout=180)
+    return {"ok": r.returncode == 0, "changed": len(ids), "output": ((r.stdout or "") + (r.stderr or "")).strip()[-600:]}
+
+
+@router.get("/api/nostr/admin/docker_list")
+async def get_docker_list(request: Request, uplanetname: Optional[str] = None):
+    """Conteneurs Docker de la station (lecture seule), avec leur projet compose. NIP-98 Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    return JSONResponse({"containers": await asyncio.to_thread(_docker_list)})
+
+
+@router.get("/api/nostr/admin/docker_stats")
+async def get_docker_stats(request: Request, uplanetname: Optional[str] = None):
+    """Consommation instantanée (CPU, mémoire) par conteneur actif — ~2 s : appelée à la demande."""
+    await _check_admin_auth(request, uplanetname)
+    return JSONResponse({"stats": await asyncio.to_thread(_docker_stats)})
+
+
+@router.post("/api/nostr/admin/docker_action")
+async def post_docker_action(request: Request):
+    """Body : {action: stop|start|restart, kind: "container"|"app", target}. NIP-98 Capitaine EXCLUSIF.
+    `app` = application calculée par _docker_app (Dify, Open WebUI, Qdrant…), jamais le projet compose brut."""
+    body = await safe_json_body(request)
+    action = (body.get("action") or "").strip()
+    kind = (body.get("kind") or "container").strip()
+    target = (body.get("target") or "").strip()
+    pubkey = await require_captain_signature(request)
+    if action not in _DOCKER_ACTIONS or kind not in ("container", "app") or not _DOCKER_NAME_RE.match(target):
+        raise HTTPException(status_code=400, detail="action, type ou cible invalide.")
+    result = await asyncio.to_thread(_docker_act, action, kind, target)
+    _arbor_audit("docker", mode=f"docker-{action}", kind=kind, target=target, rc=0 if result["ok"] else 1, captain_hex=pubkey)
+    logger.info(f"Admin docker_action: {action} {kind} {target} changed={result['changed']} ok={result['ok']} captain={pubkey[:16]}")
+    return JSONResponse(result, status_code=200 if result["ok"] else 422)
+
+
+# ── QDRANT — cartographie des collections (lecture seule) ───────────────────
+# Vue d'ensemble (collections, familles, propriétaires MULTIPASS) et projection
+# 2D (ACP) d'un échantillon de vecteurs pour la représentation graphique de
+# nostr_admin. CONFIDENTIALITÉ : les collections personnelles (memory_*, faces_*)
+# contiennent des conversations et des visages de membres — le Capitaine voit leur
+# structure, leur volume et la forme du nuage de points, JAMAIS leur contenu.
+_QDRANT_BASE = os.environ.get("QDRANT_URL", "http://127.0.0.1:6333")
+_QDRANT_PRIVATE_PREFIXES = ("memory_", "faces_")
+_QDRANT_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,120}$")
+QDRANT_PROJECTION_MAX = 500
+
+
+def _qdrant_headers() -> dict:
+    try:
+        for line in (Path.home() / ".zen" / "ai-company" / ".env").read_text().splitlines():
+            if line.startswith("QDRANT_API_KEY="):
+                return {"api-key": line.split("=", 1)[1].strip()}
+    except Exception:
+        pass
+    return {}
+
+
+def _qdrant_get(path: str):
+    import httpx
+    try:
+        r = httpx.get(_QDRANT_BASE + path, headers=_qdrant_headers(), timeout=15)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Qdrant injoignable : {e}")
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Qdrant a répondu {r.status_code}")
+    return r.json()
+
+
+def _qdrant_family(name: str) -> str:
+    for pre, fam in (("memory_", "memory"), ("faces_", "faces")):
+        if name.startswith(pre):
+            return fam
+    if name.startswith("veille_"):
+        return "veille"
+    return "system"
+
+
+def _hex_owners() -> dict:
+    """prefixe/hex NOSTR → email, depuis ~/.zen/game/nostr/*/HEX (comptes de cette station)."""
+    owners = {}
+    base = settings.GAME_PATH / "nostr"
+    if base.is_dir():
+        for d in base.glob("*@*"):
+            try:
+                h = (d / "HEX").read_text().strip()
+            except Exception:
+                continue
+            if len(h) == 64:
+                owners[h] = d.name
+    return owners
+
+
+def _qdrant_overview() -> dict:
+    cols = _qdrant_get("/collections")["result"]["collections"]
+    owners = _hex_owners()
+    out = []
+    for c in cols:
+        name = c["name"]
+        try:
+            i = _qdrant_get(f"/collections/{name}")["result"]
+        except HTTPException:
+            out.append({"name": name, "family": _qdrant_family(name), "error": True})
+            continue
+        vec = i["config"]["params"]["vectors"]
+        dim, dist = (vec.get("size"), vec.get("distance")) if "size" in vec else (None, None)
+        if dim is None and isinstance(vec, dict):  # vecteurs nommés
+            first = next(iter(vec.values()), {})
+            dim, dist = first.get("size"), first.get("distance")
+        owner_hex = owner_email = None
+        suffix = name.split("_", 1)[1] if "_" in name else ""
+        if _qdrant_family(name) in ("memory", "faces") and re.fullmatch(r"[0-9a-f]{16,64}", suffix):
+            for h, em in owners.items():
+                if h.startswith(suffix):
+                    owner_hex, owner_email = h, em
+                    break
+        out.append({
+            "name": name, "family": _qdrant_family(name), "points": i.get("points_count") or 0,
+            "indexed": i.get("indexed_vectors_count") or 0, "segments": i.get("segments_count"),
+            "status": i.get("status"), "dim": dim, "distance": dist,
+            "private": name.startswith(_QDRANT_PRIVATE_PREFIXES), "owner_email": owner_email,
+            "payload_keys": sorted((i.get("payload_schema") or {}).keys()),
+        })
+    try:
+        version = _qdrant_get("/").get("version")
+    except HTTPException:
+        version = None
+    return {"version": version, "collections": out, "total_points": sum(c.get("points", 0) for c in out)}
+
+
+def _qdrant_project(name: str, limit: int, mine_hex: str = "") -> dict:
+    import httpx
+    import numpy as np
+    names = {c["name"] for c in _qdrant_get("/collections")["result"]["collections"]}
+    if name not in names or not _QDRANT_NAME_RE.match(name):
+        raise HTTPException(status_code=404, detail="Collection inconnue.")
+    private = name.startswith(_QDRANT_PRIVATE_PREFIXES)
+    limit = max(10, min(int(limit), QDRANT_PROJECTION_MAX))
+    pts, offset = [], None
+    while len(pts) < limit:
+        body = {"limit": min(250, limit - len(pts)), "with_vector": True, "with_payload": not private}
+        if offset is not None:
+            body["offset"] = offset
+        try:
+            r = httpx.post(f"{_QDRANT_BASE}/collections/{name}/points/scroll", headers=_qdrant_headers(), json=body, timeout=30)
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Qdrant injoignable : {e}")
+        if r.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"Qdrant a répondu {r.status_code}")
+        res = r.json()["result"]
+        pts += res.get("points", [])
+        offset = res.get("next_page_offset")
+        if offset is None:
+            break
+    mine_ids = set()
+    if mine_hex and name == f"faces_{mine_hex}":
+        # les visages du Capitaine lui-même : toujours présents dans le nuage, repérés par leur identifiant
+        flt = {"must": [{"key": "pubkey", "match": {"value": mine_hex}}]}
+        try:
+            r = httpx.post(f"{_QDRANT_BASE}/collections/{name}/points/scroll", headers=_qdrant_headers(), timeout=30,
+                           json={"limit": 150, "with_vector": True, "with_payload": False, "filter": flt})
+            if r.status_code == 200:
+                have = {str(p["id"]) for p in pts}
+                for p in r.json()["result"].get("points", []):
+                    mine_ids.add(str(p["id"]))
+                    if str(p["id"]) not in have:
+                        pts.append(p)
+        except Exception:
+            pass
+        # ceux déjà tirés au hasard dans l'échantillon de base peuvent aussi être « moi » : un seul passage filtré
+        try:
+            ids = [p["id"] for p in pts]
+            r = httpx.post(f"{_QDRANT_BASE}/collections/{name}/points/scroll", headers=_qdrant_headers(), timeout=30,
+                           json={"limit": len(ids) or 1, "with_vector": False, "with_payload": False,
+                                 "filter": {"must": [flt["must"][0], {"has_id": ids}]}})
+            if r.status_code == 200:
+                mine_ids |= {str(p["id"]) for p in r.json()["result"].get("points", [])}
+        except Exception:
+            pass
+    vecs = [p["vector"] for p in pts if isinstance(p.get("vector"), list)]
+    if len(vecs) < 3:
+        return {"name": name, "private": private, "points": [], "variance": [0, 0], "sampled": len(vecs)}
+    X = np.asarray(vecs, dtype=np.float32)
+    X -= X.mean(axis=0)
+    _, S, Vt = np.linalg.svd(X, full_matrices=False)
+    xy = X @ Vt[:2].T
+    centroid_xy = None
+    if mine_ids:
+        mv = np.asarray([p["vector"] for p in pts if str(p["id"]) in mine_ids and isinstance(p.get("vector"), list)], dtype=np.float32)
+        if len(mv):
+            centroid_xy = ((mv.mean(axis=0) - np.asarray(vecs, dtype=np.float32).mean(axis=0)) @ Vt[:2].T)
+    var = (S ** 2) / max(1e-9, (S ** 2).sum())
+    mx = float(np.abs(xy).max()) or 1.0
+    xy = xy / mx
+    if centroid_xy is not None:
+        centroid_xy = centroid_xy / mx
+    out = []
+    for p, (x, y) in zip([p for p in pts if isinstance(p.get("vector"), list)], xy):
+        item = {"id": str(p["id"]), "x": round(float(x), 4), "y": round(float(y), 4)}
+        if str(p["id"]) in mine_ids:
+            item["mine"] = True
+        if not private:
+            pl = p.get("payload") or {}
+            item["label"] = next((str(pl[k])[:90] for k in ("title", "name", "source", "path", "file", "text", "content") if pl.get(k)), "")
+            item["payload"] = {k: (v if isinstance(v, (int, float, bool)) else str(v)[:120]) for k, v in list(pl.items())[:8]}
+        out.append(item)
+    res = {"name": name, "private": private, "points": out, "variance": [round(float(var[0]), 3), round(float(var[1]), 3)], "sampled": len(out),
+           "mine_count": len(mine_ids)}
+    if centroid_xy is not None:
+        res["centroid"] = {"x": round(float(centroid_xy[0]), 4), "y": round(float(centroid_xy[1]), 4)}
+    return res
+
+
+def _qdrant_my_face(hex_pub: str) -> dict:
+    """Signature faciale du Capitaine CONNECTÉ : visages de SA clé dans SA collection faces_<hex>
+    (jamais ceux des autres). Vecteur moyen (centroïde normalisé), cohésion et quelques vecteurs."""
+    import httpx
+    import numpy as np
+    if not re.fullmatch(r"[0-9a-f]{64}", hex_pub or ""):
+        raise HTTPException(status_code=400, detail="clé invalide.")
+    name = f"faces_{hex_pub}"
+    names = {c["name"] for c in _qdrant_get("/collections")["result"]["collections"]}
+    if name not in names:
+        return {"collection": name, "count": 0, "vectors": []}
+    flt = {"must": [{"key": "pubkey", "match": {"value": hex_pub}}]}
+    cnt = httpx.post(f"{_QDRANT_BASE}/collections/{name}/points/count", headers=_qdrant_headers(), json={"filter": flt, "exact": True}, timeout=20)
+    total = cnt.json()["result"]["count"] if cnt.status_code == 200 else 0
+    r = httpx.post(f"{_QDRANT_BASE}/collections/{name}/points/scroll", headers=_qdrant_headers(), timeout=30,
+                   json={"limit": 300, "with_vector": True, "with_payload": ["timestamp"], "filter": flt})
+    pts = r.json()["result"].get("points", []) if r.status_code == 200 else []
+    vecs = [p["vector"] for p in pts if isinstance(p.get("vector"), list)]
+    if not vecs:
+        return {"collection": name, "count": total, "vectors": []}
+    M = np.asarray(vecs, dtype=np.float32)
+    c = M.mean(axis=0)
+    norm = float(np.linalg.norm(c)) or 1.0
+    cn = c / norm
+    cos = (M / np.maximum(np.linalg.norm(M, axis=1, keepdims=True), 1e-9)) @ cn
+    order = np.argsort(-cos)
+    pick = [int(order[0]), int(order[len(order) // 2]), int(order[-1])] if len(order) >= 3 else list(range(len(order)))
+    return {
+        "collection": name, "count": total, "sampled": len(vecs), "dim": int(M.shape[1]),
+        "centroid": [round(float(x), 4) for x in cn],
+        "cohesion": round(float(cos.mean()), 3), "worst": round(float(cos.min()), 3),
+        "vectors": [{"label": lab, "cos": round(float(cos[i]), 3), "timestamp": (pts[i].get("payload") or {}).get("timestamp", ""),
+                     "vector": [round(float(x), 4) for x in M[i]]} for lab, i in zip(("le plus typique", "médian", "le plus atypique"), pick)],
+    }
+
+
+@router.get("/api/nostr/admin/qdrant_overview")
+async def get_qdrant_overview(request: Request, uplanetname: Optional[str] = None):
+    """Collections Qdrant (familles, volumes, configuration, propriétaire MULTIPASS
+    des collections personnelles). Lecture seule — NIP-98 Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    return JSONResponse(await asyncio.to_thread(_qdrant_overview))
+
+
+@router.get("/api/nostr/admin/qdrant_projection")
+async def get_qdrant_projection(request: Request, name: str, limit: int = 300, uplanetname: Optional[str] = None):
+    """Projection 2D (ACP) d'un échantillon de vecteurs. Collections personnelles
+    (memory_*, faces_*) : coordonnées seules, aucun contenu. NIP-98 Capitaine."""
+    pub = await require_captain_signature(request)
+    return JSONResponse(await asyncio.to_thread(_qdrant_project, name, limit, pub.lower()))
+
+
+@router.get("/api/nostr/admin/qdrant_my_face")
+async def get_qdrant_my_face(request: Request):
+    """Signature faciale (vecteur moyen, cohésion, quelques vecteurs) du Capitaine connecté : uniquement
+    SA collection faces_<sa clé> et SES visages. NIP-98 Capitaine."""
+    pub = await require_captain_signature(request)
+    return JSONResponse(await asyncio.to_thread(_qdrant_my_face, pub.lower()))
+
+
+# ── ARBOR — relecture / fusion / nettoyage des branches arbor/* ─────────────
+# Seul endroit où une branche arbor/* peut être mergée : geste explicite du
+# Capitaine (NIP-98 EXCLUSIF) après relecture du diff — arbor_run.sh et les
+# scripts de forge, eux, ne mergent JAMAIS. Gardes : branche arbor/* existante,
+# dépôt sur master, aucun fichier SUIVI modifié (le dépôt est le répertoire de
+# travail du capitaine : un merge ne doit jamais s'y mêler à des modifications
+# non commitées), conflit → merge --abort, jamais d'état à moitié fusionné.
+_ARBOR_BRANCH_RE = re.compile(r"^arbor/[A-Za-z0-9._/-]{1,100}$")
+_ARBOR_MAIN_BRANCH = "master"
+ARBOR_DIFF_MAX_BYTES = 200_000
+
+
+def _git(repo, *args, timeout=30):
+    return subprocess.run(["git", *args], cwd=str(repo), capture_output=True, text=True, timeout=timeout)
+
+
+def _arbor_check_branch(repo, branch):
+    if not branch or not _ARBOR_BRANCH_RE.match(branch) or ".." in branch:
+        raise HTTPException(status_code=400, detail="Nom de branche invalide (arbor/… attendu).")
+    r = _git(repo, "show-ref", "--verify", "--quiet", f"refs/heads/{branch}")
+    if r.returncode != 0:
+        raise HTTPException(status_code=404, detail=f"Branche introuvable : {branch}")
+
+
+def arbor_branch_diff(repo, branch):
+    _arbor_check_branch(repo, branch)
+    rng = f"{_ARBOR_MAIN_BRANCH}...{branch}"
+    log = _git(repo, "log", "--format=%h%x09%an%x09%ad%x09%s", "--date=iso", f"{_ARBOR_MAIN_BRANCH}..{branch}")
+    stat = _git(repo, "diff", "--stat", "--no-color", rng)
+    patch = _git(repo, "diff", "--no-color", rng, timeout=60)
+    text = patch.stdout or ""
+    truncated = len(text.encode("utf-8", "replace")) > ARBOR_DIFF_MAX_BYTES
+    if truncated:
+        text = text.encode("utf-8", "replace")[:ARBOR_DIFF_MAX_BYTES].decode("utf-8", "ignore")
+    merged = _git(repo, "merge-base", "--is-ancestor", branch, _ARBOR_MAIN_BRANCH).returncode == 0
+    commits = []
+    for line in (log.stdout or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) == 4:
+            commits.append({"sha": parts[0], "author": parts[1], "date": parts[2], "subject": parts[3]})
+    return {"branch": branch, "already_merged": merged, "commits": commits,
+            "stat": stat.stdout or "", "diff": text, "truncated": truncated}
+
+
+def arbor_branch_merge(repo, branch):
+    _arbor_check_branch(repo, branch)
+    cur = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    if cur != _ARBOR_MAIN_BRANCH:
+        raise HTTPException(status_code=409, detail=f"Le dépôt est sur « {cur} », pas sur {_ARBOR_MAIN_BRANCH} — fusion refusée.")
+    dirty = _git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip()
+    if dirty:
+        n = len(dirty.splitlines())
+        raise HTTPException(status_code=409, detail=f"{n} fichier(s) suivi(s) modifié(s) dans le dépôt — commitez ou rangez-les avant de fusionner.")
+    if _git(repo, "merge-base", "--is-ancestor", branch, _ARBOR_MAIN_BRANCH).returncode == 0:
+        raise HTTPException(status_code=409, detail="Branche déjà fusionnée.")
+    r = _git(repo, "merge", "--no-ff", "--no-edit", branch, timeout=120)
+    if r.returncode != 0:
+        _git(repo, "merge", "--abort")
+        raise HTTPException(status_code=409, detail="Conflit ou échec de fusion (annulée, dépôt inchangé) : "
+                            + ((r.stdout + r.stderr).strip()[-400:] or "?"))
+    return {"merged": branch, "head": _git(repo, "rev-parse", "--short", "HEAD").stdout.strip()}
+
+
+def arbor_branch_delete(repo, branch):
+    _arbor_check_branch(repo, branch)
+    if _git(repo, "merge-base", "--is-ancestor", branch, _ARBOR_MAIN_BRANCH).returncode != 0:
+        raise HTTPException(status_code=409, detail="Branche non fusionnée — suppression refusée (travail perdu).")
+    wt = _git(repo, "worktree", "list", "--porcelain").stdout or ""
+    for block in wt.split("\n\n"):
+        if f"branch refs/heads/{branch}" in block:
+            path = block.splitlines()[0].replace("worktree ", "", 1).strip()
+            _git(repo, "worktree", "remove", "--force", path)
+    r = _git(repo, "branch", "-d", branch)
+    if r.returncode != 0:
+        raise HTTPException(status_code=409, detail=(r.stderr or r.stdout).strip()[-300:] or "Suppression impossible.")
+    return {"deleted": branch}
+
+
+def _arbor_audit(event, **fields):
+    try:
+        import datetime
+        ARBOR_AUDIT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        rec = {"event": event, "at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), **fields}
+        with open(ARBOR_AUDIT_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+@router.get("/api/nostr/admin/arbor_branch_diff")
+async def get_arbor_branch_diff(request: Request, branch: str, uplanetname: Optional[str] = None):
+    """Relecture en LECTURE SEULE d'une branche arbor/* : commits, stat, diff
+    (tronqué à 200 Ko). Auth NIP-98 du Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    return JSONResponse(await asyncio.to_thread(arbor_branch_diff, REPO_ROOT, branch))
+
+
+@router.post("/api/nostr/admin/arbor_branch_merge")
+async def post_arbor_branch_merge(request: Request):
+    """Fusionne une branche arbor/* dans master — geste explicite du Capitaine
+    (NIP-98 EXCLUSIF) après relecture. Body : {branch, confirm} ; `confirm`
+    doit répéter la branche (confirmation tapée côté UI)."""
+    body = await safe_json_body(request)
+    branch = (body.get("branch") or "").strip()
+    pubkey = await require_captain_signature(request)
+    if (body.get("confirm") or "").strip() != branch:
+        raise HTTPException(status_code=400, detail="Confirmation absente ou différente de la branche.")
+    result = await asyncio.to_thread(arbor_branch_merge, REPO_ROOT, branch)
+    _arbor_audit("merge", mode="merge", branch=branch, rc=0, captain_hex=pubkey)
+    logger.info(f"Admin arbor_branch_merge: {branch} → {_ARBOR_MAIN_BRANCH} ({result['head']}) captain={pubkey[:16]}")
+    return JSONResponse(result)
+
+
+@router.post("/api/nostr/admin/arbor_branch_delete")
+async def post_arbor_branch_delete(request: Request):
+    """Supprime une branche arbor/* DÉJÀ fusionnée (+ son worktree). NIP-98 Capitaine EXCLUSIF."""
+    body = await safe_json_body(request)
+    branch = (body.get("branch") or "").strip()
+    pubkey = await require_captain_signature(request)
+    result = await asyncio.to_thread(arbor_branch_delete, REPO_ROOT, branch)
+    _arbor_audit("cleanup", mode="cleanup", branch=branch, rc=0, captain_hex=pubkey)
+    logger.info(f"Admin arbor_branch_delete: {branch} captain={pubkey[:16]}")
+    return JSONResponse(result)
+
+
+@router.get("/api/nostr/admin/arbor_run_state")
+async def get_arbor_run_state(request: Request, uplanetname: Optional[str] = None):
+    """Suivi LÉGER d'un run (état + fin du journal) pour le rafraîchissement toutes les
+    3 s de l'interface : arbor_status coûte 0,2 à 0,7 s (config coopérative, cookies, git)
+    et n'a aucune raison d'être rappelé à chaque tick. NIP-98 Capitaine."""
+    await _check_admin_auth(request, uplanetname)
+    state = _read_json_file(ARBOR_STATE_FILE)
+    out = {"state": state}
+    if state.get("log"):
+        lp = Path(state["log"])
+        out["log_tail"] = ""
+        if lp.is_file():
+            try:
+                size = lp.stat().st_size
+                with open(lp, "rb") as f:
+                    f.seek(max(0, size - 60_000))
+                    lines = f.read().decode("utf-8", errors="replace").splitlines()
+                out["log_tail"] = "\n".join(lines[-200:])
+                out["log_lines"] = len(lines)
+            except Exception:
+                pass
+    return JSONResponse(out)
 
 
 @router.post("/api/nostr/admin/arbor_trigger")
@@ -533,7 +1358,7 @@ async def get_arbor_mined_preview(request: Request, uplanetname: Optional[str] =
     par entrée non déjà vue — coûteux, à la demande uniquement, jamais
     auto-chargé). persist=False : n'écrit RIEN dans bro_tool_requests_mined.
     json — rejouable sans jamais "consommer" un pattern qui ne serait alors
-    plus jamais signalé au capitaine. Auth UPLANETNAME ou signature NIP-98
+    plus jamais signalé au capitaine. Auth signature NIP-98
     du Capitaine (lecture seule, pas besoin de require_captain_signature)."""
     await _check_admin_auth(request, uplanetname)
     # Import LAZY, dans le handler uniquement — arbor_self_improve.py importe
@@ -599,7 +1424,7 @@ async def get_arbor_baton_status(request: Request, uplanetname: Optional[str] = 
     """Statut du bâton de parole ARBOR (cf. IA/arbor_baton.sh — gouverne
     UNIQUEMENT le cycle automatique quotidien mine-requests, jamais le
     déclenchement manuel) + liste des stations swarm éligibles pour une
-    passation. Lecture seule : auth UPLANETNAME ou NIP-98 Capitaine."""
+    passation. Lecture seule : auth NIP-98 Capitaine."""
     await _check_admin_auth(request, uplanetname)
     state = await _run_arbor_baton_sh("status")
     state["swarm_eligible_stations"] = _swarm_arbor_stations()
@@ -765,7 +1590,7 @@ async def get_purge_strangers(request: Request, uplanetname: Optional[str] = Non
     strfry FIXES, jamais un par auteur). Si une purge --clean est en cours,
     ne relance pas l'analyse (le relay est déjà occupé par les suppressions)
     et renvoie juste l'état + le tail du log. Lecture seule : auth
-    UPLANETNAME ou NIP-98 Capitaine suffit."""
+    NIP-98 Capitaine suffit."""
     await _check_admin_auth(request, uplanetname)
     running_pid = _bg_job_is_running(PURGE_LOCK_FILE)
     log_tail = _bg_job_log_tail(PURGE_LOG_FILE)
@@ -822,8 +1647,7 @@ async def get_destroy_multipass_status(request: Request, uplanetname: Optional[s
     """Statut du dernier lancement de nostr_DESTROY_TW.sh (running + tail du
     log) — permet à nostr_admin.html de suivre la progression (export backup
     chiffré, cashback G1, envoi email) sans bloquer sur une requête synchrone
-    de plusieurs dizaines de secondes. Lecture seule : auth UPLANETNAME ou
-    NIP-98 Capitaine."""
+    de plusieurs dizaines de secondes. Lecture seule : auth NIP-98 Capitaine."""
     await _check_admin_auth(request, uplanetname)
     pid = _bg_job_is_running(DESTROY_LOCK_FILE)
     return JSONResponse({"running": bool(pid), "pid": pid, "log_tail": _bg_job_log_tail(DESTROY_LOG_FILE)})
@@ -881,7 +1705,7 @@ def _synastry_stats_file() -> Path:
 async def get_synastry_stats(request: Request, uplanetname: Optional[str] = None):
     """Stats du dernier run de la section 8 (Constellations Synastriques) de
     KIN.news.sh — membres avec date de naissance, paires scannées, matches
-    trouvés. Lecture seule : auth UPLANETNAME ou NIP-98 Capitaine."""
+    trouvés. Lecture seule : auth NIP-98 Capitaine."""
     await _check_admin_auth(request, uplanetname)
     running_pid = _bg_job_is_running(SYNASTRY_LOCK_FILE)
     log_tail = _bg_job_log_tail(SYNASTRY_LOG_FILE)

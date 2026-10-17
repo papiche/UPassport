@@ -654,7 +654,7 @@ _NIP98_SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "PROPFIND"}
 # client ajoute un tag `nonce` unique (nostrFetch de ucloud.html) : un NIP-98 sans
 # nonce, signé deux fois dans la même seconde pour la même route, donne le même
 # id — le refuser casserait des clients légitimes. Préfixes concernés :
-NIP98_REPLAY_PREFIXES = ("/api/cloud", "/api/contacts", "/mailjet", "/api/facecloud", "/dav")
+NIP98_REPLAY_PREFIXES = ("/api/cloud", "/api/contacts", "/mailjet", "/api/facecloud", "/api/account", "/api/savoirs", "/dav")
 NIP98_STRICT_PREFIXES = NIP98_REPLAY_PREFIXES      # alias de compatibilité
 
 
@@ -709,7 +709,7 @@ class Nip98BindingMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and not scope["path"].startswith(("/dav", "/carddav")):
+        if scope["type"] == "http" and not scope["path"].startswith(("/dav", "/carddav", "/caldav")):
             header = next((v.decode("latin-1") for k, v in scope["headers"] if k == b"authorization"), "")
             if header.startswith("Nostr "):
                 try:
@@ -730,6 +730,22 @@ class Nip98BindingMiddleware:
                         await send({"type": "http.response.body", "body": body})
                         return
         await self.app(scope, receive, send)
+
+
+# Routes où le repli « npub + présence NIP-42 » est REFUSÉ : signature NIP-98 obligatoire. Le marqueur NIP-42
+# vit 1 h (NIP42_MARKER_MAX_AGE) et l'npub est public : pendant cette heure, n'importe qui pouvait agir au nom
+# de l'utilisateur sur les routes ci-dessous. Les autres routes gardent le repli (clients historiques : upload
+# web, scripts de la station) mais chaque usage est JOURNALISÉ « NIP42-FALLBACK » pour mesurer ce qui reste à
+# migrer avant d'étendre cette liste (ex. /api/fileupload, /upload2ipfs, /vocals, /webcam).
+NIP98_ONLY_PREFIXES = ("/api/permit/", "/cookie", "/api_access", "/api/account", "/api/savoirs/pin")
+
+
+def nip98_signer_hex(request: Request) -> Optional[str]:
+    """Clé (hex) qui a signé l'en-tête NIP-98 de la requête, ou None — sans lever d'exception."""
+    try:
+        return str(_decode_and_verify_nip98_event(request.headers.get("Authorization", ""))["pubkey"]).lower()
+    except Exception:
+        return None
 
 
 async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None), force_check: bool = False) -> str:
@@ -764,6 +780,10 @@ async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None),
             status_code=422,
             detail="npub required when no valid NIP-98 Authorization header is present"
         )
+    _path = request.url.path
+    if _path.startswith(NIP98_ONLY_PREFIXES):
+        raise HTTPException(status_code=401, detail="Signature NIP-98 requise pour cette route (repli npub/NIP-42 refusé).")
+    logger.warning(f"NIP42-FALLBACK path={_path} npub={str(npub)[:14]}… ua={request.headers.get('user-agent', '')[:40]!r}")
     auth_verified = await verify_nostr_auth(npub, force_check=force_check)
     if not auth_verified:
         raise HTTPException(
@@ -771,6 +791,31 @@ async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None),
             detail="Nostr authentication failed. Please ensure you have sent a recent NIP-42 authentication event (kind 22242) or use NIP-98."
         )
     return npub
+
+
+async def require_nip98_only(request: Request, npub: Optional[str] = None) -> str:
+    """NIP-98 STRICT : preuve de possession de la clé, sans repli NIP-42.
+
+    `require_nostr_auth` accepte, faute de header, un simple `npub` dont il vérifie
+    seulement qu'un événement NIP-42 récent existe sur le relay (puis met ce « oui »
+    en cache sans expiration) : l'npub étant public, ce n'est pas une authentification.
+    Les routes qui exposent ou détruisent des secrets (cookies de session, clés d'API)
+    utilisent donc cette variante. Si `npub` est fourni, il doit correspondre à la clé
+    qui a signé. Retourne l'npub (bech32) du signataire. 401/403 sinon."""
+    from utils.crypto import hex_to_npub, npub_to_hex
+    try:
+        ev = _decode_and_verify_nip98_event(request.headers.get("Authorization", ""))
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Signature NIP-98 requise ({e}).")
+    signer_hex = str(ev.get("pubkey", "")).lower()
+    if npub:
+        expected = (npub_to_hex(npub) if npub.startswith("npub") else npub).lower()
+        if expected != signer_hex:
+            raise HTTPException(status_code=403, detail="La signature NIP-98 ne correspond pas à l'npub demandé.")
+    derived = hex_to_npub(signer_hex)
+    if not derived:
+        raise HTTPException(status_code=401, detail="Clé de signature invalide.")
+    return derived
 
 
 async def verify_nip98_auth(request: Request) -> str:

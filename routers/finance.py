@@ -31,11 +31,6 @@ from utils.security import (
 from services.nostr import verify_nostr_auth
 from utils.crypto import npub_to_hex
 from utils.observability import log_node_event, log_user_event
-from models.schemas import (
-    CoinflipStartRequest, CoinflipStartResponse,
-    CoinflipFlipRequest, CoinflipFlipResponse,
-    CoinflipPayoutRequest, CoinflipPayoutResponse
-)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -49,68 +44,6 @@ _oc_member_cache: "TTLCache" = TTLCache(maxsize=500, ttl=3600)
 # Cache classement public des parrains : TTL 1h — évite de solliciter l'API
 # OpenCollective à chaque visite de UPlanet/earth/parrains.html
 _parrains_ranking_cache: "TTLCache" = TTLCache(maxsize=1, ttl=3600)
-
-# --- Coinflip server-authoritative state ---
-import base64
-import hmac
-import hashlib
-import secrets
-
-COINFLIP_SECRET = settings.COINFLIP_SECRET
-_COINFLIP_SESSION_TTL = 300  # secondes, identique au TTL du token
-
-def _session_path(sid: str) -> Path:
-    return Path(settings.ZEN_PATH) / "tmp" / f"coinflip_session_{sid}.json"
-
-def _load_session(sid: str) -> Optional[Dict[str, Any]]:
-    path = _session_path(sid)
-    try:
-        if not path.exists():
-            return None
-        data = json.loads(path.read_text())
-        if int(time.time()) - data.get("created_at", 0) > _COINFLIP_SESSION_TTL:
-            path.unlink(missing_ok=True)
-            return None
-        return data
-    except Exception:
-        return None
-
-def _save_session(sid: str, data: Dict[str, Any]) -> None:
-    try:
-        _session_path(sid).write_text(json.dumps(data))
-    except Exception as e:
-        logger.warning(f"[coinflip] save session failed: {e}")
-
-def _delete_session(sid: str) -> None:
-    try:
-        _session_path(sid).unlink(missing_ok=True)
-    except Exception:
-        pass
-
-def sign_token(payload: Dict[str, Any]) -> str:
-    body = json.dumps(payload, separators=(",", ":")).encode()
-    sig = hmac.new(COINFLIP_SECRET.encode(), body, hashlib.sha256).digest()
-    token = base64.urlsafe_b64encode(body).decode().rstrip('=') + "." + base64.urlsafe_b64encode(sig).decode().rstrip('=')
-    return token
-
-def verify_token(token: str) -> Optional[Dict[str, Any]]:
-    try:
-        parts = token.split(".")
-        if len(parts) != 2:
-            return None
-        body_b64, sig_b64 = parts
-        pad = lambda s: s + "=" * (-len(s) % 4)
-        body = base64.urlsafe_b64decode(pad(body_b64))
-        sig = base64.urlsafe_b64decode(pad(sig_b64))
-        expected = hmac.new(COINFLIP_SECRET.encode(), body, hashlib.sha256).digest()
-        if not hmac.compare_digest(sig, expected):
-            return None
-        payload = json.loads(body.decode())
-        if int(payload.get("exp", 0)) < int(time.time()):
-            return None
-        return payload
-    except Exception:
-        return None
 
 from utils.helpers import check_balance
 # Service natif Python : remplace G1history.sh, G1balance.sh et gcli
@@ -256,171 +189,16 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
         raise HTTPException(status_code=500, detail=f"Erreur lors de la génération HTML: {str(e)}")
 
 @router.post("/zen_send", deprecated=True)
-async def zen_send(request: Request):
-    """Wrapper d'observabilité additif autour de _zen_send_impl : capture
-    succès/échec/latence NODE + BRO (par email, résolu en lecture seule à
-    partir du npub du formulaire — Starlette met le form en cache, un second
-    appel à request.form() ne relit ni ne rejoue rien côté requête) sur tous
-    les chemins de sortie, y compris les exceptions."""
-    _obs_start = time.time()
-    _obs_success = False
-    _obs_status = 500
-    _obs_extra: dict = {}
-    _obs_email: Optional[str] = None
-    try:
-        result = await _zen_send_impl(request)
-        _obs_status = getattr(result, "status_code", 200)
-        try:
-            if isinstance(result, JSONResponse):
-                body = json.loads(bytes(result.body))
-                if isinstance(body, dict):
-                    _obs_success = bool(body.get("ok"))
-                    if not _obs_success and body.get("error"):
-                        _obs_extra["error"] = body["error"]
-        except Exception:
-            pass
-        return result
-    except HTTPException as exc:
-        _obs_status = exc.status_code
-        _obs_extra["error"] = "HTTPException"
-        raise
-    except Exception:
-        _obs_extra["error"] = "unhandled_exception"
-        raise
-    finally:
-        try:
-            form_data = await request.form()
-            npub = form_data.get("npub")
-            if npub:
-                is_hex = len(npub) == 64 and all(c in '0123456789abcdefABCDEF' for c in npub)
-                hex_pub = npub.lower() if is_hex else npub_to_hex(npub)
-                if hex_pub:
-                    user_dir = find_user_directory_by_hex(hex_pub)
-                    if user_dir and "@" in user_dir.name:
-                        _obs_email = user_dir.name
-        except Exception:
-            pass
-        latency_ms = (time.time() - _obs_start) * 1000
-        _obs_extra["status"] = _obs_status
-        log_node_event("zen_send", _obs_success, category="finance",
-                        latency_ms=latency_ms, extra=_obs_extra)
-        log_user_event(_obs_email, "zen_send", "zen_send", _obs_success,
-                        latency_ms=latency_ms, extra=dict(_obs_extra))
+async def zen_send_removed():
+    """RETIRÉE (2026-10-17). Cette route autorisait un envoi ẐEN depuis un compte avec seulement son
+    `npub` + une présence NIP-42 récente (l'npub est public : ce n'était pas une preuve de possession).
+    Remplaçants : réaction Kind 7 `+N` signée (le relay traite le paiement, cf. NIP-101/filter/7.sh) pour
+    payer un membre NOSTR, ou virement Duniter direct depuis Ẑelkova."""
+    raise HTTPException(
+        status_code=410,
+        detail="/zen_send a été retiré. Utilisez une réaction Kind 7 (+N) signée, ou Ẑelkova (Duniter).",
+    )
 
-
-async def _zen_send_impl(request: Request):
-    """Send ZEN using the sender's ZEN card. Nostr authentication (NIP-42) is mandatory.
-
-    DEPRECATED — use Kind 7 NOSTR reaction (+N content) instead.
-    The relay's 7.sh write-policy plugin processes G1 payments automatically.
-    """
-    form_data = await request.form()
-    zen = form_data.get("zen")
-    g1source = form_data.get("g1source")
-    g1dest = form_data.get("g1dest")
-    npub = form_data.get("npub")
-
-    if not npub or not str(npub).strip():
-        raise HTTPException(status_code=400, detail="Nostr public key (npub) is required")
-
-    if not g1dest:
-        raise HTTPException(status_code=400, detail="Missing destination (g1dest)")
-
-    sender_hex = None
-    is_hex_format = len(npub) == 64 and all(c in '0123456789abcdefABCDEF' for c in npub)
-    sender_hex = npub.lower() if is_hex_format else npub_to_hex(npub)
-    if not sender_hex or len(sender_hex) != 64:
-        raise HTTPException(status_code=400, detail="Invalid Nostr public key format")
-
-    auth_ok = await verify_nostr_auth(sender_hex)
-    if not auth_ok:
-        raise HTTPException(status_code=401, detail="Nostr authentication failed (NIP-42)")
-
-    try:
-        user_dir = find_user_directory_by_hex(sender_hex)
-        g1pubnostr_path = user_dir / "G1PUBNOSTR"
-        if g1pubnostr_path.exists():
-            with open(g1pubnostr_path, 'r') as f:
-                resolved_g1source = f.read().strip()
-            g1source = resolved_g1source
-    except Exception:
-        pass
-
-    try:
-        from core.config import settings
-        marker_path = settings.ZEN_PATH / "tmp" / f"nostr_auth_ok_{sender_hex}"
-        os.makedirs(os.path.dirname(marker_path), exist_ok=True)
-        with open(marker_path, 'w') as marker:
-            marker.write(str(int(time.time())))
-    except Exception:
-        pass
-
-    if not zen or not g1dest:
-        raise HTTPException(status_code=400, detail="Missing required fields: zen, g1dest, npub")
-
-    script_path = "./zen_send.sh"
-    args = [zen, g1source or "", g1dest, sender_hex]
-
-    return_code, last_line = await run_script(script_path, *args)
-
-    try:
-        script_output = last_line.strip()
-        if script_output.startswith('{'):
-            result = json.loads(script_output)
-            if result.get("success"):
-                # Limite : une partie de coinflip par joueur par jour
-                today = datetime.now().strftime("%Y%m%d")
-                daily_marker = Path(settings.ZEN_PATH) / "tmp" / f"coinflip_{sender_hex}_{today}"
-                if daily_marker.exists():
-                    return JSONResponse({
-                        "ok": False,
-                        "error": "Une partie par jour autorisée. Revenez demain !",
-                        "type": "daily_limit"
-                    })
-                session_id = uuid.uuid4().hex
-                exp = int(time.time()) + 300
-                token = sign_token({"npub": sender_hex, "sid": session_id, "exp": exp})
-                _save_session(session_id, {
-                    "npub": sender_hex,
-                    "consecutive": 1,
-                    "paid": True,
-                    "created_at": int(time.time()),
-                })
-                try:
-                    daily_marker.touch()
-                except Exception:
-                    pass
-                return JSONResponse({
-                    "ok": True,
-                    "zen_send_result": result,
-                    "token": token,
-                    "sid": session_id,
-                    "exp": exp
-                })
-            else:
-                return JSONResponse({
-                    "ok": False,
-                    "error": result.get("error", "Unknown error"),
-                    "type": result.get("type", "unknown_error")
-                })
-        else:
-            return JSONResponse({
-                "ok": True,
-                "html": script_output,
-                "message": "Legacy response format"
-            })
-    except json.JSONDecodeError:
-        return JSONResponse({
-            "ok": False,
-            "error": f"Failed to parse script output: {script_output}",
-            "type": "parse_error"
-        })
-    except Exception as e:
-        return JSONResponse({
-            "ok": False,
-            "error": f"Script execution failed: {last_line.strip()}",
-            "type": "execution_error"
-        })
 
 @router.get("/check_balance")
 async def check_balance_route(g1pub: str, html: Optional[str] = None):
@@ -984,89 +762,6 @@ async def _oc_webhook_impl(request: Request):
         raise HTTPException(status_code=504, detail="timeout")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/coinflip/can_play")
-async def coinflip_can_play(pubkey: str):
-    """
-    Vérifie si un joueur peut jouer en mode live sur cette station.
-    Retourne is_local=True si le répertoire NIP-42 existe localement sans flag .roaming.
-    Remplace la vérification hostname côté client dans coinflip.html.
-    """
-    if not pubkey or len(pubkey) != 64 or not all(c in "0123456789abcdef" for c in pubkey.lower()):
-        return JSONResponse({"is_local": False, "source": "invalid_pubkey"})
-    try:
-        user_dir = find_user_directory_by_hex(pubkey.lower())
-        if not user_dir or not user_dir.exists():
-            return JSONResponse({"is_local": False, "source": "unknown"})
-        roaming_flag = user_dir / ".roaming"
-        source_file = user_dir / "SOURCE"
-        source = source_file.read_text().strip() if source_file.exists() else "LOCAL"
-        if roaming_flag.exists():
-            return JSONResponse({"is_local": False, "source": source})
-        return JSONResponse({"is_local": True, "source": source})
-    except HTTPException:
-        return JSONResponse({"is_local": False, "source": "unknown"})
-    except Exception as e:
-        logger.warning(f"[coinflip/can_play] {e}")
-        return JSONResponse({"is_local": False, "source": "error"})
-
-
-@router.post("/coinflip/start", response_model=CoinflipStartResponse)
-async def coinflip_start(payload: CoinflipStartRequest):
-    data = verify_token(payload.token)
-    if not data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    sid = data.get("sid")
-    sess = await asyncio.to_thread(_load_session, sid) if sid else None
-    if not sess:
-        raise HTTPException(status_code=400, detail="Unknown session")
-    exp = int(time.time()) + 300
-    token = sign_token({"npub": sess["npub"], "sid": sid, "exp": exp})
-    return CoinflipStartResponse(ok=True, sid=sid, exp=exp)
-
-@router.post("/coinflip/flip", response_model=CoinflipFlipResponse)
-async def coinflip_flip(payload: CoinflipFlipRequest):
-    data = verify_token(payload.token)
-    if not data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    sid = data.get("sid")
-    sess = await asyncio.to_thread(_load_session, sid) if sid else None
-    if not sess:
-        raise HTTPException(status_code=400, detail="Unknown session")
-    if not sess.get("paid"):
-        raise HTTPException(status_code=402, detail="Payment required")
-    result = 'Heads' if secrets.randbits(1) == 0 else 'Tails'
-    if result == 'Heads':
-        sess["consecutive"] = int(sess.get("consecutive", 1)) + 1
-        await asyncio.to_thread(_save_session, sid, sess)
-    return CoinflipFlipResponse(ok=True, sid=sid, result=result, consecutive=int(sess["consecutive"]))
-
-@router.post("/coinflip/payout", response_model=CoinflipPayoutResponse)
-async def coinflip_payout(payload: CoinflipPayoutRequest):
-    data = verify_token(payload.token)
-    if not data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    sid = data.get("sid")
-    sess = await asyncio.to_thread(_load_session, sid) if sid else None
-    if not sess:
-        raise HTTPException(status_code=400, detail="Unknown session")
-    if not sess.get("paid"):
-        raise HTTPException(status_code=402, detail="Payment required")
-    consecutive = int(sess.get("consecutive", 1))
-    raw = 2 ** (consecutive - 1)
-    zen_amount = raw
-    g1_amount = f"{zen_amount / 10:.1f}"
-    player_id = payload.player_id or ""
-    script_path = "./zen_send.sh"
-    sender_hex = data.get("npub")
-    args = [str(zen_amount), "", "PLAYER", sender_hex]
-    if player_id:
-        args.append(player_id)
-    return_code, last_line = await run_script(script_path, *args)
-    if return_code != 0:
-        raise HTTPException(status_code=500, detail="Payout script failed")
-    await asyncio.to_thread(_delete_session, sid)
-    return CoinflipPayoutResponse(ok=True, sid=sid, zen=zen_amount, g1_amount=g1_amount, tx=last_line.strip())
 
 def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[str, Any]):
     """Generate HTML page to display SOCIETY wallet transaction history using template"""

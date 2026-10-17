@@ -39,7 +39,7 @@ from a2wsgi import WSGIMiddleware
 from services.cloud_storage import build_wsgi_dav_app
 from services.nostr import Nip98BindingMiddleware
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, api_access, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, facecloud, visits
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, api_access, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, caldav, visio, facecloud, visits, account, savoirs
 
 # Setup logging
 setup_logging()
@@ -116,6 +116,8 @@ app.include_router(qr.router)
 app.include_router(cookie.router)
 app.include_router(api_access.router)  # identifiants API officielle (Mastodon, Telegram...) par MULTIPASS
 app.include_router(mailjet.router)
+app.include_router(savoirs.router)  # révisions chaînées des savoirs (prev → CID IPFS)
+app.include_router(account.router)  # « Mon compte » du MULTIPASS (NIP-98)
 app.include_router(skills.router)
 app.include_router(nostr_sign.router)
 app.include_router(zine.router)
@@ -123,6 +125,8 @@ app.include_router(node_admin.router)
 app.include_router(calendar.router)
 app.include_router(contacts.router)   # carnet FaceCloud (JSON, NIP-98)
 app.include_router(carddav.router)    # synchro téléphone/Thunderbird (CardDAV, Basic)
+app.include_router(caldav.router)     # agendas téléphone/Thunderbird (CalDAV, Basic) + pont NOSTR
+app.include_router(visio.router)      # salles de visio privées vdo.ninja (NIP-98)
 app.include_router(visits.router)     # compteur de visites de l'essaim (POST /visit)
 app.include_router(facecloud.router)  # entrée FaceCloud : invitation + création MULTIPASS
 

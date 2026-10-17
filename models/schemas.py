@@ -33,34 +33,6 @@ class UploadResponse(BaseModel):
     upload_chain: Optional[str] = None
     file_cid: Optional[str] = None
 
-class CoinflipStartRequest(BaseModel):
-    token: str
-
-class CoinflipStartResponse(BaseModel):
-    ok: bool
-    sid: str
-    exp: int
-
-class CoinflipFlipRequest(BaseModel):
-    token: str
-
-class CoinflipFlipResponse(BaseModel):
-    ok: bool
-    sid: str
-    result: str
-    consecutive: int
-
-class CoinflipPayoutRequest(BaseModel):
-    token: str
-    player_id: Optional[str] = None
-
-class CoinflipPayoutResponse(BaseModel):
-    ok: bool
-    sid: str
-    zen: int
-    g1_amount: str
-    tx: Optional[str] = None
-
 class UploadFromDriveRequest(BaseModel):
     ipfs_link: str
     npub: str

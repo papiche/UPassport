@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 
 from services.nostr import verify_nostr_auth, fetch_nostr_profiles
+from services.admin_auth import require_station_signature
 from utils.crypto import hex_to_npub, npub_to_hex
 from utils.helpers import get_env_from_mysh, run_script
 from core.config import settings
@@ -29,22 +30,20 @@ class PermitDefinitionRequest(BaseModel):
 
 class PermitDefinitionCreateRequest(BaseModel):
     permit: PermitDefinitionRequest
-    npub: str
+    npub: Optional[str] = None      # ignoré : le créateur est le signataire NIP-98 (nœud ou Capitaine)
     bootstrap_emails: Optional[List[str]] = None
 
 @router.post("/api/permit/define")
-async def create_permit_definition(request: PermitDefinitionCreateRequest):
+async def create_permit_definition(request: PermitDefinitionCreateRequest, http_request: Request):
+    """Crée une définition de permis. Réservé à la STATION (clé du nœud ou du Capitaine, signature NIP-98) :
+    l'ancien contrôle « npub dans le corps + présence NIP-42 » laissait n'importe qui agir au nom d'un npub public."""
+    signer_hex = await require_station_signature(http_request)
     from core.state import app_state, ORACLE_ENABLED
     if not ORACLE_ENABLED or app_state.oracle_system is None:
         raise HTTPException(status_code=503, detail="Oracle system not available")
     
     try:
-        if not request.npub:
-            raise HTTPException(status_code=401, detail="NOSTR authentication required (npub parameter)")
-        
-        if not await verify_nostr_auth(request.npub, force_check=True):
-            raise HTTPException(status_code=401, detail="NOSTR authentication failed (NIP-42)")
-        
+        creator_npub = hex_to_npub(signer_hex) or signer_hex
         permit_req = request.permit
         
         if permit_req.id in app_state.oracle_system.definitions:
@@ -79,7 +78,7 @@ async def create_permit_definition(request: PermitDefinitionCreateRequest):
             metadata=permit_req.metadata
         )
         
-        success = app_state.oracle_system.create_permit_definition(definition, creator_npub=request.npub)
+        success = app_state.oracle_system.create_permit_definition(definition, creator_npub=creator_npub)
         
         if success:
             response_data = {
@@ -493,7 +492,9 @@ async def fetch_permits_from_nostr(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/permit/issue/{request_id}")
-async def issue_permit_credential(request_id: str):
+async def issue_permit_credential(request_id: str, http_request: Request):
+    """Émet le certificat d'une demande ayant assez d'attestations. Station uniquement (NIP-98 nœud ou Capitaine)."""
+    await require_station_signature(http_request)
     from core.state import app_state, ORACLE_ENABLED
     if not ORACLE_ENABLED or app_state.oracle_system is None:
         raise HTTPException(status_code=503, detail="Oracle system not available")
@@ -534,7 +535,9 @@ async def issue_permit_credential(request_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/permit/revoke/{credential_id}")
-async def revoke_permit_credential(credential_id: str, reason: Optional[str] = None):
+async def revoke_permit_credential(credential_id: str, http_request: Request, reason: Optional[str] = None):
+    """Révoque un certificat. Station uniquement (NIP-98 nœud ou Capitaine) — cette route n'avait AUCUNE authentification."""
+    await require_station_signature(http_request)
     from core.state import app_state, ORACLE_ENABLED
     if not ORACLE_ENABLED or app_state.oracle_system is None:
         raise HTTPException(status_code=503, detail="Oracle system not available")

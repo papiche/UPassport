@@ -1613,7 +1613,7 @@ class TestDailyOrchestrator(_IngestBase):
             out = self.d.run(self.email)
         finally:
             self.d.subprocess.run = real
-        self.assertEqual(calls, ["webdav_import.py", "ucloud_describe.py", "ucloud_embed.py", "ucloud_backup.py"])
+        self.assertEqual(calls, ["webdav_import.py", "ucloud_describe.py", "ucloud_embed.py", "calendar_nostr_bridge.py", "ucloud_backup.py"])
         self.assertEqual(out["steps"]["import"], "échec(1)")
         self.assertEqual(out["steps"]["describe"], "occupé", "code 75 : déjà en cours, pas un échec")
         self.assertEqual(out["steps"]["backup"], "ok", "les étapes suivantes continuent après un échec")

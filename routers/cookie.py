@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from core.config import settings
 from services.cookie_store import decrypt_from_ipfs, load_manifest, save_manifest, publish_manifest_to_nostr
-from services.nostr import require_nostr_auth
+from services.nostr import require_nip98_only
 from utils.crypto import npub_to_hex
 from utils.security import find_user_directory_by_hex
 
@@ -33,7 +33,7 @@ async def list_cookies(
     npub: Optional[str] = Query(None, description="User npub (required when no NIP-98 header)"),
     html: Optional[int] = Query(None, description="Set to 1 for HTML page"),
 ):
-    auth_npub = await require_nostr_auth(request, npub, force_check=False)
+    auth_npub = await require_nip98_only(request, npub)
     user_dir = _user_dir(auth_npub)
     manifest = load_manifest(user_dir)
 
@@ -78,7 +78,9 @@ async def list_cookies(
         })
 
     if html:
-        return _html_page(auth_npub, cookies)
+        # page HTML historique : sa suppression passait par npub seul — remplacée par « Mon compte »
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/earth/moncompte.html#liens", status_code=303)
 
     return {"cookies": cookies, "count": len(cookies)}
 
@@ -94,7 +96,7 @@ async def get_cookie(
     npub: Optional[str] = Query(None),
 ):
     _validate_domain(domain)
-    auth_npub = await require_nostr_auth(request, npub, force_check=False)
+    auth_npub = await require_nip98_only(request, npub)
     user_dir = _user_dir(auth_npub)
     manifest = load_manifest(user_dir)
 
@@ -145,7 +147,7 @@ async def delete_cookie(
     npub: Optional[str] = Query(None),
 ):
     _validate_domain(domain)
-    auth_npub = await require_nostr_auth(request, npub, force_check=False)
+    auth_npub = await require_nip98_only(request, npub)
     user_dir = _user_dir(auth_npub)
     manifest = load_manifest(user_dir)
 

@@ -470,8 +470,7 @@ async def admin_get_nostr_events(
     until: Optional[int] = None,
     limit: int = 100
 ):
-    """Interroge les événements NOSTR du relay local (strfry) — auth UPLANETNAME
-    ou signature NIP-98 du Capitaine."""
+    """Interroge les événements NOSTR du relay local (strfry) — auth signature NIP-98 du Capitaine."""
     await _check_admin_auth(request, uplanetname)
 
     from core.config import settings
@@ -525,8 +524,7 @@ async def admin_get_nostr_events(
 
 @router.post("/api/nostr/admin/delete")
 async def admin_delete_nostr_events(request: Request):
-    """Supprime des événements NOSTR par IDs via strfry delete — auth UPLANETNAME
-    ou signature NIP-98 du Capitaine."""
+    """Supprime des événements NOSTR par IDs via strfry delete — auth signature NIP-98 du Capitaine."""
     body = await safe_json_body(request, max_bytes=262144)
     uplanetname = body.get("uplanetname", "")
     ids: list = body.get("ids", [])
@@ -612,8 +610,7 @@ def _multipass_accounts() -> list:
 async def admin_multipass_list(request: Request, uplanetname: Optional[str] = None):
     """Liste tous les comptes MULTIPASS de la station (email + hex + npub) —
     point de départ de la vue admin 'BRO mémoire' (aucune liste de ce type
-    n'existait auparavant, cf. nostr_admin.html). Auth UPLANETNAME ou
-    signature NIP-98 du Capitaine."""
+    n'existait auparavant, cf. nostr_admin.html). Auth signature NIP-98 du Capitaine."""
     await _check_admin_auth(request, uplanetname)
     accounts = _multipass_accounts()
     return JSONResponse({"accounts": accounts, "count": len(accounts)})
@@ -624,7 +621,7 @@ async def admin_memory_status(request: Request, email: str, uplanetname: Optiona
     """État des mémoires (fichiers + Qdrant) d'un MULTIPASS donné — vue admin.
     Les cookies liés au compte (kind 31903) se lisent côté client via
     GET /api/nostr/admin/events?kind=31903&author=<hex> (déjà existant),
-    pas dupliqués ici. Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    pas dupliqués ici. Auth signature NIP-98 du Capitaine."""
     await _check_admin_auth(request, uplanetname)
     from services.memory_status import get_memory_status
     status = await asyncio.to_thread(get_memory_status, email)
@@ -635,7 +632,7 @@ async def admin_memory_status(request: Request, email: str, uplanetname: Optiona
 async def admin_memory_reset(request: Request):
     """Réinitialise un périmètre de mémoire d'un MULTIPASS — action du capitaine
     depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email, scope}.
-    Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    Auth signature NIP-98 du Capitaine."""
     body = await safe_json_body(request)
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
@@ -659,7 +656,7 @@ async def admin_memory_regenerate(request: Request):
     """Régénère le profil LifeOS d'un MULTIPASS depuis ses propres posts
     Mastodon (si un cookie mastodon.social est déposé) — action du capitaine
     depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email}.
-    Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    Auth signature NIP-98 du Capitaine."""
     body = await safe_json_body(request)
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
@@ -678,7 +675,7 @@ async def admin_memory_regenerate(request: Request):
 async def admin_identity_content(request: Request, email: str, uplanetname: Optional[str] = None):
     """Contenu texte des 5 fichiers identity/*.md (LifeOS) d'un MULTIPASS —
     pré-remplissage des <textarea> d'édition admin (nostr_admin.html, section
-    Mémoire → bouton 'Éditer le LifeOS'). Auth UPLANETNAME ou signature NIP-98
+    Mémoire → bouton 'Éditer le LifeOS'). Auth signature NIP-98
     du Capitaine."""
     await _check_admin_auth(request, uplanetname)
     from services.memory_status import get_identity_content, IDENTITY_FILENAMES, IDENTITY_PLACEHOLDERS
@@ -695,7 +692,7 @@ async def admin_identity_save(request: Request):
     capitaine. Body JSON : {uplanetname, email, filename, content}. filename
     validé contre la liste blanche des 5 noms exacts (400 sinon). Après succès,
     notifie le membre par DM NOSTR self-to-self (best-effort, n'affecte jamais
-    le résultat HTTP). Auth UPLANETNAME ou signature NIP-98 du Capitaine."""
+    le résultat HTTP). Auth signature NIP-98 du Capitaine."""
     body = await safe_json_body(request, max_bytes=262144)
     uplanetname = body.get("uplanetname", "")
     email = body.get("email", "")
