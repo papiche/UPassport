@@ -258,20 +258,25 @@ def as_form(cls):
     return cls
 
 async def get_uplanet_home_url():
+    """Page d'accueil web UPlanet de cette station : `<uSPOT>/earth/`.
+
+    /earth est servi par UPassport (54321.py, StaticFiles) et est identique à
+    /ipns/<domaine>/ : pas de dépendance au DNSLink. `uSPOT` vient de
+    tools/my.sh (my.sh ne définit pas UPASSPORT_URL), jamais de UPassport/.env.
+    Chaîne vide si la station n'a pas d'URL publique (loopback / IP locale) :
+    un client distant ne pourrait pas l'ouvrir.
+    """
     from core.config import settings
-    upassport_url = settings.UPASSPORT_URL
-    if not upassport_url:
-        # my.sh ne définit pas UPASSPORT_URL mais uSPOT (https://u.<domaine>)
-        upassport_url = (await get_env_from_mysh("uSPOT", "")
-                         or await get_env_from_mysh("UPASSPORT_URL", ""))
-    if upassport_url:
-        from urllib.parse import urlparse
-        parsed = urlparse(upassport_url)
-        host = parsed.hostname or ""
-        if host.startswith("u."):
-            domain = host[2:]
-            return f"https://ipfs.{domain}/ipns/{domain}"
-    return ""
+    from urllib.parse import urlparse
+    url = settings.UPASSPORT_URL
+    if not url:
+        url = (await get_env_from_mysh("uSPOT", "")
+               or await get_env_from_mysh("UPASSPORT_URL", ""))
+    url = (url or "").rstrip("/")
+    host = urlparse(url).hostname or ""
+    if not host or host in ("localhost", "::1") or host.startswith(("127.", "10.", "192.168.")):
+        return ""
+    return f"{url}/earth/"
 
 async def check_balance(g1pub: str) -> str:
     """
