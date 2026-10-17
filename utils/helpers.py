@@ -261,7 +261,9 @@ async def get_uplanet_home_url():
     from core.config import settings
     upassport_url = settings.UPASSPORT_URL
     if not upassport_url:
-        upassport_url = await get_env_from_mysh("UPASSPORT_URL", "")
+        # my.sh ne définit pas UPASSPORT_URL mais uSPOT (https://u.<domaine>)
+        upassport_url = (await get_env_from_mysh("uSPOT", "")
+                         or await get_env_from_mysh("UPASSPORT_URL", ""))
     if upassport_url:
         from urllib.parse import urlparse
         parsed = urlparse(upassport_url)
