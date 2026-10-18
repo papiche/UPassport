@@ -530,9 +530,33 @@ def save_keyring_all(udir: Path, keyring: Dict[str, Any]) -> None:
 # ═════════════════════════════════════════════════════════════════════════════
 # Statistiques (GET /api/cloud/status) et export JSON
 # ═════════════════════════════════════════════════════════════════════════════
+_MEMO: Dict[Tuple[str, str, Any], Tuple[Any, Any]] = {}
+
+
+def memo(udir: Path, name: str, fn, extra: Any = None, token: Any = None):
+    """Résultat de `fn()` gardé tant que la révision de la base (`meta.rev`, bumpée
+    par TOUTE écriture, dans n'importe quel processus) et `token` n'ont pas changé.
+    Les agrégats de la page (statut, analyses) parcourent toutes les lignes et leur
+    JSON : ~1,3 s à 20 000 photos, redemandés chaque minute par la page.
+    La valeur est rendue telle quelle : les appelants la copient s'ils la modifient."""
+    key = (str(udir), name, extra)
+    cur = (rev(udir), token)
+    hit = _MEMO.get(key)
+    if hit and hit[0] == cur:
+        return hit[1]
+    val = fn()
+    _MEMO[key] = (cur, val)
+    return val
+
+
 def stats(udir: Path) -> Dict[str, Any]:
     """Fichiers (avec contenu), octets, statuts FaceID des images PROPRES et copies
-    reçues — en SQL, sans charger les entrées."""
+    reçues — en SQL, sans charger les entrées (mémoïsé par révision)."""
+    r = memo(udir, "stats", lambda: _stats(udir))
+    return {**r, "faceid": dict(r["faceid"])}
+
+
+def _stats(udir: Path) -> Dict[str, Any]:
     conn = connect(udir)
     files, size = conn.execute(
         "SELECT COUNT(*), COALESCE(SUM(size),0) FROM entries WHERE type='file' AND cid IS NOT NULL").fetchone()
@@ -816,6 +840,11 @@ def events(udir: Path, gap: int = 6 * 3600, min_photos: int = 6, limit: int = 60
 # Analyses : où en est chaque tâche ? (visages, dates/lieux, descriptions)
 # ═════════════════════════════════════════════════════════════════════════════
 def analysis_counts(udir: Path) -> Dict[str, Any]:
+    """(mémoïsé par révision) — voir _analysis_counts."""
+    return dict(memo(udir, "analysis_counts", lambda: _analysis_counts(udir)))
+
+
+def _analysis_counts(udir: Path) -> Dict[str, Any]:
     """Compteurs par tâche sur les images PROPRES (hors copies reçues, jamais analysées) — en UNE requête.
     faces : done = faces+no_face ; waiting = jamais analysée ; pending = envoyée, résultat attendu ;
     timeout = résultat jamais revenu. enrich : empreinte (phash). describe : description présente."""
@@ -856,6 +885,10 @@ def describe_stale(udir: Path, model: str, limit: int = 100000) -> List[str]:
 
 
 def describe_stale_count(udir: Path, model: str) -> int:
+    return memo(udir, "describe_stale", lambda: _describe_stale_count(udir, model), extra=model)
+
+
+def _describe_stale_count(udir: Path, model: str) -> int:
     return connect(udir).execute(
         "SELECT COUNT(*) FROM entries WHERE type='file' AND cid IS NOT NULL AND mime LIKE 'image/%' AND desc_text IS NOT NULL "
         "AND json_extract(data,'$.desc.src')='ai' AND COALESCE(json_extract(data,'$.desc.model'),'')<>?", (model,)).fetchone()[0]

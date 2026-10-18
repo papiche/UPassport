@@ -2748,6 +2748,9 @@ def build_wsgi_dav_app() -> Callable:
 # ═════════════════════════════════════════════════════════════════════════════
 # URL publique du point de montage DAV
 # ═════════════════════════════════════════════════════════════════════════════
+_DAV_BASE_CACHE: Optional[tuple] = None
+
+
 async def dav_public_url() -> str:
     """URL publique du cloud DAV de CETTE station, terminée par '/'.
 
@@ -2756,6 +2759,10 @@ async def dav_public_url() -> str:
     12345.json. On la lit avec le même helper que les autres routers
     (`utils.helpers.get_env_from_mysh`), avec `settings.uSPOT` en repli.
     """
+    global _DAV_BASE_CACHE
+    now = time.monotonic()
+    if _DAV_BASE_CACHE and now - _DAV_BASE_CACHE[0] < 300:
+        return _DAV_BASE_CACHE[1]
     base = ""
     try:
         from utils.helpers import get_env_from_mysh
@@ -2765,4 +2772,8 @@ async def dav_public_url() -> str:
         logger.warning("ucloud: lecture uSPOT via my.sh impossible: %s", exc)
     if not base:
         base = str(settings.uSPOT or "http://127.0.0.1:54321")
-    return f"{base.rstrip('/')}{DAV_MOUNT_PREFIX}/"
+    url = f"{base.rstrip('/')}{DAV_MOUNT_PREFIX}/"
+    if base:
+        # my.sh = un bash par appel (~150 ms) ; l'adresse ne change pas en cours de route.
+        _DAV_BASE_CACHE = (now, url)
+    return url

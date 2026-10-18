@@ -118,9 +118,16 @@ def _blob(v: np.ndarray) -> bytes:
 
 
 def counts(udir: Path, model: str = MODEL) -> Dict[str, int]:
-    """{described, indexed, pending} : photos décrites / déjà vectorisées avec CE modèle et CETTE description / restantes."""
+    """{described, indexed, pending} : photos décrites / déjà vectorisées avec CE modèle et CETTE description / restantes.
+    Mémoïsé par révision de la base + génération des vecteurs (`emb_gen`, écrite par `store`)."""
     conn = ucloud_db.connect(udir)
     ensure_table(conn)
+    gen = ucloud_db._meta_get(conn, "emb_gen", "")
+    return dict(ucloud_db.memo(udir, "embed_counts", lambda: _counts(udir, model), extra=model, token=gen))
+
+
+def _counts(udir: Path, model: str) -> Dict[str, int]:
+    conn = ucloud_db.connect(udir)
     described = conn.execute(f"SELECT COUNT(*) FROM entries WHERE {ucloud_db._IMG} AND desc_text IS NOT NULL").fetchone()[0]
     indexed = conn.execute(
         f"SELECT COUNT(*) FROM entries e JOIN embeddings m ON m.cid=e.cid WHERE {ucloud_db._IMG.replace('type=', 'e.type=').replace('cid IS', 'e.cid IS').replace('mime', 'e.mime')} "

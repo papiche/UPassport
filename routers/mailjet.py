@@ -1383,6 +1383,14 @@ def _is_named(name: str, pubkey: str) -> bool:
     return bool(pubkey) or bool(name and not name.startswith("Inconnu"))
 
 
+def _unit_rows(mat):
+    """Normalise les lignes d'une matrice déjà en ndarray (lignes nulles inchangées)."""
+    import numpy as np
+    norms = np.linalg.norm(mat, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    return mat / norms
+
+
 def _unit_matrix(vectors: list):
     import numpy as np
     mat = np.asarray(vectors, dtype=np.float32)
@@ -1412,11 +1420,12 @@ def _mutual_knn_groups(xu, idx: list, threshold: float) -> list:
     neigh: list = []
     for start in range(0, n, _SIM_BLOCK):
         sims = sub[start:start + _SIM_BLOCK] @ sub.T
+        rows = np.arange(sims.shape[0])
+        sims[rows, start + rows] = -1.0
+        top = np.argpartition(sims, n - k, axis=1)[:, n - k:]      # les k plus grands, sans négation ni copie
+        ok = np.take_along_axis(sims, top, axis=1) >= threshold
         for r in range(sims.shape[0]):
-            sims[r, start + r] = -1.0
-        top = np.argpartition(-sims, k - 1, axis=1)[:, :k]
-        for r in range(sims.shape[0]):
-            neigh.append({int(j) for j in top[r] if sims[r, j] >= threshold})
+            neigh.append(set(top[r][ok[r]].tolist()))
     parent = list(range(n))
 
     def find(x: int) -> int:
@@ -1467,22 +1476,33 @@ def _annotate_faces(faces: list, refs: Optional[list] = None) -> None:
     named = [f for f in with_vec if f["_named"]] + \
         [r for r in (refs or []) if isinstance(r.get("_vector"), list)]
 
-    if unnamed and named:
-        xu = _unit_matrix([f["_vector"] for f in unnamed])
-        xn = _unit_matrix([f["_vector"] for f in named])
+    # UNE conversion liste → ndarray pour tout le catalogue (c'était 3 fois :
+    # non nommés, nommés, PCA — la plus coûteuse du calcul sur 20 000 visages).
+    raw = np.asarray([f["_vector"] for f in with_vec] + [r["_vector"] for r in (refs or [])
+                                                         if isinstance(r.get("_vector"), list)],
+                     dtype=np.float32)
+    xall = _unit_rows(raw)
+    pos = {id(f): i for i, f in enumerate(with_vec)}
+    u_idx = np.asarray([pos[id(f)] for f in unnamed], dtype=np.int64)
+    n_idx = np.asarray([pos[id(f)] for f in with_vec if f["_named"]]
+                       + list(range(len(with_vec), len(xall))), dtype=np.int64)
+
+    if len(u_idx) and len(n_idx):
+        xu = xall[u_idx]
+        xn = xall[n_idx]
         for start in range(0, len(unnamed), _SIM_BLOCK):
             sims = xu[start:start + _SIM_BLOCK] @ xn.T
             best = sims.argmax(axis=1)
-            for r, j in enumerate(best.tolist()):
-                score = float(sims[r, j])
-                if _MAYBE_SAME_MIN <= score < _AUTO_MATCH_THRESHOLD:
-                    ref = named[j]
-                    unnamed[start + r]["maybe"] = {
-                        "name": ref["name"], "pubkey": ref["pubkey"], "score": round(score, 3),
-                        "contact": ref.get("contact") or "", "email": ref.get("email") or ""}
+            scores = sims[np.arange(sims.shape[0]), best]
+            hit = np.nonzero((scores >= _MAYBE_SAME_MIN) & (scores < _AUTO_MATCH_THRESHOLD))[0]
+            for r in hit.tolist():
+                ref = named[int(best[r])]
+                unnamed[start + r]["maybe"] = {
+                    "name": ref["name"], "pubkey": ref["pubkey"], "score": round(float(scores[r]), 3),
+                    "contact": ref.get("contact") or "", "email": ref.get("email") or ""}
 
-    if len(unnamed) >= 2:
-        xu = _unit_matrix([f["_vector"] for f in unnamed])
+    if len(u_idx) >= 2:
+        xu = xall[u_idx]
         for members in _mutual_knn_groups(xu, list(range(len(unnamed))), _MAYBE_SAME_MIN):
             if len(members) < 2:
                 continue
@@ -1492,38 +1512,39 @@ def _annotate_faces(faces: list, refs: Optional[list] = None) -> None:
                 unnamed[i]["group_id"] = group_id
                 unnamed[i]["group_size"] = len(members)
 
-    coords = _pca_2d([f["_vector"] for f in with_vec])
+    coords = _pca_2d(raw[:len(with_vec)])
     for f, (x, y) in zip(with_vec, coords):
         f["x"], f["y"] = round(x, 4), round(y, 4)
 
 
-def _pca_2d(vectors: list) -> list:
-    """Projection PCA 2D (SVD pure numpy) des embeddings — positions pour la
-    vue « nébuleuse » de ucloud.html. Les vecteurs 512D ne quittent jamais ce
+def _pca_2d(vectors) -> list:
+    """Projection PCA 2D des embeddings (ndarray n×d ou liste) — positions pour
+    la vue « nébuleuse » de ucloud.html. Les vecteurs 512D ne quittent jamais ce
     process : seules des coordonnées x,y normalisées dans [-1, 1] sont
-    renvoyées au client, jamais les vecteurs eux-mêmes. Au-delà de
-    _PCA_MAX_FACES, ne calcule rien (numpy/LAPACK est rapide mais reste
-    borné par prudence contre un catalogue pathologiquement grand)."""
-    if len(vectors) < 2:
-        return [(0.0, 0.0) for _ in vectors]
-    if len(vectors) > _PCA_MAX_FACES:
-        logger.info("FaceID : projection PCA ignorée (%d visages > %d)",
-                    len(vectors), _PCA_MAX_FACES)
-        return [(0.0, 0.0) for _ in vectors]
+    renvoyées au client. Les deux axes principaux viennent de la covariance
+    d×d (eigh, ~20 ms) et non d'un SVD n×d : même résultat (au signe près),
+    sans l'ordre de grandeur de temps en plus sur 20 000 visages."""
+    n = len(vectors)
+    if n < 2:
+        return [(0.0, 0.0) for _ in range(n)]
+    if n > _PCA_MAX_FACES:
+        logger.info("FaceID : projection PCA ignorée (%d visages > %d)", n, _PCA_MAX_FACES)
+        return [(0.0, 0.0) for _ in range(n)]
     import numpy as np
-    mat = np.asarray(vectors, dtype=np.float64)
+    mat = np.asarray(vectors, dtype=np.float32)
     centered = mat - mat.mean(axis=0)
     try:
-        u, s, _vt = np.linalg.svd(centered, full_matrices=False)
+        cov = (centered.T @ centered).astype(np.float64)
+        _w, v = np.linalg.eigh(cov)           # valeurs propres croissantes
     except np.linalg.LinAlgError:
-        return [(0.0, 0.0) for _ in vectors]
-    k = min(2, u.shape[1])
-    coords = u[:, :k] * s[:k]
-    if k < 2:
-        coords = np.pad(coords, ((0, 0), (0, 2 - k)))
+        return [(0.0, 0.0) for _ in range(n)]
+    axes = v[:, ::-1][:, :2].astype(np.float32)
+    coords = centered @ axes
+    if coords.shape[1] < 2:
+        coords = np.pad(coords, ((0, 0), (0, 2 - coords.shape[1])))
     max_abs = float(np.abs(coords).max()) or 1.0
     coords = coords / max_abs
-    return [(float(c[0]), float(c[1])) for c in coords]
+    return list(zip(coords[:, 0].tolist(), coords[:, 1].tolist()))
 
 
 def _qdrant_headers() -> dict:
@@ -1616,42 +1637,17 @@ async def _scroll_all_points(collection: str, with_vector: bool) -> list:
                 return []
             if resp.status_code != 200:
                 raise RuntimeError(f"Qdrant scroll HTTP {resp.status_code}")
-            result = resp.json().get("result", {})
+            # un lot avec vecteurs pèse plusieurs Mo : le décoder dans la boucle uvicorn la figeait
+            body_json = await asyncio.to_thread(resp.json) if with_vector else resp.json()
+            result = body_json.get("result", {})
             points.extend(result.get("points", []))
             offset = result.get("next_page_offset")
             if offset is None or len(points) >= _FACES_MAX:
                 return points
 
 
-@router.get("/mailjet/faces")
-async def get_mailjet_faces(
-    request: Request,
-    email: Optional[str] = Query(default=None),
-    token: Optional[str] = Query(default=None),
-):
-    """Liste les visages catalogués :
-    [{id, name, pubkey, email, timestamp, has_photo, photo, sent, maybe,
-      group_id, group_size, x, y}].
-
-    `photo` = chemin de la photo source dans le cloud (compte des photos
-    d'une personne, cf. « Envoyer ses photos ») ; `sent` = dernier envoi à
-    cette personne (POST /mailjet/person-send) ; `maybe`/`group_id`/`x`/`y` :
-    cf. _annotate_faces(). Le tableau de tri de ucloud.html est construit
-    entièrement sur cette réponse."""
-    email, err = _faces_auth(request, email, token)
-    if err:
-        return err
-
-    collection = _faces_collection(email)
-    if not collection:
-        return JSONResponse({"faces": [], "reason": "no_hex"})
-
-    try:
-        points = await _scroll_all_points(collection, with_vector=True)
-    except Exception as exc:
-        logger.warning("Qdrant injoignable pour %s : %s", collection, exc)
-        return JSONResponse({"faces": [], "reason": "qdrant_unavailable"})
-
+def _build_faces(points: list) -> tuple:
+    """Points Qdrant → (visages affichables, références de contact/amis)."""
     faces = []
     refs = []       # visages de RÉFÉRENCE des fiches de contact (routers/contacts.py)
     for point in points:
@@ -1684,17 +1680,106 @@ async def get_mailjet_faces(
             "_named":    _is_named(name, pubkey),
             "_vector":   point.get("vector"),
         })
+    return faces, refs
+
+
+_ANNOT_FIELDS = ("maybe", "group_id", "group_size", "x", "y")
+_ANNOT_CACHE: dict = {}     # collection -> (empreinte, {id: {champ: valeur}})
+_ANNOT_LOCKS: dict = {}     # collection -> asyncio.Lock (un seul calcul à la fois)
+
+
+def _annot_fingerprint(faces: list, refs: list) -> str:
+    """Empreinte de ce qui influence _annotate_faces : ids et statut
+    nommé/nom/clé (un vecteur est immuable pour un id donné). Inchangée entre
+    deux polls tant que le catalogue ne bouge pas."""
+    h = hashlib.sha1()
+    for f in faces:
+        h.update(f"{f.get('id')}|{f.get('_named')}|{f.get('name')}|{f.get('pubkey')};".encode())
+    h.update(b"#refs:")
+    for f in refs:
+        h.update(f"{f.get('id')}|{f.get('name')}|{f.get('pubkey')}|{f.get('contact')}|{f.get('email')};".encode())
+    return h.hexdigest()
+
+
+async def _annotate_faces_cached(collection: str, faces: list, refs: list, email: str,
+                                 compute: bool = False) -> bool:
+    """_annotate_faces() mémoïsé par catalogue + sérialisé par collection : la
+    page interroge /mailjet/faces chaque minute, et le calcul (10–17 s de CPU,
+    non annulable dans son thread) s'empilait à chaque poll.
+
+    Sans `compute`, ne fait que RESSERVIR le cache (faces sans vecteurs) et
+    rend False s'il n'est pas à jour ; avec `compute` (faces portant leurs
+    vecteurs), calcule puis mémorise."""
+    fp = _annot_fingerprint(faces, refs)
+    lock = _ANNOT_LOCKS.setdefault(collection, asyncio.Lock())
+    async with lock:
+        cached = _ANNOT_CACHE.get(collection)
+        if not (cached and cached[0] == fp):
+            if not compute:
+                return False
+            try:
+                await asyncio.to_thread(_annotate_faces, faces, refs)
+            except Exception as exc:   # le catalogue reste utilisable sans suggestions
+                logger.warning("FaceID : annotation des visages échouée pour %s : %s", email, exc)
+                return True
+            _ANNOT_CACHE[collection] = (fp, {
+                f["id"]: {k: f[k] for k in _ANNOT_FIELDS if k in f} for f in faces})
+            return True
+    for f in faces:
+        f.update(cached[1].get(f["id"], {}))
+    return True
+
+
+@router.get("/mailjet/faces")
+async def get_mailjet_faces(
+    request: Request,
+    email: Optional[str] = Query(default=None),
+    token: Optional[str] = Query(default=None),
+):
+    """Liste les visages catalogués :
+    [{id, name, pubkey, email, timestamp, has_photo, photo, sent, maybe,
+      group_id, group_size, x, y}].
+
+    `photo` = chemin de la photo source dans le cloud (compte des photos
+    d'une personne, cf. « Envoyer ses photos ») ; `sent` = dernier envoi à
+    cette personne (POST /mailjet/person-send) ; `maybe`/`group_id`/`x`/`y` :
+    cf. _annotate_faces(). Le tableau de tri de ucloud.html est construit
+    entièrement sur cette réponse."""
+    email, err = _faces_auth(request, email, token)
+    if err:
+        return err
+
+    collection = _faces_collection(email)
+    if not collection:
+        return JSONResponse({"faces": [], "reason": "no_hex"})
 
     try:
-        await asyncio.to_thread(_annotate_faces, faces, refs)
-    except Exception as exc:   # le catalogue reste utilisable sans suggestions
-        logger.warning("FaceID : annotation des visages échouée pour %s : %s", email, exc)
+        points = await _scroll_all_points(collection, with_vector=False)
+    except Exception as exc:
+        logger.warning("Qdrant injoignable pour %s : %s", collection, exc)
+        return JSONResponse({"faces": [], "reason": "qdrant_unavailable"})
+
+    faces, refs = _build_faces(points)
+    truncated = len(points) >= _FACES_MAX
+    # Les vecteurs d'un point ne changent jamais : tant que ids / noms / clés
+    # sont identiques, ni leur téléchargement ni le calcul ne sont refaits.
+    if not await _annotate_faces_cached(collection, faces, refs, email):
+        try:
+            vpoints = await _scroll_all_points(collection, with_vector=True)
+        except Exception as exc:
+            logger.warning("Qdrant injoignable pour %s : %s", collection, exc)
+            vpoints = []
+        if vpoints:
+            faces, refs = _build_faces(vpoints)
+            await _annotate_faces_cached(collection, faces, refs, email, compute=True)
+            truncated = len(vpoints) >= _FACES_MAX
+
 
     for f in faces:
         f.pop("_vector", None)
         f.pop("_named", None)
     faces.sort(key=lambda f: (not f["pubkey"], f["name"].lower()))
-    return JSONResponse({"faces": faces, "truncated": len(points) >= _FACES_MAX})
+    return JSONResponse({"faces": faces, "truncated": truncated})
 
 
 async def _fetch_face_point(collection: str, point_id: str) -> Optional[dict]:
