@@ -39,3 +39,18 @@ def test_stats_result_is_not_shared_mutable(tmp_path):
     udir.mkdir()
     ucloud_db.stats(udir)["faceid"]["hack"] = 1
     assert "hack" not in ucloud_db.stats(udir)["faceid"]
+
+
+def test_describe_pending_skips_photos_marked_unreadable(tmp_path):
+    import time
+    udir = tmp_path / ".ucloud"
+    udir.mkdir()
+    with ucloud_db.transaction(udir) as conn:
+        ucloud_db.put_entry(conn, "/a.jpg", _img("Qm1"))
+        ucloud_db.put_entry(conn, "/b.jpg", _img("Qm2"))
+    assert set(ucloud_db.describe_pending(udir)) == {"/a.jpg", "/b.jpg"}
+    ucloud_db.patch_entry(udir, "/a.jpg", lambda e: e.update(desc_fail={"at": int(time.time()), "reason": "x"}) or True)
+    assert ucloud_db.describe_pending(udir) == ["/b.jpg"]
+    old = int(time.time()) - 8 * 86400                       # au-delà de 7 jours : réessayée
+    ucloud_db.patch_entry(udir, "/a.jpg", lambda e: e.update(desc_fail={"at": old, "reason": "x"}) or True)
+    assert set(ucloud_db.describe_pending(udir)) == {"/a.jpg", "/b.jpg"}

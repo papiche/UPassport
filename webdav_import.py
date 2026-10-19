@@ -337,6 +337,14 @@ async def _import_source(email: str, source: dict, max_import: int,
             skipped += 1
             continue
 
+        if entry.get("size") == 0:
+            # Fichier vide à la SOURCE (copie interrompue chez le propriétaire) : le cataloguer
+            # donnait une « photo » de 0 octet, que le modèle ne peut pas lire et qui bloquait la file.
+            skipped += 1
+            if not dry_run:
+                state[cache_key] = {"mtime": entry.get("mtime"), "size": 0, "empty": True}
+            continue
+
         base_dest = cloud_storage.normalize_path(_dated_dest(dest_prefix, entry))
         if dry_run:
             _log(f"[{label}] (dry-run) importerait {entry['path']} → {base_dest} (date du serveur : l'EXIF n'est lue qu'au téléchargement)", quiet)

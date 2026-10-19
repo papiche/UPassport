@@ -899,5 +899,7 @@ def describe_pending(udir: Path, limit: int = 100000) -> List[str]:
     Les dossiers exclus par le membre (analysis_prefs) ne sont jamais proposés."""
     excl, xp = _prefs().sql_not_excluded(udir)
     return [r[0] for r in connect(udir).execute(
-        f"SELECT path FROM entries WHERE {_IMG} AND desc_text IS NULL AND COALESCE(faceid_status,'')<>'unreadable' {excl} "
+        f"SELECT path FROM entries WHERE {_IMG} AND desc_text IS NULL AND COALESCE(faceid_status,'')<>'unreadable' "
+        # photo déclarée illisible par ucloud_describe.py : écartée 7 jours (réessayée ensuite, p. ex. après réimport)
+        f"AND COALESCE(json_extract(data,'$.desc_fail.at'),0) < CAST(strftime('%s','now') AS INTEGER) - 604800 {excl} "
         f"ORDER BY {_TAKEN} DESC LIMIT ?", (*xp, limit))]

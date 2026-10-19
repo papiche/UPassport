@@ -79,12 +79,51 @@ def describe_direct(email: str, path: str, runner: Optional[Callable[[bytes], di
     if trace.level() and err.strip():                 # le suivi de vision_describe.py / describe_image.py, même chronologie
         sys.stderr.write(err if err.endswith("\n") else err + "\n")
     trace.log("describe", f"vision_describe.py : code {proc.returncode} en {t_vis.s:.1f}s", 2)
+    out = None
     for line in reversed(proc.stdout.decode("utf-8", "replace").strip().splitlines()):
         try:
-            return json.loads(line)
+            out = json.loads(line)
+            break
         except ValueError:
             continue
-    return {"error": proc.stderr.decode("utf-8", "replace")[-300:] or "pas de réponse"}
+    if out is None:
+        out = {"error": proc.stderr.decode("utf-8", "replace")[-300:] or "pas de réponse"}
+    if not out.get("description"):
+        _check_source(plain)           # le modèle a échoué : est-ce la photo (illisible) ou lui ?
+    return out
+
+
+DESC_RETRY_DAYS = 7
+
+
+class SourceUnreadable(Exception):
+    """La PHOTO est inutilisable (fichier vide, JPEG corrompu, bloc IPFS invalide), pas le modèle."""
+
+
+def _check_source(plain: bytes) -> None:
+    if not plain:
+        raise SourceUnreadable("fichier vide")
+    try:
+        from PIL import Image
+        import io
+        Image.open(io.BytesIO(plain))
+    except ImportError:
+        return
+    except Exception as exc:
+        raise SourceUnreadable(f"image illisible ({type(exc).__name__})")
+
+
+def _is_source_error(exc: Exception) -> bool:
+    """Bloc IPFS invalide ou manquant (réponse 5xx du démon) : permanent pour CETTE photo.
+    Un démon injoignable ou un délai dépassé n'est PAS la photo : on ne la marque pas."""
+    return isinstance(exc, SourceUnreadable) or (
+        type(exc).__name__ == "IPFSError" and "HTTP 5" in str(exc))
+
+
+def _mark_unreadable(udir, path: str, reason: str) -> None:
+    """Sort la photo de la file (`describe_pending`) pendant DESC_RETRY_DAYS : sans ça, les mêmes
+    photos cassées restaient en tête à chaque passage et coupaient le lot après 5 échecs."""
+    ucloud_db.patch_entry(udir, path, lambda e: e.update(desc_fail={"at": int(time.time()), "reason": reason[:200]}) or True)
 
 
 def submit_relay(email: str, path: str) -> bool:
@@ -198,16 +237,24 @@ def scan(email: str, paths: Optional[list] = None, mode: Optional[str] = None, l
                                   + out["description"].replace("\n", "\n    "), flush=True)
                     else:
                         state["failed"] += 1
+                        state["model_failed"] = state.get("model_failed", 0) + 1
                         print(f"WARN:describe:{path}: {out.get('error', '?')}", file=sys.stderr)
                         if verbose:
                             print(f"[{i}/{len(todo)}] {path}  ÉCHEC  {time.time() - t_photo:.1f}s", flush=True)
-                        if state["failed"] >= 5 and not state.get("ok"):
+                        # seuls les échecs du MODÈLE comptent : une photo cassée n'est pas une panne
+                        if state["model_failed"] >= 5 and not state.get("ok"):
                             state["error"] = "model_unavailable"
                             print("ERROR:describe: 5 échecs d'affilée — arrêt (modèle ou tunnel indisponible)", file=sys.stderr)
                             break
             except Exception as exc:
                 state["failed"] += 1
-                print(f"WARN:describe:{path}: {exc}", file=sys.stderr)
+                if eff != "relay" and _is_source_error(exc):
+                    state["unreadable"] = state.get("unreadable", 0) + 1
+                    _mark_unreadable(udir, path, str(exc))
+                    print(f"WARN:describe:{path}: photo illisible, écartée {DESC_RETRY_DAYS} jours : {str(exc)[:160]}", file=sys.stderr)
+                else:
+                    state["model_failed"] = state.get("model_failed", 0) + 1
+                    print(f"WARN:describe:{path}: {exc}", file=sys.stderr)
             state["done"] = i
             if eff != "relay" and not runner and (i == 1 or i % 10 == 0) and analysis.model_on_cpu(analysis.DESCRIBE_MODEL):
                 state["error"] = "gpu_unavailable"
