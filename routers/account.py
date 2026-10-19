@@ -15,6 +15,10 @@ stockage sont ceux de routers/mailjet.py (même fichier `.mailjet`) : les deux
 - POST /api/account/scraper(+/config, /channels)  activer / configurer un scraper BRO
 - GET/POST /api/account/lifeos   profil LifeOS (5 fichiers identity/*.md) ; POST …/regenerate : depuis Mastodon
 - POST /api/account/memory/reset réinitialiser un périmètre de mémoire (conversations, BRO, persona, LOVE…)
+- GET  /api/account/memory/items            « Ce que BRO sait de moi » : souvenirs actifs (filtres kind/source/visibility/q)
+- POST /api/account/memory/items            ajouter un souvenir à la main ; …/update (texte, type, visibilité) ; …/delete
+- GET/POST /api/account/memory/sources      sources d'apprentissage cochées (consentement) ; …/forget : tout oublier d'une source
+- POST /api/account/memory/learn-now        lance l'apprentissage des sources cochées (process détaché)
 Dépôt / suppression de cookies : POST /api/fileupload et DELETE /cookie/{domain} (déjà NIP-98) ;
 clés d'API : /api_access/{provider} (déjà NIP-98) — l'écran les appelle directement.
 """
@@ -35,7 +39,9 @@ from services import api_access_store, cloud_storage, cookie_store
 from services.admin_auth import get_node_and_captain_hex
 from services.memory_status import (
     IDENTITY_FILENAMES, IDENTITY_LABELS, IDENTITY_PLACEHOLDERS, RESET_SCOPES, get_identity_content,
-    get_memory_status, regenerate_lifeos_from_mastodon, reset_memory, save_identity_file,
+    MEMORY_KINDS, MEMORY_VISIBILITIES, add_memory_item, delete_memory_items, forget_memory_source,
+    get_memory_status, learn_now, list_memory_items, memory_sources, regenerate_lifeos_from_mastodon,
+    reset_memory, save_identity_file, set_memory_source, update_memory_item,
 )
 from services.nostr import require_nostr_auth
 from utils.security import safe_json_body
@@ -84,6 +90,7 @@ def _overview(email: str) -> dict:
             "conversations": s["conversations"]["message_count"], "bro_memory": s["bro_memory"]["message_count"],
             "persona": s["persona"]["message_count"], "love": s["love"]["memories_count"],
             "qdrant_points": sum(s[k].get("qdrant_points", 0) or 0 for k in ("conversations", "bro_memory", "persona", "love")),
+            "memories": (s.get("memories") or {}).get("total"),     # souvenirs actifs (schéma v2)
         }
     except Exception as e:
         mem = {"error": str(e)[:120]}
@@ -350,6 +357,109 @@ async def account_memory_reset(request: Request, npub: str = Depends(require_nos
     report = await asyncio.to_thread(reset_memory, email, scope)
     logger.info("Account: mémoire %s réinitialisée pour %s (%d élément(s))", scope, email, len(report.get("deleted", [])))
     return JSONResponse({"scope": scope, "deleted": len(report.get("deleted", []))})
+
+
+# ── « Ce que BRO sait de moi » : mémoire personnelle v2 (NIP-98, jamais en cache) ──
+_NOSTORE = {"Cache-Control": "no-store"}
+_MEM_SOURCES = ("chat", "love_dm", "nostr_public", "mastodon", "photo", "agenda", "contact")
+
+
+def _fail(res: dict, status: int = 502):
+    if not res.get("ok"):
+        raise HTTPException(status_code=status, detail=res.get("error", "opération impossible"))
+    return res
+
+
+@router.get("/api/account/memory/items")
+async def account_memory_items(kind: str = "", source: str = "", visibility: str = "", q: str = "",
+                               npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    res = await asyncio.to_thread(list_memory_items, email, kind, source, visibility, q)
+    return JSONResponse(_fail(res), headers=_NOSTORE)
+
+
+@router.post("/api/account/memory/items")
+async def account_memory_item_add(request: Request, npub: str = Depends(require_nostr_auth)):
+    """Body : {content, kind?, visibility?} — souvenir saisi par la personne (source « manual »)."""
+    email = _email_for_authenticated_npub(npub)
+    b = await safe_json_body(request)
+    res = await asyncio.to_thread(add_memory_item, email, str(b.get("content") or ""),
+                                  str(b.get("kind") or "fact"), str(b.get("visibility") or "private"))
+    return JSONResponse(_fail(res, 400))
+
+
+@router.post("/api/account/memory/items/update")
+async def account_memory_item_update(request: Request, npub: str = Depends(require_nostr_auth)):
+    """Body : {id, content?, kind?, visibility?} — `visibility` ∈ private | love."""
+    email = _email_for_authenticated_npub(npub)
+    b = await safe_json_body(request)
+    try:
+        item_id = int(b.get("id"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="id invalide.")
+    if b.get("visibility") not in (None, *MEMORY_VISIBILITIES) or b.get("kind") not in (None, *MEMORY_KINDS):
+        raise HTTPException(status_code=400, detail="type ou visibilité invalide.")
+    res = await asyncio.to_thread(update_memory_item, email, item_id,
+                                  b.get("content") if isinstance(b.get("content"), str) else None,
+                                  b.get("kind"), b.get("visibility"))
+    return JSONResponse(_fail(res, 400))
+
+
+@router.post("/api/account/memory/items/delete")
+async def account_memory_item_delete(request: Request, npub: str = Depends(require_nostr_auth)):
+    """Body : {ids:[…]} — suppression définitive (droit à l'oubli)."""
+    email = _email_for_authenticated_npub(npub)
+    b = await safe_json_body(request)
+    try:
+        ids = [int(i) for i in (b.get("ids") or [])]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="ids invalides.")
+    res = await asyncio.to_thread(delete_memory_items, email, ids)
+    logger.info("Account: %d souvenir(s) supprimé(s) pour %s", res.get("deleted", 0), email)
+    return JSONResponse(_fail(res))
+
+
+@router.get("/api/account/memory/sources")
+async def account_memory_sources(npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    return JSONResponse(_fail(await asyncio.to_thread(memory_sources, email)), headers=_NOSTORE)
+
+
+@router.post("/api/account/memory/sources")
+async def account_memory_source_set(request: Request, npub: str = Depends(require_nostr_auth)):
+    """Body : {source, enabled} — coche / décoche une source d'apprentissage."""
+    email = _email_for_authenticated_npub(npub)
+    b = await safe_json_body(request)
+    if b.get("source") not in _MEM_SOURCES or not isinstance(b.get("enabled"), bool):
+        raise HTTPException(status_code=400, detail="source ou valeur invalide.")
+    res = await asyncio.to_thread(set_memory_source, email, b["source"], b["enabled"])
+    if res.get("paused"):
+        raise HTTPException(status_code=409, detail=res["error"])
+    logger.info("Account: source mémoire %s=%s pour %s", b["source"], b["enabled"], email)
+    return JSONResponse(_fail(res))
+
+
+@router.post("/api/account/memory/sources/forget")
+async def account_memory_source_forget(request: Request, npub: str = Depends(require_nostr_auth)):
+    """Body : {source} — efface tout ce que BRO a appris de cette source (et la décoche)."""
+    email = _email_for_authenticated_npub(npub)
+    b = await safe_json_body(request)
+    if b.get("source") not in _MEM_SOURCES:
+        raise HTTPException(status_code=400, detail="source invalide.")
+    await asyncio.to_thread(set_memory_source, email, b["source"], False)
+    res = await asyncio.to_thread(forget_memory_source, email, b["source"])
+    return JSONResponse(_fail(res))
+
+
+@router.post("/api/account/memory/learn-now")
+async def account_memory_learn_now(npub: str = Depends(require_nostr_auth)):
+    """Lance maintenant l'apprentissage des sources cochées (process détaché, résultat visible
+    au prochain rechargement de la liste)."""
+    email = _email_for_authenticated_npub(npub)
+    ok = await asyncio.to_thread(learn_now, email)
+    if not ok:
+        raise HTTPException(status_code=503, detail="memory_sources.py introuvable ou non lançable.")
+    return JSONResponse({"ok": True, "started": True})
 
 
 # ── Mon espace de données : composition, couverture des analyses, préférences ─

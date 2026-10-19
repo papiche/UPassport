@@ -481,7 +481,7 @@ def _kick_embed(email: str, udir) -> None:
     "/api/cloud/search",
     summary="Recherche PAR LE SENS dans les photos (descriptions vectorisées + mots)",
     description="Classement hybride : proximité sémantique de la requête avec la description de chaque photo "
-                "(`paraphrase-multilingual`, Ollama) + bonus quand tous les mots y sont. Même forme de réponse que "
+                "(`bge-m3`, Ollama — modèle unique de la plateforme, IA/embed_config.py) + bonus quand tous les mots y sont. Même forme de réponse que "
                 "`files/page` (`files`, `total`, `offset`, `counts`) plus `mode` (`semantic` | `keyword` si Ollama ne répond pas), "
                 "`note` et `index` (photos décrites / vectorisées). Les photos sans vecteur restent trouvables par mots ; "
                 "la vectorisation des manquantes est lancée en tâche de fond.",
@@ -1030,6 +1030,42 @@ async def cloud_duplicates_scan(request: Request, npub: str = Depends(require_no
         logger.warning("ucloud: scan doublons impossible pour %s: %s", email, exc)
         raise HTTPException(status_code=500, detail="Lancement impossible")
     return JSONResponse({"success": True})
+
+
+@router.post(
+    "/api/cloud/memory/remember",
+    summary="Mettre des photos choisies dans la mémoire de BRO",
+    description="Geste explicite de la personne (bouton « Mémoriser pour BRO » de FaceCloud) : les photos "
+                "choisies sont regroupées par moment et BRO en retient un souvenir par moment (date, lieu "
+                "approximatif, personnes reconnues, descriptions — jamais les images). Rien n'est mémorisé "
+                "automatiquement depuis les photos.",
+)
+async def remember_cloud_photos(
+    paths: str = Form(..., description="Tableau JSON de chemins, ex. '[\"/Photos/a.jpg\"]'"),
+    npub: str = Depends(require_nostr_auth),
+):
+    from services.memory_status import remember_photos
+    email = _email_for_authenticated_npub(npub)
+    try:
+        requested = json.loads(paths)
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "paths doit être un tableau JSON de chemins."}, status_code=400)
+    if not isinstance(requested, list) or not requested or not all(isinstance(p, str) for p in requested):
+        return JSONResponse({"error": "paths doit être un tableau JSON non vide de chaînes."}, status_code=400)
+    if len(requested) > 200:
+        return JSONResponse({"error": "Trop de photos choisies (200 max)."}, status_code=400)
+    clean = []
+    for p in requested:
+        try:
+            clean.append(cloud_storage.normalize_path(p))
+        except ValueError:
+            return JSONResponse({"error": f"Chemin invalide : {p!r}"}, status_code=400)
+    res = await asyncio.to_thread(remember_photos, email, clean)
+    if not res.get("ok"):
+        return JSONResponse({"error": res.get("error", "mémorisation impossible")}, status_code=502)
+    logger.info("ucloud: %d photo(s) choisie(s) → %d moment(s) mémorisé(s) pour %s",
+                res.get("photos", 0), res.get("moments", 0), email)
+    return JSONResponse(res)
 
 
 @router.post(

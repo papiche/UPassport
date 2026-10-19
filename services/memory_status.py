@@ -21,6 +21,7 @@ from core.config import settings, ASTRO_PYTHON
 
 _IA_PATH    = settings.ZEN_PATH / "Astroport.ONE" / "IA"
 _MEMORY_MGR = _IA_PATH / "memory_manager.py"
+_MEMORY_WRITER = _IA_PATH / "memory_writer.py"
 
 sys.path.insert(0, str(_IA_PATH))
 try:
@@ -44,7 +45,7 @@ except Exception:
 # memory_manager.py (15). Simplification 2026-10 : une seule mémoire
 # personnelle par MULTIPASS (plus de slots 1-12 numérotés) — Qdrant seule
 # source de vérité, plus de fichier ~/.zen/flashmem/{email}/slotN.json local
-# (short_memory.py n'en écrit plus). Les compteurs "fichier" ci-dessous
+# (plus rien n'en écrit : short_memory.py a été supprimé). Les compteurs "fichier" ci-dessous
 # retombent donc naturellement à 0, ce qui est exact, pas un bug d'affichage.
 CONVERSATION_SLOTS = [0]
 BRO_MEMORY_SLOT    = 13
@@ -140,6 +141,177 @@ def _delete_qdrant_slots(email: str, slots: list) -> None:
             pass
 
 
+# ── Mémoire v2 : souvenirs individuels (« Ce que BRO sait de moi ») ─────────
+# Toujours en SOUS-PROCESSUS (ASTRO_PYTHON) : importer memory_manager dans le process
+# FastAPI y ajouterait le venv ~/.astro au chemin d'import, dont le vieux argparse.py
+# masque celui de la bibliothèque standard.
+MEMORY_VISIBILITIES = ("private", "love")
+MEMORY_KINDS = ("fact", "episode", "trait", "person")
+MEMORY_MAX_CHARS = 600
+
+
+def _cli(script: Path, args: list, timeout: int = 30) -> tuple[int, str, str]:
+    if not script.exists():
+        return 127, "", f"{script.name} introuvable"
+    try:
+        r = subprocess.run([ASTRO_PYTHON, "-W", "ignore", str(script), *[str(a) for a in args]],
+                           capture_output=True, text=True, timeout=timeout)
+        return r.returncode, r.stdout.strip(), r.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return 124, "", f"{script.name} : délai de {timeout}s dépassé"
+    except Exception as e:
+        return 1, "", str(e)
+
+
+def _why(err: str, default: str) -> str:
+    """Dernière ligne utile d'un stderr (jamais une trace Python brute renvoyée au client)."""
+    lines = [l.strip() for l in (err or "").splitlines() if l.strip() and not l.startswith("File ")]
+    return (lines[-1][:200] if lines else default)
+
+
+def _fold(text: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
+
+
+def list_memory_items(email: str, kind: str = "", source: str = "", visibility: str = "",
+                      q: str = "", limit: int = 500) -> dict:
+    """Souvenirs actifs, récents d'abord, + compteurs. Erreurs de Qdrant remontées (jamais
+    « aucun souvenir » à tort)."""
+    args = ["list-memories", "--user-id", email]
+    if kind in MEMORY_KINDS:
+        args += ["--kinds", kind]
+    if source:
+        args += ["--source", source]
+    rc, out, err = _cli(_MEMORY_MGR, args)
+    if rc != 0:
+        return {"ok": False, "error": _why(err, "lecture de la mémoire impossible")}
+    try:
+        points = json.loads(out or "[]")
+    except Exception:
+        return {"ok": False, "error": "réponse illisible du gestionnaire de mémoire"}
+    needle = _fold(q.strip()) if q else ""
+    items = []
+    for p in points:
+        pl = p.get("payload", {})
+        if visibility and pl.get("visibility") != visibility:
+            continue
+        if needle and needle not in _fold(pl.get("content", "")):
+            continue
+        # id en CHAÎNE : ce sont des entiers de 60 bits, JavaScript perd la précision au-delà de 2^53
+        items.append({"id": str(p["id"]), "content": pl.get("content", ""), "kind": pl.get("kind", "fact"),
+                      "source": pl.get("source", "chat"), "visibility": pl.get("visibility", "private"),
+                      "confidence": pl.get("confidence", 1.0), "edited": bool(pl.get("edited")),
+                      "pinned": bool(pl.get("origin") == "user" or pl.get("edited") or pl.get("source") in ("manual", "rec")),
+                      "timestamp": pl.get("timestamp", "")})
+    return {"ok": True, "items": items[:limit], "total": len(items)}
+
+
+def memory_sources(email: str) -> dict:
+    rc, out, err = _cli(_MEMORY_WRITER, ["sources", email])
+    if rc != 0:
+        return {"ok": False, "error": _why(err, "état des sources indisponible")}
+    try:
+        return {"ok": True, **json.loads(out)}
+    except Exception:
+        return {"ok": False, "error": "réponse illisible"}
+
+
+def set_memory_source(email: str, source: str, enabled: bool) -> dict:
+    if enabled:
+        st = memory_sources(email)
+        if st.get("ok") and any(r["source"] == source and r.get("paused") for r in st.get("sources", [])):
+            return {"ok": False, "error": "cette source est suspendue pour le moment", "paused": True}
+    rc, out, err = _cli(_MEMORY_WRITER, ["consent", email, "--set", f"{source}={'on' if enabled else 'off'}"])
+    if rc != 0:
+        return {"ok": False, "error": _why(err, "enregistrement impossible")}
+    return {"ok": True, "consent": json.loads(out)}
+
+
+def add_memory_item(email: str, content: str, kind: str = "fact", visibility: str = "private") -> dict:
+    content = " ".join((content or "").split())
+    if not 3 <= len(content) <= MEMORY_MAX_CHARS:
+        return {"ok": False, "error": f"le souvenir doit faire entre 3 et {MEMORY_MAX_CHARS} caractères."}
+    rc, out, err = _cli(_MEMORY_MGR, ["upsert-memory", "--user-id", email, "--content", content,
+                                      "--kind", kind if kind in MEMORY_KINDS else "fact",
+                                      "--source", "manual",
+                                      "--visibility", visibility if visibility in MEMORY_VISIBILITIES else "private"])
+    if rc != 0:
+        why = "contenu refusé (secret ou mot de passe)" if "refusé" in err else _why(err, "écriture impossible")
+        return {"ok": False, "error": why}
+    return {"ok": True, "id": str(int(out or 0))}
+
+
+def update_memory_item(email: str, item_id: int, content: str = None, kind: str = None,
+                       visibility: str = None) -> dict:
+    args = ["update-memory", "--user-id", email, "--id", item_id]
+    if content is not None:
+        content = " ".join(content.split())
+        if not 3 <= len(content) <= MEMORY_MAX_CHARS:
+            return {"ok": False, "error": f"le souvenir doit faire entre 3 et {MEMORY_MAX_CHARS} caractères."}
+        args += ["--content", content]
+    if kind in MEMORY_KINDS:
+        args += ["--kind", kind]
+    if visibility in MEMORY_VISIBILITIES:
+        args += ["--visibility", visibility]
+    rc, out, err = _cli(_MEMORY_MGR, args)
+    if rc != 0:
+        why = "contenu refusé (secret ou mot de passe)" if "refusé" in err else _why(err, "souvenir introuvable")
+        return {"ok": False, "error": why}
+    return {"ok": True, "id": str(int(out or item_id))}
+
+
+def delete_memory_items(email: str, ids: list) -> dict:
+    ids = [int(i) for i in ids][:500]
+    if not ids:
+        return {"ok": True, "deleted": 0}
+    rc, _, err = _cli(_MEMORY_MGR, ["delete-memory", "--user-id", email, "--ids", *ids])
+    return {"ok": rc == 0, "deleted": len(ids) if rc == 0 else 0, **({} if rc == 0 else {"error": _why(err, "suppression impossible")})}
+
+
+def forget_memory_source(email: str, source: str) -> dict:
+    rc, _, err = _cli(_MEMORY_MGR, ["delete-source", "--user-id", email, "--source", source])
+    return {"ok": rc == 0, **({} if rc == 0 else {"error": _why(err, "suppression impossible")})}
+
+
+def remember_photos(email: str, paths: list) -> dict:
+    """Met en mémoire BRO les photos CHOISIES par la personne (geste explicite, jamais automatique) :
+    regroupées par moment, un souvenir par moment (IA/memory_sources.py remember-photos). Retourne
+    {ok, photos, moments, queued} ; `moments` = 0 si aucune des photos n'a de description ni de personne."""
+    script = _IA_PATH / "memory_sources.py"
+    if not script.exists():
+        return {"ok": False, "error": "memory_sources.py introuvable"}
+    try:
+        r = subprocess.run([ASTRO_PYTHON, "-W", "ignore", str(script), "remember-photos", email],
+                           input=json.dumps(paths), capture_output=True, text=True, timeout=90)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "délai dépassé (90 s)"}
+    if r.returncode != 0:
+        return {"ok": False, "error": _why(r.stderr or r.stdout, "mémorisation impossible")}
+    try:
+        return {"ok": True, **json.loads(r.stdout.strip().splitlines()[-1])}
+    except Exception:
+        return {"ok": False, "error": "réponse illisible"}
+
+
+def learn_now(email: str) -> bool:
+    """Lance l'apprentissage des sources cochées dans un process AUTONOME (setsid) — jamais
+    attaché à la requête HTTP ni à un sous-shell (cf. memory_sources.py)."""
+    script = _IA_PATH / "memory_sources.py"
+    if not script.exists():
+        return False
+    log = _flashmem_dir(email) / "memory_sources.log"
+    try:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with open(log, "a") as lf:
+            subprocess.Popen([ASTRO_PYTHON, "-W", "ignore", str(script), "all", email],
+                             stdout=lf, stderr=lf, stdin=subprocess.DEVNULL,
+                             start_new_session=True, close_fds=True)
+        return True
+    except Exception:
+        return False
+
+
 def get_memory_status(email: str) -> dict:
     """État complet des mémoires d'un MULTIPASS — fichiers locaux + Qdrant.
     Best-effort : un module indisponible (Qdrant down) donne juste des
@@ -196,6 +368,14 @@ def get_memory_status(email: str) -> dict:
     # Compteurs Qdrant injectés directement dans chaque catégorie — évite au
     # gabarit HTML (Jinja) de devoir sommer/indexer le dict "slots" bruts.
     conversations["qdrant_points"] = sum(_qc(s) for s in CONVERSATION_SLOTS)
+    overview = {}
+    if qdrant_available or _MEMORY_MGR.exists():
+        rc, out, _err = _cli(_MEMORY_MGR, ["memory-overview", "--user-id", email], timeout=20)
+        if rc == 0:
+            try:
+                overview = json.loads(out)
+            except Exception:
+                overview = {}
 
     return {
         "email": email,
@@ -208,8 +388,9 @@ def get_memory_status(email: str) -> dict:
         "identity": identity,
         "cookies": {"domains": cookie_domains, "count": len(cookie_domains)},
         "can_regenerate_from_mastodon": has_mastodon_cookie(email),
+        "memories": overview,
         "qdrant": {
-            "available": qdrant_available,
+            "available": qdrant_available or bool(overview),
             "slots": qdrant_counts,
             "total_points": sum(qdrant_counts.values()) if qdrant_counts else 0,
         },
@@ -303,6 +484,13 @@ def reset_memory(email: str, scope: str) -> dict:
                 deleted.append(str(path))
         except Exception:
             pass
+
+    if scope == "all":
+        # Tout effacer : collection recréée vide (souvenirs de TOUTES les sources, y compris
+        # ceux écrits sans numéro de slot par memory_writer).
+        _cli(_MEMORY_MGR, ["delete-all", "--user-id", email], timeout=30)
+        for q in (_flashmem_dir(email) / ".memory_queue.jsonl",):
+            _rm(q)
 
     if scope in ("conversations", "all"):
         for s in CONVERSATION_SLOTS:
