@@ -295,21 +295,18 @@ def _received_count(email: str) -> int:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Cercles N1 / N2 — la trace des liens « follow » NOSTR
+# Liens NOSTR — les listes de suivis (kind 3) FONT FOI pour les relations
 # ═════════════════════════════════════════════════════════════════════════════
-# Qui suit qui, SANS jamais renvoyer le réseau entier : 100 amis qui ont chacun
-# 100 amis feraient 10 000 personnes (et autant d'appels au relais). On rend donc :
-#   * `/api/facecloud/circles`        le cercle 1 (ceux que je suis ET ceux qui me
-#     suivent), avec la nature du lien — c'est borné par MES liens ;
-#   * `/api/facecloud/circles/via/X`  les amis d'UN seul ami X, paginés et
-#     filtrables : on ne charge le cercle 2 qu'à la demande, par introducteur.
-# Nature du lien (`rel`) : « mutual » = ils se suivent (p2p) ; « out » = je le suis
-# sans réciproque (1→p) ; « in » = il me suit sans réciproque (p→1).
-_CIRCLES_TTL = 600.0
-_CIRCLES_MAX_LINKS = 600          # plafond d'un cercle 1 renvoyé (profils inclus)
-_CIRCLES_MAX_PAGE = 100
-_circles_cache: dict = {}
-_circles_locks: dict = {}
+# Qui suit qui. Plus de « cercles » placés à la main (l'onglet a été retiré le 2026-10-19 : il apportait de la confusion) :
+# on lit seulement ce que NOSTR dit déjà. Borné par MES liens (jamais le réseau entier : 100 amis × 100 amis = 10 000
+# personnes) :
+#   * `/api/facecloud/links`   ceux que je suis ET ceux qui me suivent, avec la nature du lien.
+# Nature du lien (`rel`) : « mutual » = ils se suivent (p2p) ; « out » = je le suis sans réciproque (1→p) ;
+# « in » = il me suit sans réciproque (p→1).
+_LINKS_TTL = 600.0
+_LINKS_MAX = 600          # plafond des liens renvoyés (profils inclus)
+_links_cache: dict = {}
+_links_locks: dict = {}
 
 
 def _profile_fields(prof: dict, pubkey: str = "") -> dict:
@@ -333,19 +330,19 @@ async def _cached(key: str, loader):
     """Résultat mémoïsé 10 min ; un seul calcul à la fois par clé (pas de rafale
     de `nostr_get_N1.sh` quand l'interface se rafraîchit)."""
     now = time.time()
-    hit = _circles_cache.get(key)
-    if hit and now - hit[0] < _CIRCLES_TTL:
+    hit = _links_cache.get(key)
+    if hit and now - hit[0] < _LINKS_TTL:
         return hit[1]
-    lock = _circles_locks.setdefault(key, asyncio.Lock())
+    lock = _links_locks.setdefault(key, asyncio.Lock())
     async with lock:
-        hit = _circles_cache.get(key)
-        if hit and time.time() - hit[0] < _CIRCLES_TTL:
+        hit = _links_cache.get(key)
+        if hit and time.time() - hit[0] < _LINKS_TTL:
             return hit[1]
         value = await loader()
-        _circles_cache[key] = (time.time(), value)
-        if len(_circles_cache) > 400:                      # mémoire bornée
-            for k in sorted(_circles_cache, key=lambda k: _circles_cache[k][0])[:100]:
-                _circles_cache.pop(k, None)
+        _links_cache[key] = (time.time(), value)
+        if len(_links_cache) > 400:                      # mémoire bornée
+            for k in sorted(_links_cache, key=lambda k: _links_cache[k][0])[:100]:
+                _links_cache.pop(k, None)
         return value
 
 
@@ -371,17 +368,17 @@ async def _my_graph(me: str) -> tuple:
     return await _cached(f"graph:{me}", load)
 
 
-@router.get("/api/facecloud/circles", summary="Cercle 1 : mes follows NOSTR et leur nature (p2p, 1→p, p→1)")
-async def circles(request: Request, refresh: int = Query(default=0), npub: str = Depends(require_nostr_auth)):
+@router.get("/api/facecloud/links", summary="Mes liens NOSTR (kind 3) : qui je suis, qui me suit, et la nature du lien (p2p, 1→p, p→1)")
+async def links(request: Request, refresh: int = Query(default=0), npub: str = Depends(require_nostr_auth)):
     me = _hex_of(npub)
     if refresh:
-        _circles_cache.pop(f"graph:{me}", None)
+        _links_cache.pop(f"graph:{me}", None)
     follows, followers = await _my_graph(me)
     keys = sorted(follows | followers)
-    truncated = len(keys) > _CIRCLES_MAX_LINKS
+    truncated = len(keys) > _LINKS_MAX
     # Les liens mutuels d'abord : si l'on tronque, on garde les plus proches.
     keys.sort(key=lambda k: (_relation(k, follows, followers) != "mutual", k))
-    keys = keys[:_CIRCLES_MAX_LINKS]
+    keys = keys[:_LINKS_MAX]
     profiles = await fetch_nostr_profiles(keys)
     links = [{"pubkey": k, "rel": _relation(k, follows, followers), **_profile_fields(profiles.get(k, {}), k)}
              for k in keys]
@@ -390,42 +387,6 @@ async def circles(request: Request, refresh: int = Query(default=0), npub: str =
         "counts": {"out": len(follows - followers), "in": len(followers - follows),
                    "mutual": len(follows & followers)},
     })
-
-
-@router.get("/api/facecloud/circles/via/{introducer}",
-            summary="Cercle 2 : les amis d'UN ami, paginés et filtrables")
-async def circles_via(request: Request, introducer: str,
-                      q: str = Query(default="", max_length=80),
-                      offset: int = Query(default=0, ge=0),
-                      limit: int = Query(default=50, ge=1, le=_CIRCLES_MAX_PAGE),
-                      npub: str = Depends(require_nostr_auth)):
-    me, via = _hex_of(npub), _hex_of(introducer)
-    follows, followers = await _my_graph(me)
-
-    async def load():
-        theirs = [k for k in await get_n1_follows(via) if k not in (me, via)]
-        return sorted(set(theirs))
-    friends = await _cached(f"follows:{via}", load)
-    needle = q.strip().lower()
-    total_all = len(friends)
-
-    if needle:
-        # Le filtre porte sur les NOMS : il faut les profils de TOUS les amis de cet ami
-        # (≈ 100, mis en cache 1 h par fetch_nostr_profiles), pas seulement la page.
-        profiles = await fetch_nostr_profiles(friends[:500])
-        matched = [k for k in friends if needle in " ".join(
-            (profiles.get(k, {}).get(f) or "") for f in ("name", "display_name", "email", "npub")).lower()]
-    else:
-        profiles, matched = {}, friends
-    # Déjà dans MON réseau d'abord (plus faciles à reconnaître), puis ordre stable.
-    matched = sorted(matched, key=lambda k: (k not in follows and k not in followers, k))
-    page = matched[offset:offset + limit]
-    if not needle:
-        profiles = await fetch_nostr_profiles(page)
-    items = [{"pubkey": k, "rel": (_relation(k, follows, followers) if (k in follows or k in followers) else "none"),
-              **_profile_fields(profiles.get(k, {}), k)} for k in page]
-    return JSONResponse({"introducer": via, "total": len(matched), "total_friends": total_all,
-                         "offset": offset, "limit": limit, "items": items})
 
 
 # ═════════════════════════════════════════════════════════════════════════════

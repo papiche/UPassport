@@ -1273,7 +1273,7 @@ async def get_mailjet_nostr_events(
     strfry_bin = strfry_dir / "strfry"
     if hex_pubkey and strfry_bin.exists():
         for filt in [
-            {"authors": [hex_pubkey], "kinds": [31903]},
+            {"authors": [hex_pubkey], "kinds": [31903], "#d": ["cookies"]},  # 31903 porte aussi d=memory_sources
             {"authors": [hex_pubkey], "kinds": [30078]},
         ]:
             try:
@@ -1670,7 +1670,6 @@ def _build_faces(points: list) -> tuple:
             "pubkey":    pubkey,
             "email":     payload.get("email") or "",
             "contact":   payload.get("contact") or "",
-            "via":       payload.get("via") or "",
             "timestamp": payload.get("timestamp") or "",
             # source_path présent seulement pour les points catalogués après
             # 2026-09-20 — sans lui, aucune miniature ni envoi possible.
@@ -2202,32 +2201,11 @@ async def post_face_thumbs(
     return JSONResponse({"thumbs": thumbs})
 
 
-_VIA_RE = re.compile(r"^(@me|@none|[0-9a-f]{64}|n:[^\x00-\x1f]{1,80})$")
-
-
-def _clean_via(via: str) -> Optional[str]:
-    """`via` = origine du lien social d'une personne : « @me » (je la connais
-    directement → cercle N1), la clé hex de LA personne par qui je l'ai connue (N2),
-    ou « n:<nom> » quand l'introducteur n'a pas encore de clé NOSTR ; « @none » =
-    EXPLICITEMENT non placée (même si je la suis sur NOSTR : mon choix prime sur
-    l'inférence). Vide = inchangé, « - » = effacé ; une valeur invalide est ignorée."""
-    via = (via or "").strip()
-    if via == "-":
-        return "-"
-    via = via.lower() if re.fullmatch(r"[0-9A-Fa-f]{64}", via) else via
-    return via if _VIA_RE.match(via) else None
-
-
-def _identity_payload(name: str, pubkey: str, contact_email: str, contact: str = "", via: str = "") -> dict:
+def _identity_payload(name: str, pubkey: str, contact_email: str, contact: str = "") -> dict:
     """Payload Qdrant d'identité. `contact_email` / `contact` (nom de la fiche
-    du carnet, routers/contacts.py) / `via` (cercle N1/N2) : vide = inchangé ;
-    "-" = effacé (sinon on ne pourrait jamais corriger une erreur)."""
+    du carnet, routers/contacts.py) : vide = inchangé ; "-" = effacé (sinon on ne pourrait jamais corriger une erreur).
+    (Le champ `via` des anciens « cercles » n'existe plus : les relations viennent du kind 3.)"""
     payload = {"name": name.strip(), "pubkey": pubkey or None}
-    v = _clean_via(via)
-    if v == "-":
-        payload["via"] = None
-    elif v:
-        payload["via"] = v
     contact = (contact or "").strip()
     if contact == "-":
         payload["contact"] = None
@@ -2251,7 +2229,6 @@ async def post_mailjet_faces_edit(
     pubkey: str = Form(default=""),
     contact_email: str = Form(default=""),
     contact: str = Form(default=""),
-    via: str = Form(default=""),
 ):
     """Nomme un visage et l'associe à une clé NOSTR et/ou un email de contact
     (payload merge, le vecteur est inchangé)."""
@@ -2273,7 +2250,7 @@ async def post_mailjet_faces_edit(
             resp = await client.post(
                 f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
                 headers=_qdrant_headers(),
-                json={"payload": _identity_payload(name, pubkey, contact_email, contact, via),
+                json={"payload": _identity_payload(name, pubkey, contact_email, contact),
                       "points": [point_id]},
             )
     except Exception as exc:
@@ -2297,7 +2274,6 @@ async def post_mailjet_faces_edit_bulk(
     pubkey: str = Form(default=""),
     contact_email: str = Form(default=""),
     contact: str = Form(default=""),
-    via: str = Form(default=""),
 ):
     """Nomme EN UNE FOIS plusieurs visages 'Inconnu' rassemblés — via le
     `group_id` suggéré par GET /mailjet/faces, ou une sélection manuelle dans
@@ -2328,7 +2304,7 @@ async def post_mailjet_faces_edit_bulk(
             resp = await client.post(
                 f"{_QDRANT_URL}/collections/{collection}/points/payload?wait=true",
                 headers=_qdrant_headers(),
-                json={"payload": _identity_payload(name, pubkey, contact_email, contact, via),
+                json={"payload": _identity_payload(name, pubkey, contact_email, contact),
                       "points": ids},
             )
     except Exception as exc:

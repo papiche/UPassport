@@ -1203,38 +1203,35 @@ class TestEditWebdavSource(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 404)
 
 
-class TestCirclesRouter(unittest.TestCase):
-    """Cercles N1/N2 : la nature des liens, et un cercle 2 PAGINÉ (100 amis × 100 amis)."""
+class TestLinksRouter(unittest.TestCase):
+    """Liens NOSTR (kind 3) : la nature des liens ; plus aucun « cercle » placé à la main ni cercle 2."""
     def setUp(self):
         import asyncio
         from routers import facecloud as fc
         self.asyncio, self.fc = asyncio, fc
-        fc._circles_cache.clear()
+        fc._links_cache.clear()
         h = lambda i: f"{i:064x}"
         self.h, self.me = h, h(1)
         self.follows = [h(i) for i in range(10, 110)]            # je suis 100 personnes
         self.followers = [h(i) for i in range(60, 160)]          # 100 me suivent : 50 mutuels, 50 « in »
-        self.theirs = [h(i) for i in range(1000, 1100)] + [h(10), h(1)]   # les 100 amis d'UN ami (+ un N1 + moi)
-        self.calls = {"n1": 0}
         self._real = (fc.get_n1_follows, fc.get_followers, fc.fetch_nostr_profiles)
 
         async def n1(k):
-            self.calls["n1"] += 1
-            return self.follows if k == self.me else self.theirs
+            return self.follows
 
         async def fol(k):
             return self.followers
 
         async def prof(keys):
-            return {k: {"name": f"N{int(k, 16)}", "display_name": "Marie Dupont" if int(k, 16) == 1005 else "",
-                        "email": "", "npub": "npub" + k[-6:], "picture": "http://x/y.png"} for k in keys}
+            return {k: {"name": f"N{int(k, 16)}", "display_name": "", "email": "", "npub": "npub" + k[-6:],
+                        "picture": "http://x/y.png"} for k in keys}
         fc.get_n1_follows, fc.get_followers, fc.fetch_nostr_profiles = n1, fol, prof
 
     def tearDown(self):
         self.fc.get_n1_follows, self.fc.get_followers, self.fc.fetch_nostr_profiles = self._real
 
-    def test_circle1_relations_and_no_avatar_url(self):
-        r = json.loads(self.asyncio.run(self.fc.circles(None, refresh=0, npub=self.me)).body)
+    def test_links_relations_and_no_avatar_url(self):
+        r = json.loads(self.asyncio.run(self.fc.links(None, refresh=0, npub=self.me)).body)
         rel = {l["pubkey"]: l["rel"] for l in r["links"]}
         self.assertEqual(rel[self.h(10)], "out")          # je le suis seulement
         self.assertEqual(rel[self.h(70)], "mutual")       # dans les deux listes
@@ -1242,17 +1239,28 @@ class TestCirclesRouter(unittest.TestCase):
         self.assertEqual(r["counts"], {"out": 50, "in": 50, "mutual": 50})
         self.assertNotIn("picture", json.dumps(r), "aucune URL d'avatar : la page ne charge rien d'extérieur")
 
-    def test_circle2_is_paginated_filtered_and_cached(self):
-        via = self.h(10)
-        r = json.loads(self.asyncio.run(self.fc.circles_via(None, via, q="", offset=0, limit=30, npub=self.me)).body)
-        self.assertEqual((len(r["items"]), r["total"], r["total_friends"]), (30, 100, 100))
-        self.assertNotIn(self.me, [i["pubkey"] for i in r["items"]], "ni moi ni l'introducteur")
-        r2 = json.loads(self.asyncio.run(self.fc.circles_via(None, via, q="", offset=90, limit=30, npub=self.me)).body)
-        self.assertEqual(len(r2["items"]), 10, "dernière page")
-        hit = json.loads(self.asyncio.run(self.fc.circles_via(None, via, q="marie", offset=0, limit=30, npub=self.me)).body)
-        self.assertEqual([i["display_name"] for i in hit["items"]], ["Marie Dupont"])
-        self.assertEqual(hit["items"][0]["rel"], "none", "inconnu de mon réseau")
-        self.assertEqual(self.calls["n1"], 2, "mes follows + ceux de l'ami, pas un appel par requête")
+    def test_les_mutuels_d_abord_quand_on_tronque(self):
+        self.fc._LINKS_MAX = 40
+        try:
+            r = json.loads(self.asyncio.run(self.fc.links(None, refresh=1, npub=self.me)).body)
+        finally:
+            self.fc._LINKS_MAX = 600
+        self.assertTrue(r["truncated"])
+        self.assertEqual({l["rel"] for l in r["links"]}, {"mutual"})        # les plus proches d'abord
+
+    def test_plus_de_cercles_ni_de_cercle_2(self):
+        paths = {getattr(route, "path", "") for route in self.fc.router.routes}
+        self.assertIn("/api/facecloud/links", paths)
+        self.assertFalse([p for p in paths if "circles" in p], "les anciens endpoints de cercles doivent avoir disparu")
+        self.assertFalse(hasattr(self.fc, "circles_via"))
+
+    def test_faces_edit_ignore_le_champ_via_des_anciennes_pages(self):
+        from routers import mailjet
+        payload = mailjet._identity_payload("Emma", "ab" * 32, "emma@x.fr", "fiche.vcf")
+        self.assertNotIn("via", payload)
+        self.assertEqual(payload["name"], "Emma")
+        import inspect
+        self.assertNotIn("via", inspect.signature(mailjet._identity_payload).parameters)
 
 
 def _photo(seed: int, size=(160, 120), quality=90, rot=False):
