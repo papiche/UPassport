@@ -17,7 +17,9 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -194,16 +196,55 @@ def clean_messages(messages: Any) -> List[Dict[str, str]]:
     return out
 
 
+def _gpu_ensure(model: str) -> None:
+    """La 3090 est PARTAGÉE avec ComfyUI : pas de chargement de modèle sans place (`Astroport.ONE/IA/gpu_headroom.py`)."""
+    try:
+        import sys
+        from core.config import settings
+        ia = str(settings.ZEN_PATH / "Astroport.ONE" / "IA")
+        if ia not in sys.path:
+            sys.path.append(ia)          # à la FIN : le venv ~/.astro de l'IA ne doit pas masquer la bibliothèque standard
+        import gpu_headroom
+    except ImportError as exc:
+        raise AssistantError(f"garde-fou GPU introuvable (gpu_headroom.py) : {exc}") from exc
+    try:
+        gpu_headroom.ensure(model)
+    except gpu_headroom.GpuBusy as exc:
+        raise AssistantError(f"GPU occupé : {exc}") from exc
+
+
+def _metric(path, body, t0, resp, error, gpu_call) -> None:
+    """Journal des appels au GPU partagé (`Astroport.ONE/IA/ollama_metrics.py`) ; ne casse jamais l'appel mesuré."""
+    if not gpu_call:
+        return
+    try:
+        import ollama_metrics            # le chemin de l'IA a été ajouté par _gpu_ensure
+        kind = "embed" if path == "/api/embed" else ("generate" if path == "/api/generate" else "chat")
+        vision = any(m.get("images") for m in body.get("messages", []) if isinstance(m, dict))
+        ollama_metrics.record("vision" if vision else kind, body["model"], t0, resp=resp, ok=error is None, error=error,
+                              ctx=(body.get("options") or {}).get("num_ctx"), extra={"origine": "story_assistant"})
+    except Exception as exc:
+        print(f"[story_assistant] ⚠️ mesure non enregistrée : {exc}", file=sys.stderr)
+
+
 def _http(path: str, body: Optional[dict] = None, timeout: float = 10.0) -> dict:
+    gpu_call = bool(body and path in ("/api/chat", "/api/generate", "/api/embed") and body.get("model"))
+    if gpu_call:
+        _gpu_ensure(body["model"])
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(f"{OLLAMA_URL}{path}", data, {"Content-Type": "application/json"} if data else {})
+    t0 = time.perf_counter()
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.load(r)
+            out = json.load(r)
     except urllib.error.HTTPError as exc:
+        _metric(path, body, t0, None, exc, gpu_call)
         raise AssistantError(f"Ollama HTTP {exc.code} : {exc.read().decode('utf-8', 'replace')[:200]}") from exc
     except (urllib.error.URLError, OSError, ValueError) as exc:
+        _metric(path, body, t0, None, exc, gpu_call)
         raise AssistantError(f"Ollama injoignable ({exc}) : vérifiez le tunnel IA de la station (IA/services/ollama.me.sh)") from exc
+    _metric(path, body, t0, out, None, gpu_call)
+    return out
 
 
 def installed_models() -> List[str]:

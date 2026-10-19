@@ -6,9 +6,12 @@ requête (« vacances à la mer », « fête d'anniversaire ») devient un vecte
 même sans aucun mot en commun. Ni les descriptions ni les vecteurs ne quittent la station : tout reste dans
 `.ucloud/ucloud.db` (table `embeddings`, clé = CID : une photo déplacée garde son vecteur).
 
-Modèle : `paraphrase-multilingual` (multilingue, 768 dimensions). Comparé le 2026-10-16 à `nomic-embed-text` sur 12
-requêtes en français : 11/12 bonnes photos en tête contre 8/12, et un écart net entre les bonnes réponses (cosinus
-≈ 0,68) et les autres (≈ 0,20), ce qui permet un seuil de coupure fiable.
+Modèle : `bge-m3` (multilingue, 1024 dimensions) — le même que toute la plateforme IA (IA/embed_config.py : mémoire de BRO,
+routage, index du code ; un seul modèle chargé sur le GPU distant au lieu de deux qui s'évincent). Mesuré le 2026-10-19 sur
+40 requêtes naturelles écrites pour 40 vraies photos de ce cloud, retrouvées parmi 440 descriptions : bge-m3 82 % de bonne photo
+en tête (95 % dans les 5 premières) contre 70 % (82 %) pour `paraphrase-multilingual`, utilisé du 2026-10-16 au 2026-10-19
+(qui avait lui-même battu `nomic-embed-text`, 11/12 contre 8/12). Changer de modèle re-vectorise tout (table `embeddings`
+rangée par modèle) : ~160 descriptions/s, quelques minutes pour 20 000 photos.
 
 Classement HYBRIDE : cosinus sémantique + bonus quand TOUS les mots de la requête sont dans la description ou le nom
 du fichier (un nom propre, un mot rare). Les photos sans vecteur (pas encore indexées) restent trouvables par mots.
@@ -22,6 +25,7 @@ import json
 import os
 import re
 import threading
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -32,7 +36,7 @@ import numpy as np
 
 from services import trace, ucloud_db
 
-MODEL = os.environ.get("FACECLOUD_EMBED_MODEL", "paraphrase-multilingual:latest")
+MODEL = os.environ.get("FACECLOUD_EMBED_MODEL", "bge-m3:latest")
 OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 if not OLLAMA_URL.startswith("http"):
     OLLAMA_URL = "http://" + OLLAMA_URL
@@ -59,8 +63,37 @@ class EmbedError(RuntimeError):
     pass
 
 
+def _gpu_ensure(model: str) -> None:
+    """La 3090 est PARTAGÉE avec ComfyUI : pas de chargement de modèle s'il n'y a pas la place
+    (`Astroport.ONE/IA/gpu_headroom.py`). Voie rapide : modèle déjà chargé = un GET de quelques ms."""
+    try:
+        import sys
+        from core.config import settings
+        ia = str(settings.ZEN_PATH / "Astroport.ONE" / "IA")
+        if ia not in sys.path:
+            sys.path.append(ia)          # à la FIN : le venv ~/.astro de l'IA ne doit pas masquer la bibliothèque standard
+        import gpu_headroom
+    except ImportError as exc:
+        raise EmbedError(f"garde-fou GPU introuvable (gpu_headroom.py) : {exc}") from exc
+    try:
+        gpu_headroom.ensure(model)
+    except gpu_headroom.GpuBusy as exc:
+        raise EmbedError(f"GPU occupé : {exc}") from exc
+
+
+def _metric(model, t0, data, ok, error, n):
+    """Journal des appels au GPU partagé (`Astroport.ONE/IA/ollama_metrics.py`) ; ne casse jamais l'appel mesuré."""
+    try:
+        import ollama_metrics            # le chemin de l'IA a été ajouté par _gpu_ensure
+        ollama_metrics.record("embed", model, t0, resp=data, ok=ok, error=error, n_inputs=n, extra={"origine": "ucloud_embed"})
+    except Exception as exc:
+        print(f"[ucloud_embed] ⚠️ mesure non enregistrée : {exc}", file=sys.stderr)
+
+
 def embed_texts(texts: List[str], model: str = MODEL, timeout: float = 120.0) -> np.ndarray:
     """Vecteurs normalisés (n × d), float32. Lève EmbedError si Ollama ne répond pas ou n'a pas le modèle."""
+    _gpu_ensure(model)
+    _t0 = time.perf_counter()
     body = json.dumps({"model": model, "input": texts, "keep_alive": "10m"}).encode()
     req = urllib.request.Request(f"{OLLAMA_URL}/api/embed", body, {"Content-Type": "application/json"})
     trace.log("embed", f"POST {OLLAMA_URL}/api/embed modèle={model} {len(texts)} texte(s), {sum(map(len, texts))} caractères", 2)
@@ -71,9 +104,12 @@ def embed_texts(texts: List[str], model: str = MODEL, timeout: float = 120.0) ->
                            f"{(data.get('load_duration') or 0) / 1e9:.2f}s, {data.get('prompt_eval_count', '?')} jetons", 2)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:200]
+        _metric(model, _t0, None, False, exc, len(texts))
         raise EmbedError(f"Ollama HTTP {exc.code} : {detail}") from exc
     except (urllib.error.URLError, OSError, ValueError) as exc:
+        _metric(model, _t0, None, False, exc, len(texts))
         raise EmbedError(f"Ollama injoignable : {exc}") from exc
+    _metric(model, _t0, data, True, None, len(texts))
     vecs = np.array(data.get("embeddings") or [], dtype=np.float32)
     if vecs.ndim != 2 or len(vecs) != len(texts):
         raise EmbedError("réponse d'embedding invalide")
