@@ -91,13 +91,13 @@ async def run_script(script_path, *args, log_file_path=None):
                 line = line.decode().strip()
                 last_line = line
                 await log_file.write(line + "\n")
-                logging.info(f"Script output: {line}")
+                logging.debug(f"Script output: {line}")  # sortie déjà écrite dans log_file ; INFO noyait 54321.log
     except Exception as e:
         logging.error(f"Error writing to log file {log_file_path}: {e}")
         async for line in process.stdout:
             line = line.decode().strip()
             last_line = line
-            logging.info(f"Script output (no log file): {line}")
+            logging.debug(f"Script output (no log file): {line}")
 
     return_code = await process.wait()
     logging.info(f"Script finished with return code: {return_code}")

@@ -179,7 +179,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             response.headers["X-RateLimit-Client-IP"] = rate_info["client_ip"]
 
             status = response.status_code
-            log_fn = logger.warning if status >= 400 else logger.info
+            # 2xx/3xx rapides : DEBUG (une ligne INFO par requête noyait 54321.log) ;
+            # erreurs en WARNING, requêtes lentes (>1s) en INFO.
+            log_fn = logger.warning if status >= 400 else (logger.info if elapsed > 1000 else logger.debug)
             log_fn(
                 "← %d %s %s ip=%s (%.0fms)",
                 status, request.method, request.url.path,

@@ -16,6 +16,8 @@ class RequestIdFilter(logging.Filter):
 
 
 def setup_logging() -> None:
+    # tmp/ est vidé chaque jour par 20h12.process.sh, mais 54321.log* y est exclu
+    # (sinon la rotation est inutile et uvicorn écrit dans un fichier supprimé).
     log_dir = settings.ZEN_PATH / "tmp"
     os.makedirs(log_dir, exist_ok=True)
     log_file = log_dir / "54321.log"
@@ -35,7 +37,7 @@ def setup_logging() -> None:
     stdout_handler.addFilter(req_filter)
 
     file_handler = RotatingFileHandler(
-        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
     )
     file_handler.setFormatter(logging.Formatter(file_fmt, datefmt=datefmt))
     file_handler.addFilter(req_filter)
