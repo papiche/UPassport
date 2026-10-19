@@ -200,25 +200,77 @@ async def delete_contact(request: Request, name: str = Query(...), npub: str = D
 # ═════════════════════════════════════════════════════════════════════════════
 # Import / export de fichiers
 # ═════════════════════════════════════════════════════════════════════════════
+# Import d'un fichier .vcf : au-delà de SYNC_MAX fiches (chacune est chiffrée, rangée dans IPFS, indexée : ~0,1 à 1 s),
+# l'import tourne EN TÂCHE DE FOND et son avancement se lit par GET /api/contacts/import/status — sinon une requête
+# de plusieurs minutes dépasse le délai de l'interface, qui annonce un échec alors que le serveur continue.
+IMPORT_SYNC_MAX = 60
+_IMPORT_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+def _job_view(job: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in job.items() if not k.startswith("_")}
+
+
 @router.post("/api/contacts/import-vcf")
 async def import_vcf(request: Request, file: UploadFile = File(...), npub: str = Depends(require_nostr_auth)):
+    """→ {state:"done", created, updated, errors, total} (petit fichier) ou {state:"running", total, done, …}."""
     email = _email_for_authenticated_npub(npub)
+    cur = _IMPORT_JOBS.get(email)
+    if cur and cur["state"] == "running":
+        raise HTTPException(status_code=409, detail="un import est déjà en cours pour ce compte")
     raw = await file.read()
     if len(raw) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="fichier trop volumineux")
-    text = raw.decode("utf-8", "replace")
-    result = await asyncio.to_thread(_import_cards, email, contacts_store.split_vcf(text), None)
-    schedule_face_refs(email)
-    return JSONResponse(result)
+    cards = contacts_store.split_vcf(raw.decode("utf-8", "replace"))
+    if not cards:
+        raise HTTPException(status_code=400, detail="aucune fiche vCard trouvée dans ce fichier")
+    job = {"state": "running", "name": file.filename or "contacts.vcf", "total": len(cards), "done": 0,
+           "created": 0, "updated": 0, "errors": 0, "started": int(time.time()), "finished": None, "error": None}
+    _IMPORT_JOBS[email] = job
+    if len(cards) <= IMPORT_SYNC_MAX:
+        await _run_vcf_job(email, job, cards)
+        return JSONResponse(_job_view(job))
+    task = asyncio.create_task(_run_vcf_job(email, job, cards))
+    _SYNC_TASKS.add(task)
+    task.add_done_callback(_SYNC_TASKS.discard)
+    return JSONResponse(_job_view(job))
 
 
-def _import_cards(email: str, cards: List[str], source: Optional[str]) -> Dict[str, int]:
+async def _run_vcf_job(email: str, job: Dict[str, Any], cards: List[str]) -> None:
+    def progress(done: int, counts: Dict[str, int]) -> None:
+        job.update(done=done, **counts)
+    try:
+        counts = await asyncio.to_thread(_import_cards, email, cards, None, progress)
+        job.update(counts)
+        job["done"] = job["total"]
+        job["state"] = "done"
+    except Exception as exc:                        # jamais un import qui meurt en silence
+        logger.exception("contacts: import .vcf interrompu pour %s", email)
+        job["state"] = "error"
+        job["error"] = str(exc)[:200]
+    finally:
+        job["finished"] = int(time.time())
+    if job["state"] == "done":
+        schedule_face_refs(email)
+
+
+@router.get("/api/contacts/import/status")
+async def import_status(request: Request, npub: str = Depends(require_nostr_auth)):
+    """État du dernier import .vcf de ce compte (en mémoire du service : {state:"idle"} après un redémarrage)."""
+    email = _email_for_authenticated_npub(npub)
+    job = _IMPORT_JOBS.get(email)
+    return JSONResponse(_job_view(job) if job else {"state": "idle"}, headers={"Cache-Control": "no-store"})
+
+
+def _import_cards(email: str, cards: List[str], source: Optional[str], progress=None) -> Dict[str, int]:
     """Fiches d'un fichier : même UID qu'une fiche existante → mise à jour ;
     sinon nouvelle fiche. Les fiches illisibles sont comptées, jamais
     bloquantes pour les autres."""
     counts = {"created": 0, "updated": 0, "errors": 0}
     data = contacts_store.load(email)
-    for text in cards:
+    for i, text in enumerate(cards, 1):
+        if progress and (i % 10 == 0 or i == len(cards)):
+            progress(i - 1, dict(counts))
         try:
             info = contacts_store.summarize(text)
             name = contacts_store.find_by_uid(data, info["uid"]) if info["uid"] else None
@@ -346,6 +398,8 @@ async def sync_source(email: str, source_id: str) -> Dict[str, Any]:
         return {}
     result = {"at": int(time.time()), "created": 0, "updated": 0, "deleted": 0,
               "kept_local": 0, "errors": 0}
+    started = int(time.time())
+    _record_progress(email, source_id, {"state": "running", "phase": "download", "started": started})
     try:
         remote = await carddav_client.fetch_all(source["url"], source["username"], source["password"])
     except carddav_client.CardDAVError as exc:
@@ -358,7 +412,13 @@ async def sync_source(email: str, source_id: str) -> Dict[str, Any]:
         by_href = {(c.get("remote") or {}).get("href"): n for n, c in data["cards"].items()
                    if c.get("source") == source_id}
         seen = set()
-        for href, etag, text in remote:
+        total = len(remote)
+        _record_progress(email, source_id, {"state": "running", "phase": "apply", "total": total, "done": 0,
+                                            "started": started})
+        for idx, (href, etag, text) in enumerate(remote, 1):
+            if idx % 25 == 0:
+                _record_progress(email, source_id, {"state": "running", "phase": "apply", "total": total,
+                                                    "done": idx - 1, "started": started, **{k: result[k] for k in ("created", "updated")}})
             seen.add(href)
             name = by_href.get(href)
             try:
@@ -398,19 +458,38 @@ async def sync_source(email: str, source_id: str) -> Dict[str, Any]:
             if contacts_store.delete(email, name):
                 result["deleted"] += 1
 
-    await asyncio.to_thread(apply)
+    try:
+        await asyncio.to_thread(apply)
+    except Exception as exc:
+        logger.exception("contacts: synchro %s interrompue pour %s", source_id, email)
+        result["error"] = f"interrompue : {exc}"[:200]
     _record_sync(email, source_id, result)
     schedule_face_refs(email)
     logger.info("contacts: synchro %s pour %s : %s", source_id, email, result)
     return result
 
 
+_SOURCES_LOCK = threading.Lock()
+
+
 def _record_sync(email: str, source_id: str, result: Dict[str, Any]) -> None:
-    sources = _load_sources(email)
-    for s in sources:
-        if s["id"] == source_id:
-            s["last_sync"] = result
-    _save_sources(email, sources)
+    with _SOURCES_LOCK:
+        sources = _load_sources(email)
+        for s in sources:
+            if s["id"] == source_id:
+                s["last_sync"] = result
+                s["progress"] = {"state": "error" if result.get("error") else "done", "at": int(time.time())}
+        _save_sources(email, sources)
+
+
+def _record_progress(email: str, source_id: str, progress: Dict[str, Any]) -> None:
+    """Avancement d'une synchro en cours (lu par l'interface via GET /api/contacts/sources)."""
+    with _SOURCES_LOCK:
+        sources = _load_sources(email)
+        for s in sources:
+            if s["id"] == source_id:
+                s["progress"] = progress
+        _save_sources(email, sources)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
