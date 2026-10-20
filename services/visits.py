@@ -35,7 +35,7 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 BASE = settings.ZEN_PATH / "tmp" / "visits"
-SALT_FILE = settings.GAME_PATH / ".visit_salt"
+SALT_FILE = settings.ZEN_PATH / "tmp" / "coucou" / ".visit_salt"
 NODE_KEYFILE = settings.GAME_PATH / "secret.nostr"
 ORACLE_KEYFILE = settings.GAME_PATH / "uplanet.G1.nostr"
 SENDER = settings.TOOLS_PATH / "nostr_send_note.py"

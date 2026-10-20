@@ -35,7 +35,7 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
-CACHE_DIR = settings.GAME_PATH / "profiles"
+CACHE_DIR = settings.ZEN_PATH / "tmp" / "coucou" / "profiles"
 PROFILE_TTL = 24 * 3600
 MISS_TTL = 6 * 3600
 RELAY_TIMEOUT = 8.0

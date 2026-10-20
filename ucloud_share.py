@@ -84,11 +84,20 @@ def _notify(email: str, from_name: str, n: int) -> None:
     if not mailjet.exists():
         return
     who = from_name or "Un ami"
-    html = (f"<h2>📸 {n} photo{'s' if n > 1 else ''} de vous dans votre cloud</h2>"
-            f"<p><strong>{who}</strong> vous a reconnu·e sur des photos et vous en a envoyé une copie, "
-            f"rangée dans votre cloud personnel chiffré, dossier <code>/Reçues/{who}/</code>.</p>")
+    from html import escape
+    from services import degafam
+    base = degafam.base_url()
+    body = degafam.layout(
+        f"{n} photo{'s' if n > 1 else ''} de vous, chez vous",
+        f"<b>{escape(who)}</b> vous a reconnu·e sur des photos et vous en a envoyé une copie, rangée dans votre cloud "
+        f"chiffré, dossier <code>/Reçues/{escape(who)}/</code>.",
+        ["<b>Ouvrez FaceCloud</b> (bouton ci-dessous).", "<b>Retrouvez-les</b> dans l'onglet Photos → « Reçues ».",
+         f"<b>Rendez la pareille</b> : FaceCloud peut retrouver {escape(who)} dans vos propres photos."],
+        "Voir mes photos", f"{base}/earth/ucloud.html#photos",
+        f"Et vos autres photos, contacts et agenda ? <a href=\"{base}/earth/degafam.html\">Le guide pas à pas</a> les met à l'abri.",
+        preheader=f"{who} vous a reconnu·e sur des photos.", unsubscribe=False)
     with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as fh:
-        fh.write(html)
+        fh.write(body)
     try:
         subprocess.run([str(mailjet), "--channel", "facecloud-invite", "--no-ipfs-link", email, fh.name,
                         f"📸 {who} vous a envoyé des photos"], capture_output=True, timeout=60)

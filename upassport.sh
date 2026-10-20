@@ -117,7 +117,7 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
     pepper=$(urldecode ${arr[3]} | xargs)
     
     ## CREATE WALLET KEY to get email
-    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.zencard.dunikey "${salt}" "${pepper}"
+    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.zencard.dunikey "${salt}" "${pepper}"  # ZENCARD : clé CAPEX volontairement brute (identique sur toutes les UPlanets)
     g1source=$(cat ${MY_PATH}/tmp/${MOATS}.zencard.dunikey | grep 'pub:' | cut -d ' ' -f 2)
     
     echo "ZEN Card G1 pubkey: ${g1source}"
@@ -446,7 +446,19 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
         else
         ### OPEN UPLANET GEO KEY MESSAGE
             ### Filling UPassport API template with nsec
-            NSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${salt}" "${pepper}" -s)
+            ## Norme des clés (my.sh) : clé NOSTR avec la formule de CE compte, retrouvée par son HEX publié
+            _mp_nostr_f=$(resolve_key_formula nostr "${salt}" "${pepper}" "$(cat ${HOME}/.zen/game/nostr/${PLAYER}/HEX 2>/dev/null)")
+            if [[ -z "$_mp_nostr_f" ]]; then
+                cat ${MY_PATH}/templates/message.html \
+                | sed -e "s~_TITLE_~$(date -u) <br> ${PLAYER}~g" \
+                      -e "s~_MESSAGE_~KEYS MISMATCH : ces identifiants ne reproduisent pas la clé NOSTR publiée de ce MULTIPASS~g" \
+                    > ${MY_PATH}/tmp/${MOATS}.out.html
+                echo "${MY_PATH}/tmp/${MOATS}.out.html"
+                exit 0
+            fi
+            _mp_cred=$(uplanet_cred_file "${salt}" "${pepper}" "$_mp_nostr_f")
+            NSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr -s -i "$_mp_cred")
+            rm -f "$_mp_cred"
             
             ### RECONSTRUCT/UPDATE .multipass.json for Zelkova
             G1PUB=$(cat "${HOME}/.zen/game/nostr/${PLAYER}/G1PUBNOSTR" 2>/dev/null)
@@ -513,8 +525,20 @@ EOFJSON
                 ### PASS 9999: Open MULTIPASS Payment Terminal
                 echo "PASS 9999: Opening MULTIPASS Payment Terminal..."
                 
-                # Generate dunikey with salt/pepper
-                $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
+                # Generate dunikey with salt/pepper — norme des clés (my.sh) : wallet du MULTIPASS avec SA formule,
+                # retrouvée par G1PUBNOSTR (avant : pepper brut → mauvais wallet, paiement impossible).
+                _mp_g1_f=$(resolve_key_formula g1 "${salt}" "${pepper}" "$(cat ${HOME}/.zen/game/nostr/${PLAYER}/G1PUBNOSTR 2>/dev/null)")
+                if [[ -z "$_mp_g1_f" ]]; then
+                    cat ${MY_PATH}/templates/message.html \
+                    | sed -e "s~_TITLE_~$(date -u) <br> ${PLAYER}~g" \
+                          -e "s~_MESSAGE_~KEYS MISMATCH : ces identifiants ne reproduisent pas le wallet de ce MULTIPASS~g" \
+                        > ${MY_PATH}/tmp/${MOATS}.out.html
+                    echo "${MY_PATH}/tmp/${MOATS}.out.html"
+                    exit 0
+                fi
+                _mp_cred=$(uplanet_cred_file "${salt}" "${pepper}" "$_mp_g1_f")
+                $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey -i "$_mp_cred"
+                rm -f "$_mp_cred"
                 
                 # Retrieve G1PUBNOSTR (MULTIPASS wallet public key)
                 G1PUBNOSTR=$(cat ~/.zen/game/nostr/${PLAYER}/G1PUBNOSTR)
@@ -1166,7 +1190,7 @@ SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 second=$($HOME/.zen/Astroport.ONE/tools/diceware.sh 1 | xargs)
 PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 ################################################################# DUNITER
-$HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"
+$HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"  # ZENCARD : clé CAPEX volontairement brute (identique sur toutes les UPlanets)
 G1PUBZERO=$(cat ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
 
 ## ENCRYPT WITH UPLANETNAME PASSWORD
@@ -1195,8 +1219,8 @@ amzqr "${G1PUBZERO}" -l H -p ${MY_PATH}/static/img/GZen.png -c -n ZEROCARD_${G1P
 
 ################################################################# IPNS
 #~ ## CREATE IPNS KEY
-$HOME/.zen/Astroport.ONE/tools/keygen -t ipfs -o ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key "${SALT}" "${PEPPER}"
-IPNS12D=$($HOME/.zen/Astroport.ONE/tools/keygen -t ipfs "${SALT}" "${PEPPER}")
+$HOME/.zen/Astroport.ONE/tools/keygen -t ipfs -o ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key "${SALT}" "${PEPPER}"  # ZENCARD : clé CAPEX volontairement brute (identique sur toutes les UPlanets)
+IPNS12D=$($HOME/.zen/Astroport.ONE/tools/keygen -t ipfs "${SALT}" "${PEPPER}")  # ZENCARD : clé CAPEX volontairement brute (identique sur toutes les UPlanets)
 ipfs key rm ${G1PUBZERO} > /dev/null 2>&1
 WALLETNS=$(ipfs key import ${G1PUBZERO} -f pem-pkcs8-cleartext ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key)
 

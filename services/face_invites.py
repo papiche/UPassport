@@ -160,7 +160,7 @@ def publish(owner_email: str, token: str, data: Dict[str, Any], from_name: str) 
         meta = {"owner_email": owner_email, "from_hex": cloud_storage.hex_for_email(owner_email) or "",
                 "face_ref": {"vectors": ref["vectors"]} if ref else None,
                 "from_name": from_name, "to_email": data.get("to_email") or "", "open": bool(data.get("open")),
-                "expires_at": int(data.get("expires_at") or 0)}
+                "gen": int(data.get("gen") or 0), "expires_at": int(data.get("expires_at") or 0)}
         chunks = [items[i:i + CHUNK_ITEMS] for i in range(0, len(items), CHUNK_ITEMS)]
         spec = []
         for n, chunk in enumerate(chunks):
@@ -202,7 +202,7 @@ def fetch(token: str) -> Optional[Dict[str, Any]]:
     first = chunks[min(chunks)]
     if len(chunks) != int(first.get("total") or 0) or int(first.get("expires_at") or 0) < time.time():
         return None
-    record = {k: first.get(k) for k in ("owner_email", "from_hex", "from_name", "to_email", "open", "expires_at", "face_ref")}
+    record = {k: first.get(k) for k in ("owner_email", "from_hex", "from_name", "to_email", "open", "gen", "expires_at", "face_ref")}
     record["items"] = [it for n in sorted(chunks) for it in chunks[n]["items"]]
     return record
 

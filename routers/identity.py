@@ -25,6 +25,7 @@ from utils.helpers import run_script, get_myipfs_gateway, is_origin_mode, get_oc
 from utils.security import is_multipass_user, is_safe_email
 from utils.crypto import npub_to_hex, hex_to_npub, verify_nostr_event
 from utils.observability import log_node_event, log_user_event
+from services import pass_guard
 from services.nostr import generate_nip42_challenge, consume_nip42_challenge, get_nip42_challenge, get_n1_follows
 
 router = APIRouter()
@@ -95,9 +96,30 @@ async def _stretch_credentials(salt: str, pepper: str) -> tuple[str, str]:
     )
 
 
+async def _derive_npubs_from_credentials(salt: str, pepper: str) -> list:
+    """npub(s) que ces identifiants peuvent désigner, selon la norme des clés (tools/my.sh) :
+    [crédentiel ISOLÉ par UPlanet — celui d'un nouveau compte, ancien-format (pepper brut) — comptes
+    historiques]. Les deux servent à DÉTECTER un compte existant (conflit, récupération silencieuse) ;
+    seul le premier est celui que make_NOSTRCARD.sh créerait. Sans UPLANETNAME, on ne renvoie que ce qui
+    est calculable (jamais d'isolée devinée) et on le journalise."""
+    out = []
+    uplanetname = await get_env_from_mysh("UPLANETNAME")
+    if uplanetname:
+        uplanet_salt = hashlib.sha256(uplanetname.encode()).hexdigest()[:16]
+        iso = await _derive_npub_from_credentials(salt, f"{pepper}_{uplanet_salt}")
+        if iso:
+            out.append(iso)
+    else:
+        logger.warning("[npub_derive] UPLANETNAME introuvable : npub isolé non calculé")
+    legacy = await _derive_npub_from_credentials(salt, pepper)
+    if legacy and legacy not in out:
+        out.append(legacy)
+    return out
+
+
 async def _derive_npub_from_credentials(salt: str, pepper: str) -> Optional[str]:
-    """Dérive le npub NOSTR depuis stretchedSalt/stretchedPepper via keygen.
-    Identique à keygen -t nostr : scrypt(pepper, salt) → ed25519."""
+    """Dérive le npub NOSTR depuis (salt, pepper) EXACTS via keygen. Bas niveau : l'appelant décide de
+    la formule (cf. _derive_npubs_from_credentials). Identique à keygen -t nostr : scrypt → ed25519."""
     keygen = settings.TOOLS_PATH / "keygen"
     if not keygen.exists():
         return None
@@ -199,67 +221,24 @@ def _pass_fails_file(email: str) -> Path:
 
 
 def _check_pass(email: str, pass_code: str, context: str, ip: str = "?") -> Optional[JSONResponse]:
-    """Vérification UNIQUE d'un code PASS (/g1nostr, /g1/onboard,
-    /atom4love/*). Retourne None si le PASS est bon, sinon la JSONResponse
-    d'erreur. Au MAX_PASS_FAILS-ième échec : PASS invalidé (toutes copies) et
-    Capitaine prévenu — le blocage ne dépend plus du bon vouloir du client."""
-    if _is_pass_restore_disabled(email):
-        logger.warning(f"{context}: PASS restore disabled by user for {email}")
-        return JSONResponse(status_code=403, content={
-            "error": "PASS_DISABLED",
-            "message": "La récupération par code PASS a été désactivée pour ce compte. Contactez le support."})
-
-    pass_file = _resolve_pass_file(email)
-    if not pass_file:
-        logger.warning(f"{context}: PASS file missing for {email}")
-        return JSONResponse(status_code=503, content={
-            "error": "PASS_UNAVAILABLE",
-            "message": "Code PASS indisponible (bloqué après erreurs répétées ou jamais créé). "
-                       "Contactez le Capitaine de votre station."})
-
-    fails_path = _pass_fails_file(email)
-    with open(fails_path, "a+") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        fh.seek(0)
+    """Vérification UNIQUE d'un code PASS (/g1nostr, /g1/onboard, /atom4love/*). Retourne None si le PASS est bon,
+    sinon la JSONResponse d'erreur. La logique (compteur, verrouillage au MAX_PASS_FAILS-ième échec, invalidation de
+    toutes les copies) est dans services/pass_guard.py, PARTAGÉE avec le déménagement ; ici : les journaux et l'alerte
+    au Capitaine — le blocage ne dépend plus du bon vouloir du client."""
+    verdict = pass_guard.check(
+        email, pass_code, context, ip, game_path=settings.GAME_PATH,
+        on_fail=lambda count: log_user_event(email, "multipass", "pass_fail", False,
+                                             extra={"count": count, "context": context}),
+        on_lock=lambda invalidated, count: log_node_event("pass_alert", invalidated, category="multipass_security",
+                                                          extra={"attempts": count, "ip": ip, "context": context}))
+    if verdict is None:
+        return None
+    if verdict.alert_attempts:
         try:
-            state = json.loads(fh.read() or "{}")
-        except json.JSONDecodeError:
-            state = {}
-        now = time.time()
-        count = int(state.get("count", 0)) if now - float(state.get("last", 0)) < PASS_FAILS_WINDOW else 0
-
-        if hmac.compare_digest(pass_code.encode(), pass_file.read_text().strip().encode()):
-            fh.seek(0)
-            fh.truncate()
-            return None
-
-        count += 1
-        fh.seek(0)
-        fh.truncate()
-        fh.write(json.dumps({"count": count, "last": now}))
-    os.chmod(fails_path, 0o600)
-
-    log_user_event(email, "multipass", "pass_fail", False, extra={"count": count, "context": context})
-    if count < MAX_PASS_FAILS:
-        left = MAX_PASS_FAILS - count
-        logger.warning(f"{context}: wrong PASS for {email} ({count}/{MAX_PASS_FAILS}) from {ip}")
-        return JSONResponse(status_code=401, content={
-            "error": "INVALID_PASS", "attempts_left": left,
-            "message": f"Code PASS incorrect ({left} essai{'s' if left > 1 else ''} restant{'s' if left > 1 else ''})."})
-
-    invalidated = _invalidate_pass_files(email)
-    fails_path.unlink(missing_ok=True)
-    logger.warning(f"{context}: PASS invalidé pour {email} après {count} échecs depuis {ip}")
-    log_node_event("pass_alert", invalidated, category="multipass_security",
-                   extra={"attempts": count, "ip": ip, "context": context})
-    try:
-        asyncio.get_running_loop().create_task(_notify_pass_alert(email, count, ip))
-    except RuntimeError:
-        logger.error(f"PASS alert non envoyée pour {email} : pas de boucle asyncio")
-    return JSONResponse(status_code=401, content={
-        "error": "INVALID_PASS", "attempts_left": 0, "locked": True,
-        "message": "Code PASS incorrect. Récupération bloquée après 3 erreurs : "
-                   "votre Capitaine a été prévenu."})
+            asyncio.get_running_loop().create_task(_notify_pass_alert(email, verdict.alert_attempts, ip))
+        except RuntimeError:
+            logger.error(f"PASS alert non envoyée pour {email} : pas de boucle asyncio")
+    return JSONResponse(status_code=verdict.status, content=verdict.content())
 
 
 # Double-soumission : un seul appel /g1nostr actif par email (partagé avec
@@ -298,6 +277,27 @@ async def _add_pepper_g1(data: dict) -> None:
         return
     uplanet_salt = hashlib.sha256(uplanetname.encode()).hexdigest()[:16]
     data["pepper_g1"] = f"{data['pepper']}_{uplanet_salt}"
+
+
+async def _add_pepper_nostr(data: dict, nostr_dir: Path) -> None:
+    """Ajoute `pepper_nostr` : le pepper à passer à keygen pour retrouver la clé NOSTR de CE compte.
+
+    Norme des clés (tools/my.sh) : compte récent = crédentiel isolé (PEPPER_<sel UPlanet>, = pepper_g1),
+    compte historique = pepper brut. La formule est celle consignée dans `.keyformula` ; sans elle on
+    n'ajoute RIEN (jamais une formule devinée) — le client s'appuie alors sur le `nsec` renvoyé."""
+    if data.get("pepper_nostr") or not data.get("pepper"):
+        return
+    try:
+        line = (nostr_dir / ".keyformula").read_text()
+    except OSError:
+        return
+    formulas = dict(tok.split("=", 1) for tok in line.split() if "=" in tok)
+    if formulas.get("nostr") == "legacy":
+        data["pepper_nostr"] = data["pepper"]
+    elif formulas.get("nostr") == "isolated":
+        await _add_pepper_g1(data)
+        if data.get("pepper_g1"):
+            data["pepper_nostr"] = data["pepper_g1"]
 
 
 async def _create_multipass_and_wait(
@@ -348,6 +348,7 @@ async def _create_multipass_and_wait(
         data["uplanet_home"]   = await get_uplanet_home_url()
         data["uplanetname_g1"] = await _get_uplanetname_g1()
         await _add_pepper_g1(data)
+        await _add_pepper_nostr(data, multipass_json.parent)
         if proc.returncode is None:
             data["status"] = "creating"
         return data
@@ -452,13 +453,14 @@ async def _scan_qr_impl(
 
     # ── Pré-vérification identité (salt/pepper fournis) ──────────────────────
     # Dérive le npub localement avant toute création pour détecter les conflits.
-    derived_npub: Optional[str] = None
+    derived_npubs: list = []
     if salt and pepper and format == "json":
-        derived_npub = await _derive_npub_from_credentials(salt, pepper)
+        derived_npubs = await _derive_npubs_from_credentials(salt, pepper)
+    derived_npub: Optional[str] = derived_npubs[0] if derived_npubs else None
 
     # ── Cas : email différent, même npub → IDENTITY_CONFLICT ─────────────────
-    if derived_npub and not email_exists:
-        conflict_email = _find_email_by_npub(derived_npub)
+    if derived_npubs and not email_exists:
+        conflict_email = next((e for e in (_find_email_by_npub(n) for n in derived_npubs) if e), None)
         if conflict_email and conflict_email != email:
             logger.warning(f"IDENTITY_CONFLICT: npub {derived_npub[:20]}… already owned by {conflict_email}")
             return JSONResponse(
@@ -474,7 +476,7 @@ async def _scan_qr_impl(
         multipass_json = nostr_dir / ".multipass.json"
 
         # Récupération silencieuse : même email + même npub dérivé → pas de PASS requis
-        if derived_npub and not pass_code:
+        if derived_npubs and not pass_code:
             secret_nostr = nostr_dir / ".secret.nostr"
             if secret_nostr.exists():
                 try:
@@ -482,7 +484,7 @@ async def _scan_qr_impl(
                         (p.split("=", 1)[1] for p in secret_nostr.read_text().split(";")
                          if p.strip().startswith("NPUB=")), None
                     )
-                    if stored_npub and stored_npub.strip() == derived_npub:
+                    if stored_npub and stored_npub.strip() in derived_npubs:
                         if multipass_json.exists():
                             with open(multipass_json) as f:
                                 data = json.load(f)
@@ -491,6 +493,7 @@ async def _scan_qr_impl(
                             data["uplanet_home"]   = await get_uplanet_home_url()
                             data["uplanetname_g1"] = await _get_uplanetname_g1()
                             await _add_pepper_g1(data)
+                            await _add_pepper_nostr(data, multipass_json.parent)
                             logger.info(f"Silent recovery for {email} (npub match)")
                             return JSONResponse(data)
                 except Exception as e:
@@ -553,6 +556,7 @@ async def _scan_qr_impl(
             data["uplanet_home"]   = await get_uplanet_home_url()
             data["uplanetname_g1"] = await _get_uplanetname_g1()
             await _add_pepper_g1(data)
+            await _add_pepper_nostr(data, multipass_json.parent)
             logger.info(f"MULTIPASS recovery via PASS OK for {email}")
             return JSONResponse(data)
         except Exception as e:

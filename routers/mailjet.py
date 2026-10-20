@@ -7,6 +7,7 @@ Vérifié par Astroport.ONE/tools/mailjet.sh avant tout envoi.
 import asyncio
 import base64
 import hashlib
+import html
 import hmac
 import io
 import json
@@ -27,6 +28,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.templating import Jinja2Templates
 
 from core.config import settings
+from services import degafam, facecloud_funnel
 from services.memory_status import (
     get_memory_status, reset_memory, RESET_SCOPES, regenerate_lifeos_from_mastodon,
     get_identity_content, save_identity_file, IDENTITY_FILENAMES, IDENTITY_LABELS,
@@ -600,6 +602,7 @@ _FLUX_CHANNEL_DEFAULTS: dict[str, dict] = {
     "milestones": {"email": True,  "nostr": False},
     "usociety":   {"email": True,  "nostr": False},
     "zine":       {"email": True,  "nostr": False},
+    "onboarding": {"email": True,  "nostr": False},
     "kin_daily":  {"email": True,  "nostr": False},
     "kin_weekly": {"email": True,  "nostr": False},
     # Journal réseau N² — U.SOCIETY/Capitaine uniquement ; nostr=True = publication
@@ -2516,13 +2519,18 @@ async def _send_local_and_record(owner_email: str, collection: str, ids: list,
     if counts["copied"]:
         who = _owner_display_name(owner_email)
         n = counts["copied"]
-        await _mail(recipient_email, f"📸 {who} vous a envoyé {n} photo{'s' if n > 1 else ''}", (
-            f"<h2>📸 {n} photo{'s' if n > 1 else ''} de vous dans votre cloud</h2>"
-            f"<p><strong>{who}</strong> vous a reconnu·e sur des photos et vous en a envoyé une copie. "
-            f"Elles sont rangées dans votre cloud personnel chiffré, dossier "
-            f"<code>/Reçues/{who}/</code> — ouvrez FaceCloud pour les voir.</p>"
-            "<p style=\"color:#888;font-size:.85em\">Chaque copie est chiffrée avec votre propre clé ; "
-            "l'expéditeur garde la sienne.</p>"))
+        base = degafam.base_url()
+        await _mail(recipient_email, f"📸 {who} vous a envoyé {n} photo{'s' if n > 1 else ''}", degafam.layout(
+            f"{n} photo{'s' if n > 1 else ''} de vous, chez vous",
+            f"<b>{html.escape(who)}</b> vous a reconnu·e sur des photos et vous en a envoyé une copie. "
+            f"Elles vous attendent dans votre cloud chiffré, dossier <code>/Reçues/{html.escape(who)}/</code>.",
+            ["<b>Ouvrez FaceCloud</b> (bouton ci-dessous).",
+             f"<b>Retrouvez-les</b> dans l'onglet Photos → « Reçues ».",
+             f"<b>Rendez la pareille</b> : FaceCloud peut retrouver {html.escape(who)} dans vos propres photos."],
+            "Voir mes photos", f"{base}/earth/ucloud.html#photos",
+            f"Et vos autres photos, contacts et agenda ? <a href=\"{base}/earth/degafam.html\">Le guide pas à pas</a> "
+            "les met à l'abri en trois étapes. Chaque copie est chiffrée avec votre propre clé.",
+            preheader=f"{who} vous a reconnu·e sur des photos.", unsubscribe=False))
 
 
 async def _send_remote(owner_email: str, collection: str, ids: list, photo_refs: list,
@@ -2601,26 +2609,26 @@ async def _send_invite(owner_email: str, collection: str, ids: list, photo_refs:
     _face_invite_path(owner_email, invite_token).write_text(json.dumps({
         "owner_email": owner_email, "collection": collection, "to_email": to_email,
         "photos": photo_refs, "created_at": int(time.time()),
+        "gen": facecloud_funnel.generation_of(owner_email),
         "expires_at": int(time.time()) + _FACE_INVITE_TTL,
     }), encoding="utf-8")
     await _publish_portable_invite(owner_email, invite_token)
+    facecloud_funnel.record("created", invite_token, gen=facecloud_funnel.generation_of(owner_email),
+                            mode="email", sender=owner_email)
 
     n = len(photo_refs)
     who = _owner_display_name(owner_email)
-    signup_url = f"{str(settings.uSPOT).rstrip('/')}/earth/GAFAM.html?claim={invite_token}"
-    sent = await _mail(to_email, "📸 Des photos de vous vous attendent sur UPlanet", (
-        "<h2>📸 Des photos de vous vous attendent</h2>"
-        f"<p><strong>{who}</strong> vous a reconnu·e sur {n} photo{'s' if n > 1 else ''} "
-        "et souhaite vous les donner — en pièce jointe, un aperçu.</p>"
-        f"<p><a href='{signup_url}' style=\"display:inline-block;background:#16a34a;color:#fff;"
-        "padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600\">"
-        "Créer mon MULTIPASS pour les récupérer</a></p>"
-        "<p>🔒 Elles sont <strong>chiffrées</strong> : vous seul·e y aurez accès. 🎁 C'est <strong>gratuit</strong>, "
-        "sans rien à installer, et vous gardez la main (tout est supprimable).</p>"
-        "<p style=\"color:#888;font-size:.85em\">Créez votre MULTIPASS avec CETTE adresse email dans les "
-        "7 jours : une copie complète des photos sera ajoutée automatiquement à votre cloud personnel "
-        "chiffré. La personne qui vous les envoie garde aussi sa copie.</p>"
-        f"<p>Et si vous avez des photos de {who}, vous pourrez les lui offrir en retour 😉</p>"),
+    signup_url = f"{str(settings.uSPOT).rstrip('/')}/i/{invite_token}"
+    sent = await _mail(to_email, f"📸 {who} vous a reconnu·e sur {n} photo{'s' if n > 1 else ''}", degafam.layout(
+        f"{who} vous a reconnu·e sur {n} photo{'s' if n > 1 else ''}",
+        "… et vous les offre. Un aperçu est joint à ce message.",
+        ["<b>Cliquez sur le bouton</b> ci-dessous.",
+         "<b>Validez cette adresse email</b> — pas de mot de passe à inventer, une minute suffit.",
+         "<b>Vos photos sont là</b>, chiffrées : vous seul·e y avez accès."],
+        "Voir mes photos", signup_url,
+        f"🎁 Gratuit, rien à installer, et vous gardez la main : tout est supprimable. Valable 7 jours, une seule fois. "
+        f"Et si vous avez des photos de {html.escape(who)}, vous pourrez les lui offrir en retour 😉",
+        preheader=f"{who} vous offre {n} photo{'s' if n > 1 else ''} où vous apparaissez.", unsubscribe=False),
         attach=attach_files, expire="7d")
     for af in attach_files:
         Path(af).unlink(missing_ok=True)
@@ -2683,13 +2691,16 @@ async def post_mailjet_person_invite_link(
     _face_invite_path(owner_email, invite_token).write_text(json.dumps({
         "owner_email": owner_email, "collection": collection, "to_email": "", "open": True,
         "photos": photo_refs, "created_at": int(time.time()), "expires_at": expires,
+        "gen": facecloud_funnel.generation_of(owner_email),
     }), encoding="utf-8")
     portable = await _publish_portable_invite(owner_email, invite_token)
+    facecloud_funnel.record("created", invite_token, gen=facecloud_funnel.generation_of(owner_email),
+                            mode="link", sender=owner_email)
     if name.strip():
         await _set_points_payload(collection, ids, {"name": name.strip()})
     await _set_points_payload(collection, ids, {"sent": {
         "at": int(time.time()), "mode": "link", "photos": len(photo_refs)}})
-    url = f"{str(settings.uSPOT).rstrip('/')}/earth/GAFAM.html?claim={invite_token}"
+    url = f"{str(settings.uSPOT).rstrip('/')}/i/{invite_token}"
     logger.info("[person-invite-link] %s : %d photo(s), lien ouvert créé", owner_email, len(photo_refs))
     return JSONResponse({"ok": True, "url": url, "photos": len(photo_refs), "expires_at": expires,
                          "portable": portable})

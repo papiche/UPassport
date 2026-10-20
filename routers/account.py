@@ -19,6 +19,8 @@ stockage sont ceux de routers/mailjet.py (même fichier `.mailjet`) : les deux
 - POST /api/account/memory/items            ajouter un souvenir à la main ; …/update (texte, type, visibilité) ; …/delete
 - GET/POST /api/account/memory/sources      sources d'apprentissage cochées (consentement) ; …/forget : tout oublier d'une source
 - POST /api/account/memory/learn-now        lance l'apprentissage des sources cochées (process détaché)
+- GET/POST/DELETE /api/account/migration    déménager vers CETTE station (après QR + PASS) : état / demande / annulation ;
+                                            POST …/pin relance l'épinglage des documents (services/migration_api.py)
 Dépôt / suppression de cookies : POST /api/fileupload et DELETE /cookie/{domain} (déjà NIP-98) ;
 clés d'API : /api_access/{provider} (déjà NIP-98) — l'écran les appelle directement.
 """
@@ -35,7 +37,7 @@ from core.config import settings
 from routers import mailjet as _mj
 from routers.cloud import _email_for_authenticated_npub
 from routers.identity import _is_pass_restore_disabled, _pass_disabled_flag, _resolve_pass_file
-from services import api_access_store, cloud_storage, cookie_store
+from services import api_access_store, cloud_storage, cookie_store, migration_api
 from services.admin_auth import get_node_and_captain_hex
 from services.memory_status import (
     IDENTITY_FILENAMES, IDENTITY_LABELS, IDENTITY_PLACEHOLDERS, RESET_SCOPES, get_identity_content,
@@ -57,12 +59,13 @@ ACCOUNT_FLUX = {
     "usociety":   ("Parrainage et stockage", "Renouvellement, dépassement d'espace, rappels"),
     "milestones": ("Étapes", "100 Ẑ atteints, anniversaires"),
     "zine":       ("Lettre de la coopérative", "Nouvelles et invitations"),
+    "onboarding": ("Guide pas à pas", "Photos, contacts et agenda : quitter Google et Apple en 3 étapes"),
     "kin_daily":  ("KIN du jour", "Synchronicité quotidienne"),
     "kin_weekly": ("KIN de la semaine", "Bilan hebdomadaire"),
     "n2_journal": ("Journal du réseau", "Publication mensuelle / annuelle du réseau N²"),
 }
 # `flux` (bool d'activation globale) n'existe que pour ces quatre catégories dans le stockage historique
-_FLUX_SWITCH = ("zine", "usociety", "alerts", "milestones")
+_FLUX_SWITCH = ("zine", "usociety", "alerts", "milestones", "onboarding")
 
 
 def _g1pub(email: str) -> str:
@@ -545,3 +548,42 @@ async def account_face_signature(npub: str = Depends(require_nostr_auth)):
     except Exception:
         raise HTTPException(status_code=404, detail="Clé du compte introuvable.")
     return JSONResponse(await asyncio.to_thread(_qdrant_my_face, hex_pub), headers={"Cache-Control": "no-store"})
+
+
+# ── Déménagement d'un MULTIPASS vers CETTE station (services/migration_api.py) ─────────────────
+@router.get("/api/account/migration", summary="État du déménagement vers cette station")
+async def account_migration_status(npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    return JSONResponse(await asyncio.to_thread(migration_api.status, email))
+
+
+@router.post("/api/account/migration", summary="Demander le déménagement du compte vers cette station")
+async def account_migration_start(request: Request, npub: str = Depends(require_nostr_auth)):
+    """Après « QR + PASS » (roaming) : envoie la demande, signée par la clé du compte dans un process court, à
+    l'ancienne station (retrouvée dans le swarm, ou `from_node` = NODEHEX en 64 hex). Corps : {pass, from_node?} —
+    le PASS est vérifié par l'ANCIENNE station (compteur anti-bruteforce)."""
+    email = _email_for_authenticated_npub(npub)
+    body = await safe_json_body(request) if request.headers.get("content-length", "0") != "0" else {}
+    res = await asyncio.to_thread(migration_api.start, email, (body or {}).get("from_node"),
+                                  str((body or {}).get("pass") or ""))
+    if not res["ok"]:
+        raise HTTPException(status_code=409, detail=res["error"])
+    return JSONResponse(res, status_code=202)
+
+
+@router.delete("/api/account/migration", summary="Annuler une demande de déménagement non aboutie")
+async def account_migration_abort(npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    res = await asyncio.to_thread(migration_api.abort, email)
+    if not res["ok"]:
+        raise HTTPException(status_code=409, detail=res["error"])
+    return JSONResponse(res)
+
+
+@router.post("/api/account/migration/pin", summary="Relancer le rapatriement des documents IPFS")
+async def account_migration_pin(npub: str = Depends(require_nostr_auth)):
+    email = _email_for_authenticated_npub(npub)
+    res = await asyncio.to_thread(migration_api.resume_pin, email)
+    if not res["ok"]:
+        raise HTTPException(status_code=409, detail=res["error"])
+    return JSONResponse(res, status_code=202)

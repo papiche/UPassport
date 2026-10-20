@@ -25,6 +25,7 @@ templates/        ← Jinja2 HTML templates
 
 ### identity.py
 - `POST /g1nostr` — Création / récupération MULTIPASS (email + photo → pubkey NOSTR + ZenCard)
+  Réponse : `pepper_g1` (wallet) et `pepper_nostr` (clé NOSTR de CE compte, selon `.keyformula` : isolé ou legacy ; absent si la formule est inconnue — jamais devinée). Les clients ne connaissent jamais `UPLANETNAME`. Détection de compte existant par les DEUX npub (isolé + ancien format). Norme : `Astroport.ONE/CLAUDE.md`.
 - `POST /upassport` — Vérification UPassport (pubkey → profil NOSTR + solde ẐEN)
 - `POST /ssss` — Reconstruction clé SSSS (Shamir Secret Sharing)
 - `GET  /.well-known/nostr/nip96.json` — NIP-96 media upload descriptor
@@ -213,6 +214,12 @@ perdu (non sauvegardé, comme le carnet).
   `cloud_storage.ingest_received` (statut `blocked`) donc pour TOUS les canaux ;
   `POST /api/cloud/senders` (`hex`, `blocked`), liste dans `GET /api/cloud/status`
 
+### Boucle virale FaceCloud (2026-10-20) — aperçu du lien, entonnoir, série « se dégafamiser »
+- **Aperçu de lien** : `person-invite-link` et l'email d'invitation rendent `{uSPOT}/i/<jeton>` (plus `GAFAM.html?claim=`, qui reste valable pour les anciens emails). `GET /i/{jeton}` (public, `facecloud.py`) répond avec les balises Open Graph de CETTE invitation (« Fred vous a reconnu·e sur 23 photos ») puis redirige en JS vers `ucloud.html#demarrer&claim=…` ; `GET /i/{jeton}/og.jpg` = **mosaïque FLOUTÉE** 1200×630 (recadrages réduits à 8 px puis flou : aucun visage lisible, les serveurs de messagerie la gardent), cache mémoire 1 h/64 entrées. Lire la page ne réclame pas l'invitation. Invitation absente/expirée : aperçu générique, sans fuite.
+- **Entonnoir** (`services/facecloud_funnel.py`, `~/.zen/log/facecloud_funnel.jsonl`, jamais de jeton ni d'email en clair) : `created` → `preview` (robot) / `visit` (humain) → `opened` (API) → `started` → `claimed` (nouveau compte) ou `delivered` (compte existant). Génération : `.facecloud_origin.json` dans le dossier du MULTIPASS (0 = hors invitation, +1 par invitation) ; `gen` voyage dans l'invitation portable. `GET /api/facecloud/funnel?days=` (NIP-98 Capitaine) : comptes par étape, taux, `viral.k` = part des invités devenus expéditeurs × invitations par expéditeur × taux de réclamation (None tant qu'il n'y a pas de données).
+- **Série d'emails** (`services/degafam.py`, `ucloud_onboarding.py`, `routers/degafam.py`, page `UPlanet/earth/degafam.html`) : 4 étapes cochées d'après l'état réel (`state()` : photos ≥ 20 propres, contacts ≥ 1, agenda ≥ 1 événement, amis = une invitation/un visage confié) — la MÊME fonction alimente `GET /api/degafam/status` (NIP-98) et le message du jour. Règles : jamais ce qui est fait, un message par étape, ≥ 3 jours d'écart, 4 au plus, pas avant 12 h, pas après 60 jours de compte, flux `onboarding` (Mon compte) respecté ; aucun identifiant dans un email (le guide web les affiche via `reveal`/`enroll`). **Toujours active** (aucun drapeau) : `NOSTRCARD.refresh.sh` envoie `welcome_degafam.html` (bienvenue court + devoir OpenCollective 7 jours conservé) à la place de `welcome.html`, et lance `ucloud_onboarding.py` (setsid nohup) à la place des zines J1→J6. Après les 4 étapes viennent, une fois chacune et dans cet ordre, **Zelkova** puis **Coracle** (6 messages au plus) ; WoTx2, TrocZen, Nostr Tube, NextCloud et les autres applications non prêtes ne sont plus présentées (les fichiers `templates/NOSTR/zine/*` restent sur disque, inutilisés). `ucloud_onboarding.py <email> --preview DIR` écrit les 6 messages en HTML pour relecture ; `--dry-run`, `--force <étape>`. Le message « clés MULTIPASS » (zine) n'est jamais touché. Emails d'invitation et « photos reçues » réécrits avec `degafam.layout()` (un titre, ≤ 3 gestes, UN bouton).
+- Tests : `test_facecloud_invite_page.py`, `test_facecloud_invite_ui.py` (Chromium), `test_degafam.py`, `test_degafam_ui.py`.
+
 ### Liens NOSTR (kind 3) — `routers/facecloud.py` (les « cercles » ont été retirés le 2026-10-19)
 Les listes de suivis (kind 3) FONT FOI pour les relations ; plus de placement à la main. Borné par MES liens (jamais le réseau entier).
 - `GET /api/facecloud/links[?refresh=1]` (NIP-98) — mes follows ET mes followers (`nostr_get_N1.sh`, `nostr_followers.sh`), avec `rel` : `mutual` (p2p, ils se suivent), `out` (je le suis seulement, 1→p), `in` (il me suit seulement, p→1) ; profil réduit (`name`, `display_name`, `email`, `npub` — jamais l'URL d'avatar ni la bio) ; plafond 600, mutuels d'abord ; `counts`. Cache 10 min, un seul calcul à la fois par clé. Lu par `ucloud.html::loadNostrLinks()` (`App.nostrLinks`) pour la fiche d'une personne et le choix d'un ami NOSTR.
@@ -233,7 +240,7 @@ Les listes de suivis (kind 3) FONT FOI pour les relations ; plus de placement à
 - `POST /api/cloud/photos/info` (`paths` = tableau JSON, 1000 max) — fiches (`files/page`) de chemins précis, plus récentes d'abord : alimente la frise d'une personne (tiroir de ucloud.html).
 - **Quotas d'espace** (`services/storage_quota.py`) : offre **MULTIPASS 10 Go** (NCARD = 1 Ẑ/sem) ou **ZenCard 128 Go** (NCARD + ZCARD = 5 Ẑ/sem ; ZenCard = `~/.zen/game/players/<email>/secret.dunikey`) ; surcharge capitaine : octets dans `<multipass>/.storage_quota`. Usage = `.ucloud` (SUM(size) de l'index SQLite, mémoïsé 60 s) + `APP/uDRIVE` (parcours mémoïsé 10 min). **Période de grâce** : au-delà du forfait (`over`), l'utilisateur reçoit UNE lettre (`templates/NOSTR/multipass_storage_grace.html`, envoyée par `NOSTRCARD.refresh.sh`, rappel tous les 7 jours, marqueur `.storage_grace_letter`) l'invitant à devenir parrain de l'infrastructure ẐEN (`sponsor_url` = https://opencollective.com/monnaie-libre/contribute, surcharge `OC_URL_PARRAIN`) ; la lettre, l'API et l'interface **ne disent jamais** jusqu'où va la grâce. Les NOUVEAUX fichiers ne sont refusés (`full`) qu'à partir de forfait × `STORAGE_GRACE_FACTOR` (2 par défaut) : `ingest_many` refuse AVANT de chiffrer/épingler (`QuotaExceeded`) ; DAV → **507**, `ingest_received`/`adopt_blob` → statut `quota` (la photo reste chez l'expéditeur), `webdav_import` s'arrête avec un message ; jamais de suppression ; fichiers < 256 Kio (carnet, descriptions) toujours acceptés. `GET /api/cloud/quota` (jauge, `over`, `full`, `upgrade`, `sponsor_url`) ; `ucloud_usage.py <email>` écrit `.storage_usage.json`, appelé chaque jour par `NOSTRCARD.refresh.sh` et additionné par `ZEN.ECONOMY.sh` (log « STOCKAGE » : grâce / bloqués, + `~/.zen/tmp/coucou/storage_usage.json`). Le prélèvement hebdomadaire NCARD/ZCARD reste celui de `NOSTRCARD.refresh.sh` / `PLAYER.refresh.sh` : le quota ne le modifie pas.
 - `POST /mailjet/person-invite-link` (`point_ids`, `name`) — invitation **par lien** (WhatsApp, Telegram, SMS, mail local, « Partager » du téléphone) : jeton ouvert (`open: true`, `to_email: ""`) dans `.face_invites/`, 7 jours, **usage unique**, portant toutes les photos des visages ; rend `{url, photos, expires_at}` (`GAFAM.html?claim=…` → `ucloud.html#demarrer&claim=…`). `GET /api/facecloud/invitation/{token}` ajoute `open` ; `POST /api/facecloud/start` prend alors l'email SAISI par l'invité ; `process_pending_face_claims(email, claim_token)` ne réclame une invitation ouverte que pour son jeton exact (jamais par simple correspondance d'email).
-- `GET /api/cloud/webdav-sources` renvoie aussi `refresh` (`analysis.refresh_info` : heure `.refresh_time` du MULTIPASS, `done_today`, `due`) ; `POST /api/facecloud/profiles` (kind 0 sur les relais préférés : station, NIP-65 kind 10002, swarm ; cache `~/.zen/game/profiles`) et `POST /api/facecloud/avatars` (vignettes JPEG servies par le serveur, téléchargement protégé contre le SSRF) — `services/nostr_profiles.py`.
+- `GET /api/cloud/webdav-sources` renvoie aussi `refresh` (`analysis.refresh_info` : heure `.refresh_time` du MULTIPASS, `done_today`, `due`) ; `POST /api/facecloud/profiles` (kind 0 sur les relais préférés : station, NIP-65 kind 10002, swarm ; cache `~/.zen/tmp/coucou/profiles`) et `POST /api/facecloud/avatars` (vignettes JPEG servies par le serveur, téléchargement protégé contre le SSRF) — `services/nostr_profiles.py`.
 - Schéma SQLite **v2** : colonne `phash` + index `entries_taken` / `entries_phash`, ajoutés à chaud aux bases v1.
 
 ### Réconciliation des identités — `services/identity_links.py`
@@ -501,7 +508,9 @@ station inconnue), `--receive` / `--ack` (JSON sur stdin, appelés par
 
 ### ucloud_backup.py — sauvegarde et restauration du cloud (script CLI)
 ```bash
-python3 ucloud_backup.py snapshot|export|restore|pin|status <email> [dossier] [--from-relay|--bundle D] [--no-qdrant]
+python3 ucloud_backup.py snapshot|export|restore|pin|status <email> [dossier] [--from-relay|--bundle D] [--no-qdrant] [--gateway URL]
+python3 ucloud_backup.py zencard-export <email> <dossier>   # contenu de la ZenCard → zencard_content.tgz (archive de départ, SANS clé)
+python3 ucloud_backup.py zencard-import <email> <tgz>       # le remet dans la ZenCard recréée (même .g1pub exigé)
 ```
 Une seule implémentation pour : la sauvegarde **régulière**, qui vit dans
 `Astroport.ONE/RUNTIME/NOSTRCARD.refresh.sh` (une fois par jour et par compte,
@@ -514,7 +523,15 @@ de fichiers qu'avant — ce script ne tourne qu'à la désactivation d'un compte
 ce n'est pas un mécanisme de sauvegarde) ; la restauration
 (`nostr_RESTORE_TW.sh`, FaceCloud).
 Paquet : index, trousseau, sources WebDAV/CardDAV, état d'import, invitations
-en attente, catalogue Qdrant `faces_<hex>` — tout en 0600. `snapshot` : archive
+en attente, catalogue Qdrant `faces_<hex>`, **mémoire de BRO** `memory_<hex16>`
+(`qdrant_lifeos.json`, souvenirs oubliés compris), `settings/` (`face_ref_*`,
+`blocked_senders`, `.mailjet` — transitoire, destiné à NOSTR kind 31903 ; jamais `.storage_quota`, décision du Capitaine), `uDRIVE_manifest.json` — tout en
+0600, jamais `dav_token`. `restore` = fusion ; `--overwrite-settings` (déménagement)
+fait gagner les réglages du paquet sur ceux d'un compte neuf ; une collection
+Qdrant d'une AUTRE dimension (modèle d'embedding différent) n'est jamais mélangée :
+erreur listée dans `errors`. `pin` épingle aussi le `final_cid` du uDRIVE.
+Tests : `tests/test_ucloud_backup_bundle.py` (Qdrant simulé). Ce paquet est la base
+du déménagement entre stations à clé identique (voir plan de migration). `snapshot` : archive
 tar.gz chiffrée (clé neuve) sur IPFS + **UN** event kind 30078
 `d=facecloud:backup`, contenu NIP-44 pour soi-même `{cid, key, sha, at, counts}`
 (relais local + relay.copylaradio.com), remplacé à chaque version, ancienne
@@ -525,6 +542,71 @@ répliquées dans toute la constellation). `restore` = FUSION (ce qui manque est
 ajouté, rien n'est écrasé) ; `pin` épingle tous les CID de l'index (prise de
 garde par la nouvelle station). Mesuré : 2037 fichiers + 1275 visages →
 3,7 Mo chiffrés, 3,3 s.
+
+### multipass_migrate.py + services/migration.py — déménagement entre stations (clé identique)
+Même salt/pepper = même NSEC/HEX/wallet Ğ1/clé IPNS : rien à re-signer, seulement des données à porter, par le canal
+inter-NODE (comme `node_share.py`). **Parcours utilisateur « QR + PASS »** : la personne scanne son QR (+ PASS) sur la
+NOUVELLE station (roaming `check_ssss.sh` : clés re-dérivées par `derive_account_keys`, marqueur `.roaming`), puis
+`POST /api/account/migration` (NIP-98 ; `GET` état, `DELETE` annule, `POST …/pin` relance l'épinglage —
+`services/migration_api.py`, le serveur ne signe JAMAIS : process court `multipass_migrate.py`). La PERSONNE reste
+l'autorité : `migrate_request` porte une preuve (kind 27235 signé par SA clé, `to` = la station demandeuse, ≤ 10 min, non
+rejouée — `.ucloud/migrate_seen.json`). Cinq messages :
+`migrate_request` (nouvelle → ancienne) → l'ancienne **gèle** le compte (`.migrating`) et exporte un paquet chiffré
+(`ucloud_backup.export_encrypted(for_migration=True)` : index/trousseau ucloud, mémoire, réglages, **état du compte**
+`account_state.tgz` = tous les fichiers cachés + `identity/` SAUF les secrets re-dérivables du QR, + `.pass`, +
+événements NOSTR écrits par le compte et messages privés reçus ; export incomplet = refus + dégel) → `migrate_bundle`
+{cid, clé, sha, counts} → la nouvelle importe (empreinte contrôlée, comptes annoncés = appliqués, événements
+`strfry import` AVEC vérification des signatures) → `migrate_ack` → l'ancienne libère la clé IPNS (`ipns_handover.sh
+release`) → `migrate_commit` {seq, value} → la nouvelle (`--finish`, détaché) épingle la racine, publie l'IPNS avec une
+séquence supérieure, lance `tools/adopt_fixups.sh` (home.station, DID, champ home_station du kind 0, suivis Capitaine —
+rien d'écrasé) puis **rapatrie TOUS les documents** (`services/account_pins.py` : racine NOSTRNS, ucloud, uDRIVE,
+cookies, CID cités par les événements ; espace disque contrôlé avant, reprenable, échec jamais « ok ») → `migrate_pinned`
+{total, pinned, failed, ok}. **Rien n'est nettoyé avant ce message** ; s'il confirme `failed == 0`, l'ancienne station
+DÉPLACE (jamais ne supprime) le dossier vers `~/.zen/game/migrated/` et le Capitaine ne suit plus le compte ; une ZenCard
+présente (non migrée) suspend le nettoyage (`--cleanup` après traitement). Un import en erreur n'envoie AUCUN accusé.
+Gel : `my.sh::account_frozen` (`.migrating` côté départ ; target:requested|imported|claiming|error côté arrivée) —
+ignoré par `NOSTRCARD.refresh.sh`, `PLAYER.refresh.sh`, `ZEN.ECONOMY.sh`. `.roaming` (purgé après 24 h par
+`NODE.refresh.sh`) est retiré dès la demande. État : `<compte>/.migration.json` (0600 ; la clé du paquet n'est jamais
+affichée). Handlers : `bro_dm_daemon.sh::_handle_migrate`. Tests : `test_migration.py` (deux stations simulées, vraie
+signature), `test_account_pins.py`, `test_account_migration_api.py`, `test_ucloud_backup_bundle.py`,
+`Astroport.ONE/tests/test_adopt_fixups.sh`. **Reste à faire** : migrer aussi la ZenCard (`players/<email>`), essai réel
+entre deux stations, boucles de rafraîchissement hors NOSTRCARD/PLAYER/ECONOMY (G1PalPay, NOSTR.UMAP…) qui devraient
+elles aussi ignorer `account_frozen`, redémarrage du daemon BRO et d'UPassport pour charger canaux et routes.
+
+### Onglet « Déménager » de `/scan` + changement de constellation
+**Interface** (`templates/scan.html`, onglet « 🚚 Déménager », lien direct `/scan#demenager`) : la personne scanne le **QR P1** de son
+billet MULTIPASS (`M-<base58>:<NOSTRNS>`, part SSSS joueur) et saisit son **PASS** sur la NOUVELLE station. `POST /api/migration/start`
+(`routers/migrate.py`, sans compte ni NIP-98 : le QR P1 + le PASS sont la preuve) → `services/migration_api.py::start_from_qr` :
+validation stricte du QR, refus si le compte est DÉJÀ hébergé ici, roaming `check_ssss.sh … json` (part P1 par l'entrée standard,
+jamais en argument), puis `multipass_migrate.py --request --pass-stdin`. L'ANCIENNE station vérifie le PASS (`services/pass_guard.py`,
+compteur partagé avec `/g1nostr` : 3 échecs = PASS invalidé + Capitaine prévenu) avant tout gel. Un **ticket** aléatoire (seul son
+hachage est gardé, `.migration.ticket`) donne accès au suivi : `GET /api/migration/status`, `POST …/abort`, `POST …/pin` ; un compte
+inconnu et un mauvais ticket donnent la même réponse (pas d'oracle). Limites : 5 démarrages/h/IP, 1/min/compte. **Suivi à l'écran** :
+étapes ordonnées (`STEP_DEFS`), barre de pourcentage, documents rapatriés « N / total », message en français, boutons relancer/annuler,
+reprise après rechargement (sessionStorage : email + ticket SEULEMENT, jamais le QR ni le PASS). Tests : `test_scan_move_ui.py`
+(Chromium réel, API simulée, temps accéléré), `test_migration_scan.py`, `test_account_migration_api.py`.
+**E-mails** : à la fin (tout épinglé), la personne ET le Capitaine d'arrivée ; au nettoyage, le Capitaine de départ (`templates/NOSTR/
+migration_*.html`, HTML statique FR+EN lisible partout). Dossiers de l'ancien compte DÉPLACÉS vers `~/.zen/tmp/migrated/<email>.<date>/
+{nostr,players}` (purgés à la prochaine 20h12).
+**Autre UPLANETNAME = autre constellation = AUTRE swarm IPFS privé** : le déménagement « même clé » ne s'applique PAS (wallet, IPNS et
+clé NOSTR isolés diffèrent ; la part « tail » du QR est chiffrée pour l'UPlanet d'origine ; les canaux inter-NODE exigent un expéditeur du
+swarm). Le chemin est la restauration par archive (`nostr_DESTROY_TW.sh` → `nostr_RESTORE_TW.sh`, identité NEUVE) avec **rapatriement par la
+PASSERELLE HTTP de l'ancienne station** : `nostr_RESTORE_TW.sh <lien https://hote/ipfs/<CID> | CID> --gateway https://hote` (l'archive
+porte `.gateway` ; l'e-mail de désactivation donne le lien). `services/gateway_fetch.py` : DAG demandé en **CAR** (`?format=car`) puis
+`ipfs dag import --pin-roots` — blocs vérifiés par IPFS, **CID préservés** (l'index ucloud et son trousseau restent valables) ; passerelle
+http(s) publique seulement (anti-SSRF : boucle locale, réseaux privés, redirections et identifiants refusés ; `GATEWAY_ALLOW_PRIVATE=1`
+côté opérateur), tailles et délais bornés. `ucloud_backup.py pin <email> --gateway URL`, `gateway_fetch_cli.py`. L'archive ne contient plus
+`UPLANETNAME` (secret de la constellation) mais son EMPREINTE (`.uplanetname_sha256`) ; RESTORE ne l'affiche jamais. Tests :
+`test_gateway_fetch.py` (vrai IPFS : dépôt source et dépôt neuf isolés), `Astroport.ONE/tests/test_destroy_restore.sh` section 11.
+**TiddlyWiki de la ZenCard dans l'archive de départ** (`ucloud_backup.py zencard-export/-import`, `zencard_content.tgz`) : le CONTENU seulement —
+`ipfs/` (TiddlyWiki, chaîne de versions `.chain.*`, flux RSS) et `G1PalPay/` (historiques de paiements) — jamais de clé, de PASS, de QR ni de
+`U.SOCIETY` (le statut de sociétaire appartient à la coopérative d'origine). La clé de la ZenCard étant la même sur toutes les UPlanets (crédentiel
+brut), il se restaure tel quel dans une autre constellation. `nostr_DESTROY_TW.sh` l'exporte AVANT `PLAYER.unplug.sh` ; un export en échec
+ANNULE la destruction (`DESTROY_SKIP_ZENCARD=1` pour y renoncer explicitement). `nostr_RESTORE_TW.sh` l'importe APRÈS la recréation de la ZenCard
+(`VISA.new.sh`) : refus si ce n'est pas la même carte (`ipfs/G1SSB/_g1.pubkey` ≠ `.g1pub`) ou sans marqueur ; remplacement atomique, le
+TiddlyWiki neuf est mis de côté dans `~/.zen/tmp/zencard_fresh_*` (purgé à 20h12). **Liens réécrits** : `copylaradio.com` est le domaine de UPlanet ORIGIN ; sur une UPlanet Ẑen (swarm.key privée ; JAMAIS sur ORIGIN, UPLANETNAME à zéros) , TOUT lien qui le porte (nu ou `<sous-domaine>.copylaradio.com` : ipfs., vdo., relay., u.…) passe à `OVH_ZONE` de CETTE station (= `UPLANET_DOMAIN` de `my.sh`, vide sur ORIGIN)
+(`nostr_RESTORE_TW.sh` passe `--zone`, ou `ucloud_backup.py zencard-links <email> <zone>`), dans tous les fichiers texte de `ipfs/` et `G1PalPay/` (jamais `.chain.*`, binaires, liens symboliques). Adresses e-mail et `copylaradio.com.autre.org` exclues ; octets préservés, idempotent, zone invalide = erreur (le contenu restauré reste en place, `links_error`).
+Appliqué aussi à la CRÉATION d'une ZenCard (`RUNTIME/VISA.new.sh`, seulement si `UPLANET_DOMAIN` non vide). `tools/my.sh` : sur UPlanet Ẑen, `OVH_ZONE` l'EMPORTE sur `VDONINJA`, `myLIBRA`, `myCORACLE`, `myUPLANET` ; la porte d'entrée `/ipns/…` de `VISA.new.sh`/`make_NOSTRCARD.sh` suit `${UPLANET_DOMAIN:-copylaradio.com}`. Déménagement « même clé » : le dossier entier de la ZenCard voyage (`zencard_state.tgz`, TiddlyWiki compris), sans réécriture de liens (même constellation = même `OVH_ZONE`). `templates/twdefault.html` reste le modèle d'ORIGINE.
 
 ### faceid_reprocess.py — rattrapage FaceID silencieux (script CLI)
 ```bash

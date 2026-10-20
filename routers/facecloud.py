@@ -33,10 +33,10 @@ from typing import Optional
 import asyncio
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from core.config import settings
-from services import analysis, nostr_profiles
+from services import analysis, facecloud_funnel, nostr_profiles
 from services.admin_auth import require_captain_signature
 from services.nostr import fetch_nostr_profiles, get_followers, get_n1_follows, require_nostr_auth
 from utils.crypto import npub_to_hex
@@ -132,15 +132,12 @@ def _relay_previews(items: list) -> list:
     return previews
 
 
-@router.get("/api/facecloud/invitation/{token}")
-async def invitation(token: str):
-    loaded = await _load_invite(token)
-    if not loaded:
-        return JSONResponse({"error": "Cette invitation n'existe pas ou a expiré."}, status_code=404)
+async def _invite_payload(loaded: dict) -> dict:
+    """Ce qu'une invitation montre à son destinataire (jamais d'email en clair ni de clé de photo)."""
     if loaded["record"]:
         rec = loaded["record"]
         to_email = rec.get("to_email") or ""
-        return JSONResponse({
+        return {
             "from_name": rec.get("from_name") or (rec.get("owner_email") or "").split("@", 1)[0],
             "photos": len(rec["items"]),
             "previews": await asyncio.to_thread(_relay_previews, rec["items"]),
@@ -148,7 +145,7 @@ async def invitation(token: str):
             "open": bool(rec.get("open")),
             "expires_at": rec.get("expires_at"),
             "has_account": bool(to_email) and (settings.GAME_PATH / "nostr" / to_email / "HEX").exists(),
-        })
+        }
     _path, data = loaded["local"]
     owner = data.get("owner_email") or ""
     photos = data.get("photos") or []
@@ -163,7 +160,7 @@ async def invitation(token: str):
         except Exception:
             continue
     to_email = data.get("to_email") or ""
-    return JSONResponse({
+    return {
         "from_name": owner.split("@", 1)[0],
         "photos": len(photos),
         "previews": previews,
@@ -171,7 +168,161 @@ async def invitation(token: str):
         "open": bool(data.get("open")),       # invitation par lien : l'invité saisit SON email
         "expires_at": data.get("expires_at"),
         "has_account": bool(to_email) and (settings.GAME_PATH / "nostr" / to_email / "HEX").exists(),
-    })
+    }
+
+
+def _invite_meta(loaded: dict) -> dict:
+    """Expéditeur, mode et génération de l'invitation, pour l'entonnoir."""
+    if loaded["record"]:
+        rec = loaded["record"]
+        return {"owner": rec.get("owner_email") or "", "gen": int(rec.get("gen") or 0),
+                "mode": "link" if rec.get("open") else "email"}
+    data = loaded["local"][1]
+    owner = data.get("owner_email") or ""
+    return {"owner": owner, "gen": int(data.get("gen") if data.get("gen") is not None else facecloud_funnel.generation_of(owner)),
+            "mode": "link" if data.get("open") else "email"}
+
+
+@router.get("/api/facecloud/invitation/{token}")
+async def invitation(token: str):
+    loaded = await _load_invite(token)
+    if not loaded:
+        return JSONResponse({"error": "Cette invitation n'existe pas ou a expiré."}, status_code=404)
+    meta = _invite_meta(loaded)
+    facecloud_funnel.record("opened", token, gen=meta["gen"], mode=meta["mode"])
+    return JSONResponse(await _invite_payload(loaded))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# /i/<jeton> — la page que voient les robots de WhatsApp, Telegram, Signal… (aperçu du lien)
+# ═════════════════════════════════════════════════════════════════════════════
+# Le lien partagé n'était qu'une page statique qui redirigeait en JavaScript : les robots n'exécutent pas
+# de JavaScript et ne voient pas le fragment (#), donc le destinataire recevait un lien nu. Ici le serveur
+# répond avec les balises Open Graph de CETTE invitation ; l'humain est renvoyé aussitôt vers l'accueil.
+# L'image est une MOSAÏQUE FLOUTÉE (jamais un visage lisible) : les serveurs de messagerie la gardent.
+# Même jeton, mêmes droits qu'avant : lire cette page ne réclame rien (usage unique à la création du compte).
+_OG_W, _OG_H = 1200, 630
+_og_cache: dict = {}
+_OG_TTL = 3600.0
+_OG_CACHE_MAX = 64
+
+
+def _og_image(previews: list) -> bytes:
+    """Mosaïque 1200×630 : jusqu'à 4 recadrages réduits à 10 px puis flous — rien de reconnaissable."""
+    import io
+    from PIL import Image, ImageDraw, ImageFilter
+    canvas = Image.new("RGB", (_OG_W, _OG_H), (246, 243, 236))
+    draw = ImageDraw.Draw(canvas)
+    tiles = []
+    for url in previews[:4]:
+        try:
+            raw = base64.b64decode(url.split(",", 1)[1])
+            tiles.append(Image.open(io.BytesIO(raw)).convert("RGB"))
+        except Exception:
+            continue
+    palette = [(220, 193, 150), (31, 95, 209), (43, 138, 87), (196, 160, 106)]
+    size, gap = 250, 40
+    n = 4
+    x0 = (_OG_W - (n * size + (n - 1) * gap)) // 2
+    y0 = (_OG_H - size) // 2
+    for i in range(n):
+        if i < len(tiles):
+            t = tiles[i].resize((size, size))
+            t = t.resize((8, 8), Image.BOX).resize((size, size), Image.BICUBIC).filter(ImageFilter.GaussianBlur(14))
+        else:                                       # pas assez d'aperçus : des pastilles de la couleur du site
+            t = Image.new("RGB", (size, size), palette[i % len(palette)]).filter(ImageFilter.GaussianBlur(10))
+        mask = Image.new("L", (size, size), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), 28, fill=255)
+        x = x0 + i * (size + gap)
+        y = y0 + (14 if i % 2 else -14)
+        draw.rounded_rectangle((x - 10, y - 10, x + size + 10, y + size + 34), 22, fill=(255, 255, 255))
+        canvas.paste(t, (x, y), mask)
+    out = io.BytesIO()
+    canvas.save(out, "JPEG", quality=82)
+    return out.getvalue()
+
+
+async def _og_for(token: str) -> bytes:
+    key = facecloud_funnel.invite_ref(token)
+    hit = _og_cache.get(key)
+    if hit and time.time() - hit[0] < _OG_TTL:
+        return hit[1]
+    loaded = await _load_invite(token)
+    previews = (await _invite_payload(loaded))["previews"] if loaded else []
+    data = await asyncio.to_thread(_og_image, previews)
+    if len(_og_cache) >= _OG_CACHE_MAX:
+        for k in sorted(_og_cache, key=lambda k: _og_cache[k][0])[:16]:
+            _og_cache.pop(k, None)
+    _og_cache[key] = (time.time(), data)
+    return data
+
+
+def _public_base(request: Request) -> str:
+    return str(settings.uSPOT).rstrip("/")
+
+
+@router.get("/i/{token}", response_class=HTMLResponse, include_in_schema=False)
+async def invitation_page(token: str, request: Request):
+    import html as _html
+    base = _public_base(request)
+    ua = request.headers.get("user-agent", "")
+    title = "Des photos de vous vous attendent"
+    desc = "Un proche vous a reconnu·e sur des photos et vous les offre — chiffrées, gratuites, rien à installer."
+    # Jeton mal formé : image générique (pastilles), jamais d'erreur visible dans un aperçu.
+    image = f"{base}/i/{token if _TOKEN_RE.match(token or '') else 'x' * 24}/og.jpg"
+    loaded = await _load_invite(token) if _TOKEN_RE.match(token or "") else None
+    if loaded:
+        meta = _invite_meta(loaded)
+        n = len(loaded["record"]["items"]) if loaded["record"] else len(loaded["local"][1].get("photos") or [])
+        who = (loaded["record"].get("from_name") if loaded["record"] else "") or meta["owner"].split("@", 1)[0] or "Un proche"
+        title = f"{who} vous a reconnu·e sur {n} photo{'s' if n > 1 else ''}"
+        facecloud_funnel.record("preview" if facecloud_funnel.is_bot(ua) else "visit", token, gen=meta["gen"], mode=meta["mode"])
+    target = f"{base}/earth/ucloud.html#demarrer&claim={token}"
+    esc = _html.escape
+
+    def meta_tag(key: str, name: str, value: str) -> str:
+        return '<meta %s="%s" content="%s">' % (key, name, esc(str(value)))
+
+    page = "".join([
+        '<!doctype html><html lang="fr"><head><meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width,initial-scale=1">',
+        "<title>%s</title>" % esc(title),
+        meta_tag("name", "robots", "noindex,nofollow"),
+        meta_tag("name", "description", desc),
+        meta_tag("property", "og:type", "website"),
+        meta_tag("property", "og:site_name", "FaceCloud"),
+        meta_tag("property", "og:title", title),
+        meta_tag("property", "og:description", desc),
+        meta_tag("property", "og:image", image),
+        meta_tag("property", "og:image:width", _OG_W),
+        meta_tag("property", "og:image:height", _OG_H),
+        meta_tag("name", "twitter:card", "summary_large_image"),
+        meta_tag("name", "twitter:title", title),
+        meta_tag("name", "twitter:image", image),
+        "<style>body{font:18px/1.5 system-ui,sans-serif;background:#f6f3ec;color:#1d2a32;display:grid;"
+        "place-items:center;min-height:100vh;margin:0;text-align:center;padding:24px}"
+        "a{color:#1f5fd1;font-weight:700}</style>",
+        "<script>location.replace(%s);</script>" % json.dumps(target).replace("</", "<\\/"),
+        "</head><body><main>",
+        "<h1>%s</h1>" % esc(title),
+        '<p><a href="%s">Voir mes photos</a></p>' % esc(target),
+        "</main></body></html>"])
+    return HTMLResponse(page, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow",
+                                       "Referrer-Policy": "no-referrer"})
+
+
+@router.get("/i/{token}/og.jpg", include_in_schema=False)
+async def invitation_og_image(token: str):
+    if not _TOKEN_RE.match(token or ""):
+        return Response(status_code=404)
+    return Response(await _og_for(token), media_type="image/jpeg",
+                    headers={"Cache-Control": "private, max-age=600", "X-Robots-Tag": "noindex"})
+
+
+@router.get("/api/facecloud/funnel")
+async def funnel(days: int = Query(30, ge=1, le=365), _captain: str = Depends(require_captain_signature)):
+    """Entonnoir viral des invitations FaceCloud sur cette station (NIP-98 Capitaine)."""
+    return JSONResponse(await asyncio.to_thread(facecloud_funnel.stats, days))
 
 
 @router.post("/api/facecloud/start")
@@ -196,6 +347,9 @@ async def start(
     if not is_safe_email(email):
         raise HTTPException(status_code=400, detail="Adresse email invalide.")
     lat, lon = _coords(lat, lon) if (lat and lon) else _station_gps()
+    imeta = _invite_meta(invite) if invite else None
+    if imeta:
+        facecloud_funnel.record("started", claim, gen=imeta["gen"], mode=imeta["mode"])
 
     from routers.identity import G1NostrForm, _scan_qr_impl
     from routers.mailjet import process_pending_face_claims
@@ -211,6 +365,7 @@ async def start(
         # renvoyée pour un compte existant sans preuve).
         if invite:
             await process_pending_face_claims(email, claim)
+            facecloud_funnel.record("delivered", claim, gen=imeta["gen"], mode=imeta["mode"], sender=imeta["owner"])
         return JSONResponse({"status": "exists", "email": email})
 
     # Jamais de doublon : « cet email a-t-il un MULTIPASS ? » se demande au relais commun, pas aux
@@ -232,6 +387,8 @@ async def start(
         logger.info("FaceCloud : %s a déjà un MULTIPASS ailleurs (%s…) — pas de création, %d photo(s) transmises",
                     email, account["hex"][:8], delivered)
         log_user_event(email, "multipass", "facecloud_start", False, extra={"status": "elsewhere", "delivered": delivered})
+        if imeta and delivered:
+            facecloud_funnel.record("delivered", claim, gen=imeta["gen"], mode=imeta["mode"], sender=imeta["owner"])
         return JSONResponse({"status": "elsewhere", "email": email, "delivered": delivered})
 
     result = await _scan_qr_impl(request, G1NostrForm(email=email, lang=lang or "fr", lat=lat, lon=lon,
@@ -244,6 +401,9 @@ async def start(
         before = _received_count(email)
         await process_pending_face_claims(email, claim)
         copied = _received_count(email) - before
+    if imeta:
+        gen = facecloud_funnel.remember_origin(email, imeta["gen"], imeta["owner"].split("@", 1)[0])
+        facecloud_funnel.record("claimed", claim, gen=gen, mode=imeta["mode"], sender=imeta["owner"], account=email)
     logger.info("FaceCloud : MULTIPASS créé pour %s (invitation=%s, %d photo(s) reçues)", email, bool(invite), copied)
     log_node_event("facecloud_start", True, category="multipass", extra={"invitation": bool(invite), "photos": copied})
     log_user_event(email, "multipass", "facecloud_start", True, extra={"invitation": bool(invite), "photos": copied})

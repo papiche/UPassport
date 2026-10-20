@@ -20,13 +20,17 @@ export PATH=$HOME/.astro/bin:$HOME/.local/bin:$PATH
 
 # Vérifier le nombre d'arguments
 if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 <cardns> <ssss> [zerocard]"
+    echo "Usage: $0 <cardns> <ssss> [zerocard] [json]"
+    echo "  json : la dernière ligne de sortie est un JSON {valid, email, hex | reason} (onglet « Déménager » de /scan)"
     exit 1
 fi
 
 CARDNS=$1
 SSSS=$2
 ZEROCARD=${3:-$MOATS}
+OUTPUT_MODE=${4:-html}
+# La part P1 est un facteur secret : "-" = la lire sur l'entrée standard (jamais dans `ps`)
+[[ "$SSSS" == "-" ]] && read -r SSSS
 
 # Formater le CARDNS proprement
 [[ "$CARDNS" != "/ipns/"* ]] && CARDNS="/ipns/$CARDNS"
@@ -54,6 +58,16 @@ if [[ "$SSSS" =~ ^[1-3]-[a-f0-9]{100,} ]]; then
         
         if [[ -n "$EMAIL" ]]; then
             echo "Found MULTIPASS identity: $EMAIL" >&2
+
+            # GARDE : un compte DÉJÀ HÉBERGÉ ici (clés présentes, pas de marqueur .roaming) n'est jamais « hydraté » :
+            # on réécrirait ses fichiers de clés et on poserait .roaming — le compte serait alors ignoré par les
+            # rafraîchissements puis PURGÉ au bout de 24 h par NODE.refresh.sh.
+            if [[ -s "$HOME/.zen/game/nostr/$EMAIL/.secret.nostr" && ! -f "$HOME/.zen/game/nostr/$EMAIL/.roaming" ]]; then
+                VALID="INVALID (account already hosted on this station)"
+                EMAIL_HOSTED_HERE=1
+            fi
+        fi
+        if [[ -n "$EMAIL" && -z "$EMAIL_HOSTED_HERE" ]]; then
 
             # 4. Télécharger la part SSSS UPlanet distante
             REMOTE_TAIL_PATH="$RESOLVED_CID/$EMAIL/ssss.tail.uplanet.enc"
@@ -84,12 +98,8 @@ if [[ "$SSSS" =~ ^[1-3]-[a-f0-9]{100,} ]]; then
                         # HYDRATATION DU PROFIL LOCAL EN MODE ITINÉRANT (ROAMING)
                         # ====================================================================
                         echo "Reconstructing keys for Roaming..." >&2
-                        ROAMING_DIR="$HOME/.zen/game/nostr/$EMAIL"
-                        mkdir -p "$ROAMING_DIR"
-
-                        # Sauvegarder le DISCO
-                        echo "$DISCO" > "$ROAMING_DIR/.secret.disco"
-                        chmod 600 "$ROAMING_DIR/.secret.disco"
+                        # Rien n'est écrit dans ~/.zen/game/nostr/ tant que les clés ne sont pas
+                        # validées : un échec ne doit ni laisser un DISCO ni écraser un compte existant.
 
                         # Extraire salt et pepper (compatible avec make_NOSTRCARD.sh)
                         # 1. On enlève le préfixe /?salt=
@@ -99,30 +109,34 @@ if [[ "$SSSS" =~ ^[1-3]-[a-f0-9]{100,} ]]; then
                         # 3. On extrait le pepper (tout ce qui suit le '&nostr=')
                         pepper="${tmp#*&nostr=}"
 
-                        # Regénérer les clés NOSTR
-                        NSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${salt}" "${pepper}" -s)
-                        NPUB=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${salt}" "${pepper}")
-                        HEX=$($HOME/.zen/Astroport.ONE/tools/nostr2hex.py "$NPUB")
-                        echo "NSEC=$NSEC; NPUB=$NPUB; HEX=$HEX;" > "$ROAMING_DIR/.secret.nostr"
-                        
-                        # Regénérer les clés Duniter (Paiement Ğ1)
-                        $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o "$ROAMING_DIR/.secret.dunikey" "${salt}" "${pepper}"
-                        G1PUB=$(grep "pub:" "$ROAMING_DIR/.secret.dunikey" | cut -d' ' -f2)
-                        
-                        # Regénérer les clés IPNS
-                        $HOME/.zen/Astroport.ONE/tools/keygen -t ipfs -o "$ROAMING_DIR/.secret.ipns" "${salt}" "${pepper}"
-                        
-                        # Sauvegarder les identifiants publics
-                        echo "$NPUB" > "$ROAMING_DIR/NPUB"
-                        echo "$HEX" > "$ROAMING_DIR/HEX"
-                        echo "$G1PUB" > "$ROAMING_DIR/G1PUBNOSTR"
-                        echo "$CARDNS" > "$ROAMING_DIR/NOSTRNS"
+                        # Reconstruire les clés : CHACUNE avec la formule de crédentiel qui reproduit sa
+                        # référence PUBLIÉE sur le NOSTRNS (HEX, G1PUBNOSTR, id IPNS) — formule isolée par
+                        # UPlanet (SALT, PEPPER_<sel UPlanet>) d'abord, ancienne formule seulement si c'est
+                        # elle qui a créé ce compte. Aucune référence reproduite = on s'arrête : jamais un
+                        # wallet ou une clé IPNS « proches » (cf. my.sh::derive_account_keys).
+                        REF_HEX=$(ipfs cat --timeout=30s "$RESOLVED_CID/$EMAIL/HEX" 2>/dev/null | tr -d '[:space:]')
+                        REF_G1=$(ipfs cat --timeout=30s "$RESOLVED_CID/$EMAIL/G1PUBNOSTR" 2>/dev/null | tr -d '[:space:]')
+                        ROAMING_DIR="$HOME/.zen/game/nostr/$EMAIL"
+                        KEYS_TMP=$(mktemp -d)
+                        if [[ -n "$REF_HEX" && -n "$REF_G1" ]] \
+                           && derive_account_keys "$KEYS_TMP" "$salt" "$pepper" "$REF_HEX" "$REF_G1" "$CARDNS" >&2; then
+                            mkdir -p "$ROAMING_DIR"
+                            cp -a "$KEYS_TMP"/. "$ROAMING_DIR"/
+                            echo "$DISCO" > "$ROAMING_DIR/.secret.disco"
+                            chmod 600 "$ROAMING_DIR/.secret.disco"
+                            G1PUB=$(cat "$ROAMING_DIR/G1PUBNOSTR")
+                            echo "Key formulas: $(cat "$ROAMING_DIR/.keyformula")" >&2
 
-                        # Importer la clé IPNS dans le démon IPFS local pour pouvoir republier
-                        ipfs key rm "${G1PUB}:NOSTR" >/dev/null 2>&1 || true
-                        ipfs key import "${G1PUB}:NOSTR" -f pem-pkcs8-cleartext "$ROAMING_DIR/.secret.ipns" >/dev/null 2>&1
+                            # Importer la clé IPNS dans le démon IPFS local pour pouvoir republier
+                            ipfs key rm "${G1PUB}:NOSTR" >/dev/null 2>&1 || true
+                            ipfs key import "${G1PUB}:NOSTR" -f pem-pkcs8-cleartext "$ROAMING_DIR/.secret.ipns" >/dev/null 2>&1
+                        else
+                            VALID="INVALID (keys do not match the published identity)"
+                        fi
+                        rm -rf "$KEYS_TMP"
+                    fi
 
-                        chmod 600 "$ROAMING_DIR"/.secret.*
+                    if [[ "$VALID" == "VALID" ]]; then
 
                         # 🔥 CRÉATION DU MARQUEUR DE ROAMING 🔥
                         # Ce fichier indique à ZEN.ECONOMY.sh et PLAYER.refresh.sh d'ignorer ce joueur
@@ -141,10 +155,11 @@ if [[ "$SSSS" =~ ^[1-3]-[a-f0-9]{100,} ]]; then
                                     touch "$ROAMING_DIR/.udrive"  # .udrive > uDRIVE/ mtime
                                 fi
                             fi
-                        ) &
+                        ) >/dev/null 2>&1 &    # sortie détachée : sinon le tube de l'appelant reste ouvert jusqu'à 60 s
+                                               # et des lignes arrivent APRÈS le JSON (mode json)
 
                         echo "Hydration complete. Welcome $EMAIL." >&2
-                    else
+                    elif [[ "$VALID" == "INVALID" ]]; then
                         VALID="INVALID (SSSS mismatch)"
                     fi
                 else
@@ -153,7 +168,7 @@ if [[ "$SSSS" =~ ^[1-3]-[a-f0-9]{100,} ]]; then
             else
                 VALID="INVALID (Cannot download remote share)"
             fi
-        else
+        elif [[ -z "$EMAIL" ]]; then
             VALID="INVALID (Email directory not found in IPNS)"
         fi
     else
@@ -165,6 +180,16 @@ fi
 
 # Nettoyage
 rm -f ${HOME}/.zen/tmp/${MOATS}_*
+
+# Mode JSON (onglet « Déménager » de /scan) : dernière ligne = JSON, pas de page HTML
+if [[ "$OUTPUT_MODE" == "json" ]]; then
+    if [[ "$VALID" == "VALID" ]]; then
+        jq -nc --arg email "$EMAIL" --arg hex "$(cat "$ROAMING_DIR/HEX" 2>/dev/null)" '{valid:true,email:$email,hex:$hex}'
+        exit 0
+    fi
+    jq -nc --arg reason "$VALID" '{valid:false,reason:$reason}'
+    exit 1
+fi
 
 # Générer le fichier HTML de résultat
 cat <<EOF > "$HTML_OUTPUT"

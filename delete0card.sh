@@ -43,7 +43,7 @@ if [[ -L ${MY_PATH}/pdf/${PUBKEY} ]]; then
     arr=(${DISCO//[=&]/ })
     salt=$(urldecode ${arr[1]} | xargs)
     pepper=$(urldecode ${arr[3]} | xargs)
-    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.secret "$salt" "$pepper"
+    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.secret "$salt" "$pepper"  # ZENCARD : clé CAPEX volontairement brute (identique sur toutes les UPlanets)
 
     # ZEROCARD amount
     solde=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${ZEROCARD} | tail -n 1)

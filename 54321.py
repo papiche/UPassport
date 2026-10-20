@@ -39,7 +39,8 @@ from a2wsgi import WSGIMiddleware
 from services.cloud_storage import build_wsgi_dav_app
 from services.nostr import Nip98BindingMiddleware
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, api_access, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, caldav, visio, facecloud, visits, account, savoirs
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, api_access, mailjet, skills, nostr_sign, zine, node_admin, calendar, story, contacts, carddav, caldav, visio, facecloud, visits, account, savoirs, migrate
+from routers import degafam as degafam_router
 
 # Setup logging
 setup_logging()
@@ -118,6 +119,8 @@ app.include_router(api_access.router)  # identifiants API officielle (Mastodon, 
 app.include_router(mailjet.router)
 app.include_router(savoirs.router)  # révisions chaînées des savoirs (prev → CID IPFS)
 app.include_router(account.router)  # « Mon compte » du MULTIPASS (NIP-98)
+app.include_router(degafam_router.router)  # assistant « Se dégafamiser » (état des 4 étapes)
+app.include_router(migrate.router)  # onglet « Déménager » de /scan : QR P1 + PASS (ticket de suivi)
 app.include_router(skills.router)
 app.include_router(nostr_sign.router)
 app.include_router(zine.router)

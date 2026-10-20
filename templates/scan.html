@@ -103,11 +103,11 @@
   .scan-row{display:flex;gap:8px;margin-bottom:8px}
   .field-wrap{position:relative;flex:1;min-width:0}
   .field-wrap .fic{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:.85rem;opacity:.5;pointer-events:none}
-  input[type=text]{width:100%;padding:13px 13px 13px 34px;border-radius:var(--radius-sm);
+  input[type=text],input[type=password]{width:100%;padding:13px 13px 13px 34px;border-radius:var(--radius-sm);
         border:1px solid var(--card-line);background:rgba(3,5,12,.55);color:#fff;font-size:.88rem;
         font-family:ui-monospace,"SF Mono",Menlo,monospace;transition:border-color .2s,box-shadow .2s}
-  input[type=text]:focus{outline:none;border-color:rgba(91,140,255,.55);box-shadow:0 0 0 3px rgba(91,140,255,.16)}
-  input[type=text]::placeholder{color:var(--muted2);font-family:-apple-system,sans-serif}
+  input[type=text]:focus,input[type=password]:focus{outline:none;border-color:rgba(91,140,255,.55);box-shadow:0 0 0 3px rgba(91,140,255,.16)}
+  input[type=text]::placeholder,input[type=password]::placeholder{color:var(--muted2);font-family:-apple-system,sans-serif}
   .icon-btn{flex-shrink:0;width:48px;height:48px;border-radius:var(--radius-sm);
         border:1px solid var(--card-line);background:rgba(255,255,255,.05);color:#fff;font-size:1.15rem;
         cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,background .15s}
@@ -244,17 +244,55 @@
     .trust-row{gap:4px}
     .trust-item{font-size:.6rem}
   }
+
+  /* ── Onglets : Billet Ğ1 | Déménager ───────────────────────────────────── */
+  .tabs{display:flex;gap:6px;margin:0 0 16px;padding:4px;background:rgba(255,255,255,.04);
+        border:1px solid var(--card-line);border-radius:999px}
+  .tab{flex:1;border:0;background:transparent;color:var(--muted);font:inherit;font-size:.82rem;font-weight:700;
+       padding:9px 10px;border-radius:999px;cursor:pointer}
+  .tab[aria-selected=true]{background:linear-gradient(135deg,var(--blue),var(--blue-deep));color:#fff}
+  .panel[hidden]{display:none}
+
+  /* ── Déménagement : suivi en direct ─────────────────────────────────────── */
+  .mv-bar{height:12px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:12px 0 4px}
+  .mv-bar>i{display:block;height:100%;width:0;border-radius:999px;transition:width .6s ease;
+            background:linear-gradient(90deg,var(--blue),var(--ok))}
+  .mv-bar.fail>i{background:linear-gradient(90deg,var(--err-deep),var(--err))}
+  .mv-meta{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)}
+  .mv-steps{list-style:none;margin:14px 0 6px;padding:0;display:flex;flex-direction:column;gap:9px}
+  .mv-steps li{display:flex;gap:10px;align-items:flex-start;font-size:.86rem;color:var(--muted2)}
+  .mv-steps li .ic{width:22px;flex:0 0 22px;text-align:center}
+  .mv-steps li.done{color:var(--ink)}
+  .mv-steps li.active{color:var(--ink);font-weight:700}
+  .mv-steps li.error{color:var(--err);font-weight:700}
+  .mv-steps li.warn{color:var(--gold)}
+  .mv-spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.2);
+           border-top-color:var(--blue);animation:mv-rot .9s linear infinite;vertical-align:-2px}
+  @keyframes mv-rot{to{transform:rotate(360deg)}}
+  .mv-msg{font-size:.84rem;line-height:1.5;margin:10px 0 0;padding:10px 12px;border-radius:var(--radius-sm);
+          background:rgba(91,140,255,.1);border:1px solid rgba(91,140,255,.25)}
+  .mv-msg.ok{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3)}
+  .mv-msg.bad{background:rgba(251,113,133,.1);border-color:rgba(251,113,133,.3)}
+  .mv-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .mv-actions button{flex:1;min-width:140px}
+  .mv-note{font-size:.7rem;color:var(--muted);margin-top:8px;text-align:center}
 </style>
 </head>
 <body>
 
 <main>
   <header>
-    <div class="trust-pill"><span class="dot"></span>Session chiffrée locale</div>
-    <h1><span class="ic">🔍</span>Scanner un Ğ1Billet</h1>
-    <p>Vérifiez la valeur d'un billet papier, puis encaissez-le en un geste — tout se passe dans ce navigateur, rien n'est envoyé sans votre accord.</p>
+    <div class="trust-pill"><span class="dot"></span><span id="hd-pill">Session chiffrée locale</span></div>
+    <h1><span class="ic" id="hd-ic">🔍</span><span id="hd-title">Scanner un Ğ1Billet</span></h1>
+    <p id="hd-sub">Vérifiez la valeur d'un billet papier, puis encaissez-le en un geste — tout se passe dans ce navigateur, rien n'est envoyé sans votre accord.</p>
   </header>
 
+  <div class="tabs" role="tablist" aria-label="Fonctions">
+    <button class="tab" role="tab" id="tab-billet" data-tab="billet" aria-selected="true" aria-controls="panel-billet">🎫 Billet Ğ1</button>
+    <button class="tab" role="tab" id="tab-move" data-tab="move" aria-selected="false" aria-controls="panel-move">🚚 Déménager</button>
+  </div>
+
+  <div class="panel" id="panel-billet" role="tabpanel" aria-labelledby="tab-billet">
   <div class="stepper" id="stepper">
     <div class="step-dot active" id="dot-1" data-step="1"><span>1</span></div>
     <div class="step-line" id="line-1"></div>
@@ -375,6 +413,73 @@
   <p class="note">
     Créez des G1BILLETS <a href="/earth/billet.html" target="_blank" rel="noopener">vous devez disposer d'un MULTIPASS →</a>
   </p>
+  </div><!-- /panel-billet -->
+
+  <!-- ══ Déménager son MULTIPASS vers CETTE station : QR P1 + PASS ═════════════════════════════ -->
+  <div class="panel" id="panel-move" role="tabpanel" aria-labelledby="tab-move" hidden>
+    <div class="card" id="mv-form">
+      <div class="step-head">
+        <div class="step-badge">🚚</div>
+        <div>
+          <div class="step-title">Déménager mon MULTIPASS ici</div>
+          <p class="step-sub">Votre compte vit sur une autre station ? Scannez le QR P1 de votre billet MULTIPASS et saisissez votre code PASS : cette station accueille votre compte et tous ses documents.</p>
+        </div>
+      </div>
+
+      <label for="mv-qr" style="display:block;font-size:.8rem;color:var(--muted);margin-bottom:7px;font-weight:600">QR P1 du billet MULTIPASS (« M-… »)</label>
+      <div class="scan-row">
+        <div class="field-wrap"><span class="fic">▦</span>
+          <input type="password" id="mv-qr" placeholder="M-… (scannez ou collez)" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <button class="icon-btn" id="mv-scan" type="button" title="Scanner le QR P1">📷</button>
+      </div>
+      <div class="state" id="mv-qr-state"></div>
+
+      <label for="mv-pass" style="display:block;font-size:.8rem;color:var(--muted);margin:12px 0 7px;font-weight:600">Code PASS (4 chiffres, sur le même billet)</label>
+      <div class="field-wrap"><span class="fic">🔢</span>
+        <input type="password" id="mv-pass" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••" autocomplete="off">
+      </div>
+      <div class="state" id="mv-pass-state"></div>
+
+      <details style="margin-top:10px">
+        <summary style="font-size:.76rem;color:var(--muted);cursor:pointer">Options avancées</summary>
+        <label for="mv-from" style="display:block;font-size:.74rem;color:var(--muted);margin:8px 0 6px">Station d'origine (clé du NODE, 64 caractères) — seulement si elle n'est pas retrouvée toute seule</label>
+        <div class="field-wrap"><span class="fic">🛰️</span>
+          <input type="text" id="mv-from" placeholder="64 caractères hexadécimaux (facultatif)" autocomplete="off" spellcheck="false">
+        </div>
+      </details>
+
+      <div class="trust-row">
+        <div class="trust-item"><span class="ic">🔒</span>QR et PASS jamais enregistrés ici</div>
+        <div class="trust-item"><span class="ic">🔑</span>Mêmes clés, même portefeuille</div>
+        <div class="trust-item"><span class="ic">📦</span>Rien n'est supprimé avant vérification</div>
+      </div>
+      <div class="warn" style="margin-top:12px"><span class="ic">ℹ️</span><span>3 codes PASS faux bloquent le PASS et préviennent le Capitaine de votre ancienne station.</span></div>
+      <div class="state" id="mv-start-state" style="margin-top:10px"></div>
+      <button class="primary" id="mv-start" type="button" disabled style="margin-top:12px">🚚 Déménager vers cette station</button>
+    </div>
+
+    <div class="card hidden" id="mv-progress" aria-live="polite">
+      <div class="step-head">
+        <div class="step-badge" id="mv-badge">🚚</div>
+        <div>
+          <div class="step-title" id="mv-title">Déménagement en cours</div>
+          <p class="step-sub" id="mv-sub"></p>
+        </div>
+      </div>
+      <div class="mv-bar" id="mv-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="mv-bar-fill"></i></div>
+      <div class="mv-meta"><span id="mv-pct">0 %</span><span id="mv-elapsed"></span></div>
+      <ol class="mv-steps" id="mv-steps"></ol>
+      <div class="mv-meta" id="mv-docs" style="display:none"></div>
+      <div class="mv-msg" id="mv-msg"></div>
+      <div class="mv-actions">
+        <button class="primary" id="mv-retry" type="button" style="display:none">↻ Relancer le rapatriement</button>
+        <button class="primary" id="mv-abort" type="button" style="display:none;background:linear-gradient(135deg,var(--err-deep),var(--err))">✕ Annuler la demande</button>
+        <button class="primary" id="mv-close" type="button" style="display:none">Terminer</button>
+      </div>
+      <div class="mv-note" id="mv-note">Vous pouvez fermer cette page : le suivi reprendra ici au retour (même navigateur).</div>
+    </div>
+  </div>
 
   <div style="display:flex;justify-content:center;margin-top:10px">
     <button type="button" id="network-status-btn" class="network-pill" title="Statut du réseau Duniter/Squid">
@@ -1006,6 +1111,181 @@
     debugPanel.style.display = show ? 'block' : 'none';
     if (show) renderDebugLog();
   });
+
+  // ═════════ Onglets + Déménager (QR P1 + PASS) ══════════════════════════════
+  var MV_QR_RE = /^M-[1-9A-HJ-NP-Za-km-z]{60,300}:k51[a-z0-9]{40,70}$/;
+  var mvTimer = null, mvTicket = null, mvEmail = null, mvT0 = null, mvStopped = false;
+
+  function showTab(name) {
+    ['billet', 'move'].forEach(function (n) {
+      $('panel-' + n).hidden = (n !== name);
+      $('tab-' + n).setAttribute('aria-selected', n === name ? 'true' : 'false');
+    });
+    // L'en-tête dit la vérité de chaque onglet : le billet se vérifie ICI, le déménagement ENVOIE QR et PASS à la station.
+    var move = name === 'move';
+    $('hd-pill').textContent = move ? 'Transfert vérifié' : 'Session chiffrée locale';
+    $('hd-ic').textContent = move ? '🚚' : '🔍';
+    $('hd-title').textContent = move ? 'Déménager mon MULTIPASS' : 'Scanner un Ğ1Billet';
+    $('hd-sub').textContent = move
+      ? 'Votre QR P1 et votre PASS sont envoyés à cette station (puis à votre ancienne) pour prouver que le compte est le vôtre. Ils ne sont jamais enregistrés.'
+      : 'Vérifiez la valeur d\u2019un billet papier, puis encaissez-le en un geste — tout se passe dans ce navigateur, rien n\u2019est envoyé sans votre accord.';
+    try { history.replaceState(null, '', name === 'move' ? '#demenager' : location.pathname + location.search); } catch (e) {}
+    if (name === 'move') mvResume();
+  }
+  ['billet', 'move'].forEach(function (n) {
+    $('tab-' + n).addEventListener('click', function () { showTab(n); });
+  });
+
+  function mvValidate() {
+    var qr = $('mv-qr').value.trim(), pc = $('mv-pass').value.trim();
+    var qrOk = MV_QR_RE.test(qr), passOk = /^[0-9]{4,8}$/.test(pc);
+    var from = $('mv-from').value.trim(), fromOk = !from || /^[0-9a-fA-F]{64}$/.test(from);
+    $('mv-qr-state').textContent = !qr ? '' : (qrOk ? '✓ QR P1 reconnu' : '✗ Ce n’est pas un QR P1 de billet MULTIPASS (il commence par « M- »)');
+    $('mv-qr-state').className = 'state ' + (!qr ? '' : (qrOk ? 'ok' : 'err'));
+    $('mv-pass-state').textContent = !pc ? '' : (passOk ? '' : '✗ 4 chiffres attendus');
+    $('mv-pass-state').className = 'state ' + (!pc || passOk ? '' : 'err');
+    $('mv-start').disabled = !(qrOk && passOk && fromOk);
+  }
+  ['mv-qr', 'mv-pass', 'mv-from'].forEach(function (id) { $(id).addEventListener('input', mvValidate); });
+  $('mv-scan').addEventListener('click', function () {
+    openScanner('Scannez le QR P1 de votre billet MULTIPASS', function (text) {
+      $('mv-qr').value = (text || '').trim();
+      mvValidate();
+      $('mv-pass').focus();
+    });
+  });
+
+  function mvElapsed() {
+    if (!mvT0) return '';
+    var s = Math.max(0, Math.round((Date.now() - mvT0) / 1000));
+    return s < 90 ? 'depuis ' + s + ' s' : 'depuis ' + Math.round(s / 60) + ' min';
+  }
+
+  var MV_ICON = { done: '✅', active: '<span class="mv-spin"></span>', error: '❌', warn: '⚠️', pending: '○' };
+
+  // Dessine l'avancement : barre, étapes, documents, message, boutons possibles.
+  function mvRender(st) {
+    $('mv-form').classList.add('hidden');
+    $('mv-progress').classList.remove('hidden');
+    var pct = Math.max(0, Math.min(100, st.percent || 0));
+    $('mv-bar-fill').style.width = pct + '%';
+    $('mv-bar').setAttribute('aria-valuenow', String(pct));
+    $('mv-bar').classList.toggle('fail', !!st.failed);
+    $('mv-pct').textContent = pct + ' %';
+    $('mv-elapsed').textContent = mvElapsed();
+    $('mv-sub').textContent = mvEmail || '';
+    var ol = $('mv-steps');
+    ol.innerHTML = '';
+    (st.steps || []).forEach(function (s) {
+      var li = document.createElement('li');
+      li.className = s.status;
+      var ic = document.createElement('span'); ic.className = 'ic'; ic.innerHTML = MV_ICON[s.status] || '○';
+      var tx = document.createElement('span'); tx.textContent = s.label;
+      li.appendChild(ic); li.appendChild(tx); ol.appendChild(li);
+    });
+    var docs = $('mv-docs');
+    if (st.pin && st.pin.total) {
+      var got = (st.pin.pinned || 0) + (st.pin.already || 0);
+      docs.style.display = 'flex';
+      docs.innerHTML = '';
+      var a = document.createElement('span'); a.textContent = '📄 Documents : ' + got + ' / ' + st.pin.total;
+      var b = document.createElement('span'); b.textContent = st.pin.failed ? st.pin.failed + ' à rapatrier' : '';
+      docs.appendChild(a); docs.appendChild(b);
+    } else { docs.style.display = 'none'; }
+    var msg = $('mv-msg');
+    msg.textContent = st.message || '';
+    msg.className = 'mv-msg ' + (st.finished ? 'ok' : (st.failed ? 'bad' : ''));
+    if (st.failed && st.errors && st.errors.length) msg.textContent += ' — ' + st.errors[0];
+    if (st.state === 'done' && st.notified) {
+      var allOk = Object.keys(st.notified).every(function (k) { return st.notified[k] === 'ok'; });
+      msg.textContent += allOk ? ' Un e-mail de confirmation vous a été envoyé.' : ' (L’e-mail de confirmation n’a pas pu partir : votre compte, lui, est bien arrivé.)';
+    }
+    $('mv-title').textContent = st.finished ? 'Déménagement terminé 🎉' : (st.failed ? 'Déménagement à reprendre' : 'Déménagement en cours');
+    $('mv-badge').textContent = st.finished ? '🎉' : (st.failed ? '⚠️' : '🚚');
+    $('mv-retry').style.display = st.can_retry_pin && st.state === 'pin_error' ? '' : 'none';
+    $('mv-abort').style.display = st.can_abort ? '' : 'none';
+    $('mv-close').style.display = st.finished || st.state === 'error' ? '' : 'none';
+    $('mv-note').style.display = st.finished ? 'none' : '';
+  }
+
+  function mvSave() { try { sessionStorage.setItem('mv', JSON.stringify({ email: mvEmail, ticket: mvTicket, t0: mvT0 })); } catch (e) {} }
+  function mvForget() { try { sessionStorage.removeItem('mv'); } catch (e) {} mvTicket = mvEmail = mvT0 = null; }
+
+  function mvPoll() {
+    if (mvStopped || !mvTicket) return;
+    fetch('/api/migration/status?email=' + encodeURIComponent(mvEmail) + '&ticket=' + encodeURIComponent(mvTicket), { cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 404) { mvForget(); mvBackToForm('Ce déménagement n’existe plus (annulé ou purgé).'); throw new Error('gone'); }
+        return r.json();
+      })
+      .then(function (st) {
+        mvRender(st);
+        // en cours : 3 s ; à reprendre : 10 s ; terminé : on s'arrête
+        if (!st.finished) mvTimer = setTimeout(mvPoll, st.failed ? 10000 : 3000);
+        else mvForget();
+      })
+      .catch(function (e) {
+        if (e && e.message === 'gone') return;
+        $('mv-msg').textContent = '📡 Connexion perdue — nouvelle tentative…';
+        mvTimer = setTimeout(mvPoll, 5000);       // le déménagement, lui, continue sur les stations
+      });
+  }
+
+  function mvBegin(email, ticket, t0) {
+    mvEmail = email; mvTicket = ticket; mvT0 = t0 || Date.now(); mvStopped = false; mvSave();
+    clearTimeout(mvTimer); mvPoll();
+  }
+  function mvResume() {
+    if (mvTicket) return;
+    try {
+      var saved = JSON.parse(sessionStorage.getItem('mv') || 'null');
+      if (saved && saved.email && saved.ticket) mvBegin(saved.email, saved.ticket, saved.t0);
+    } catch (e) {}
+  }
+  function mvBackToForm(note) {
+    mvStopped = true; clearTimeout(mvTimer);
+    $('mv-progress').classList.add('hidden'); $('mv-form').classList.remove('hidden');
+    $('mv-qr').value = ''; $('mv-pass').value = ''; $('mv-from').value = '';
+    mvValidate();
+    var s = $('mv-start-state'); s.textContent = note || ''; s.className = 'state ' + (note ? 'err' : '');
+  }
+
+  $('mv-start').addEventListener('click', function () {
+    var btn = this, s = $('mv-start-state');
+    var body = { qr: $('mv-qr').value.trim(), pass: $('mv-pass').value.trim() };
+    var from = $('mv-from').value.trim(); if (from) body.from_node = from;
+    btn.disabled = true; s.className = 'state'; s.textContent = '⏳ Reconnaissance de votre compte…';
+    fetch('/api/migration/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        $('mv-pass').value = ''; $('mv-qr').value = '';           // jamais gardés dans la page
+        if (res.status === 202) { s.textContent = ''; mvBegin(res.body.email, res.body.ticket, Date.now()); return; }
+        s.className = 'state err';
+        s.textContent = '✗ ' + (res.body.error || res.body.detail || 'Échec du déménagement');
+        mvValidate();
+      })
+      .catch(function () { s.className = 'state err'; s.textContent = '✗ Station injoignable, réessayez.'; mvValidate(); });
+  });
+
+  $('mv-retry').addEventListener('click', function () {
+    fetch('/api/migration/pin', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ email: mvEmail, ticket: mvTicket }) })
+      .then(function () { clearTimeout(mvTimer); mvPoll(); });
+  });
+  $('mv-abort').addEventListener('click', function () {
+    if (!window.confirm('Annuler la demande de déménagement ? Votre compte reste sur son ancienne station.')) return;
+    fetch('/api/migration/abort', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ email: mvEmail, ticket: mvTicket }) })
+      .then(function () { mvForget(); mvBackToForm('Demande annulée.'); });
+  });
+  $('mv-close').addEventListener('click', function () { mvForget(); mvBackToForm(''); });
+
+  // Accès direct : /scan#demenager ou /scan?tab=move ; un déménagement en cours (même navigateur) rouvre l'onglet
+  var mvPending = false;
+  try { mvPending = !!sessionStorage.getItem('mv'); } catch (e) {}
+  if (location.hash === '#demenager' || /[?&]tab=move\b/.test(location.search) || mvPending) showTab('move');
+  // Un lien « /scan#demenager » cliqué alors que la page est déjà ouverte change d'onglet sans rechargement
+  window.addEventListener('hashchange', function () { if (location.hash === '#demenager') showTab('move'); });
 })();
 </script>
 </body>
