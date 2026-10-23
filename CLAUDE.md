@@ -807,6 +807,13 @@ wsgidav             a2wsgi              cryptography
 fournit AES-256-GCM à `Astroport.ONE/tools/uenc_codec.py`. `cheroot` n'est PAS
 requis : le serveur autonome de wsgidav n'est jamais utilisé ici.
 
+## Carte station — `services/ustats.py` + surveillance `/health`
+
+- `GET /` (alias `/api/ustats`) sert la carte station + swarm depuis le cache RAM de `core/state.py` (relu toutes les 60 s dans `~/.zen/tmp/Ustats.json`, **sans fork**) ; `lat`/`lon`/`deg` filtrent ce cache en Python (`filter_area`, plus de fichier par requête). Cache absent → 503.
+- Génération : `python3 -m services.ustats [lat lon deg] [--refresh] [--stdout]` dans un process COURT détaché (flock, écriture atomique), lancé par `core/state.py` seulement si le cache manque ou a plus d'1 h. `Astroport.ONE/Ustats.sh` n'est plus qu'un wrapper vers ce module (même contrat : dernière ligne = chemin du JSON). Remplace l'ancien script bash ; la liste NOSTR est désormais remplie (l'ancien appelait `process_nostr`, défini nulle part) et `DISTANCE_KM` est un vrai haversine. Tests : `tests/test_ustats.py`.
+- Pourquoi : un fork périodique depuis ce process (1,7 Go, ~40 threads) s'est interbloqué le 2026-10-23 et a figé l'API ~5 h sans aucune trace. **Ne jamais forker depuis le process FastAPI** pour une tâche périodique : process détaché (`start_new_session`).
+- **Surveillance** (`watchdog/upassport-watchdog.sh`, appelé par la boucle de `Astroport.ONE/_12345.sh` avec les autres watchdogs, ~300 s) : 3 essais de `/health` (10 s, espacés de 15 s) tous en échec → trace des threads par py-spy dans `~/.zen/log/upassport_watchdog/hang-*.txt` PUIS `sudo systemctl restart upassport`. Journal : `~/.zen/log/upassport_watchdog/watchdog.log`. `_12345.sh` doit être relancé pour prendre en compte ce bloc.
+
 ## Rate Limiting
 
 - Middleware personnalisé `RateLimitMiddleware` (core/middleware.py)

@@ -32,56 +32,23 @@ for route_path, template_name in SIMPLE_UI_ROUTES.items():
 
 @router.get("/", summary="UPlanet Status", description="UPlanet Status (specify lat, lon, deg to select grid level)")
 async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = None):
-    import os
+    import asyncio
     import json
     import time
-    import aiofiles
-    from utils.helpers import run_script
-
     from core.config import settings
-    script_path = settings.ZEN_PATH / "Astroport.ONE" / "Ustats.sh"
+    from services import ustats as ustats_service
 
-    # Servir depuis le cache RAM si disponible et récent (< 60s), sans paramètre de grille
-    if lat is None and lon is None:
-        age = time.time() - app_state.ustats_cache_time
-        if app_state.ustats_cache is not None and age < app_state.USTATS_CACHE_TTL:
-            return JSONResponse(content=app_state.ustats_cache)
-
-    args = []
+    data = app_state.ustats_cache
+    if data is None or time.time() - app_state.ustats_cache_time > 2 * app_state.USTATS_CACHE_TTL:
+        # Cache RAM absent ou périmé (boucle de core/state.py en panne) : lecture directe du fichier
+        path = settings.ZEN_PATH / "tmp" / "Ustats.json"
+        try:
+            data = await asyncio.to_thread(lambda: json.load(open(path)))
+        except (OSError, ValueError):
+            raise HTTPException(status_code=503, detail="Cache Ustats en cours de génération, réessayez dans une minute.")
     if lat is not None and lon is not None:
-        # deg est optionnel côté requête, mais asyncio.create_subprocess_exec exige
-        # des str — un None ici plante le subprocess (TypeError) avant même de lancer
-        # le script. Ustats.sh accepte une chaîne vide (positionnel $3 non renseigné).
-        args.extend([lat, lon, deg if deg is not None else ""])
-
-    return_code, last_line = await run_script(script_path, *args)
-
-    if return_code == 0:
-        if os.path.exists(last_line.strip()):
-            try:
-                async with aiofiles.open(last_line.strip(), 'r') as f:
-                    content = await f.read()
-                data = json.loads(content)
-                # Mettre à jour le cache si pas de filtre géographique
-                if lat is None:
-                    app_state.ustats_cache = data
-                    app_state.ustats_cache_time = time.time()
-                return JSONResponse(content=data)
-            except Exception as e:
-                logger.error(f"Error reading file: {e}")
-                raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
-        else:
-            try:
-                data = json.loads(last_line)
-                if lat is None:
-                    app_state.ustats_cache = data
-                    app_state.ustats_cache_time = time.time()
-                return JSONResponse(content=data)
-            except json.JSONDecodeError as e:
-                logger.error(f"Error parsing JSON: {e}")
-                raise HTTPException(status_code=500, detail=f"Error parsing JSON: {str(e)}")
-    else:
-        raise HTTPException(status_code=500, detail="Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log.")
+        data = ustats_service.filter_area(data, lat, lon, deg)
+    return JSONResponse(content=data)
 
 @router.get("/api/ustats", summary="Station stats (alias)", description="Alias de GET / pour les widgets frontend.")
 async def api_ustats(request: Request, lat: str = None, lon: str = None, deg: str = None):

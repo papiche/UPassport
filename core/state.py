@@ -113,42 +113,53 @@ async def lifespan(app: FastAPI):
         logging.error(f"❌ Failed to initialise OracleSystem: {e}")
         app.state.oracle = None
     
-    # Cache Ustats.sh : boucle de rafraîchissement toutes les 60 secondes
+    # Cache Ustats.sh : relecture du fichier JSON toutes les 60 s, SANS fork.
+    # La génération est `services/ustats.py` (remplace Ustats.sh), lancée dans un
+    # process court détaché : un fork depuis ce processus (1,7 Go, ~40 threads) s'est interbloqué le
+    # 2026-10-23 et a figé l'API 5 h. Il n'est lancé que si le
+    # fichier manque ou est périmé, au plus une fois / 10 min.
     async def _refresh_ustats_loop():
         import json as _json
-        import os as _os
+        import subprocess as _sp
         import time as _time
-        from utils.helpers import run_script as _run_script
-        script_path = settings.ZEN_PATH / "Astroport.ONE" / "Ustats.sh"
-        if not script_path.exists():
-            logging.warning("⚠️  Ustats.sh introuvable — cache désactivé")
-            return
+        import sys
+        from pathlib import Path
+        project_dir = Path(__file__).resolve().parent.parent
+        cache_path = settings.ZEN_PATH / "tmp" / "Ustats.json"
+        stale_after = 3600
+        respawn_every = 600
+        last_spawn = 0.0
+
+        def _read():
+            with open(cache_path, "r") as f:
+                return _json.load(f), cache_path.stat().st_mtime
+
+        def _spawn():
+            _sp.Popen([sys.executable, "-m", "services.ustats"], cwd=str(project_dir),
+                      stdin=_sp.DEVNULL, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+                      start_new_session=True, close_fds=True)
+
         consecutive_failures = 0
         while True:
             try:
-                rc, last_line = await _run_script(script_path)
-                if rc == 0:
-                    if _os.path.exists(last_line.strip()):
-                        with open(last_line.strip(), 'r') as f:
-                            data = _json.load(f)
-                    else:
-                        data = _json.loads(last_line)
-                    app_state.ustats_cache = data
-                    app_state.ustats_cache_time = _time.time()
-                    consecutive_failures = 0
-                    logging.info("✅ Cache Ustats.sh rafraîchi")
-                else:
-                    consecutive_failures += 1
-                    logging.warning(f"⚠️  Ustats.sh rc={rc} (échec {consecutive_failures}/3)")
-                    if consecutive_failures >= 3:
-                        app_state.ustats_cache = None
-                        logging.error("❌ Cache Ustats.sh invalidé après 3 échecs consécutifs")
+                data, mtime = await asyncio.to_thread(_read)
+                app_state.ustats_cache = data
+                app_state.ustats_cache_time = _time.time()
+                consecutive_failures = 0
+                if _time.time() - mtime > stale_after and _time.time() - last_spawn > respawn_every:
+                    last_spawn = _time.time()
+                    await asyncio.to_thread(_spawn)
             except Exception as e:
                 consecutive_failures += 1
-                logging.warning(f"⚠️  Rafraîchissement Ustats.sh échoué : {e} (échec {consecutive_failures}/3)")
+                logging.warning(f"⚠️  Lecture cache Ustats échouée : {e} (échec {consecutive_failures}/3)")
                 if consecutive_failures >= 3:
                     app_state.ustats_cache = None
-                    logging.error("❌ Cache Ustats.sh invalidé après 3 échecs consécutifs")
+                if _time.time() - last_spawn > respawn_every:
+                    last_spawn = _time.time()
+                    try:
+                        await asyncio.to_thread(_spawn)
+                    except Exception as se:
+                        logging.error(f"❌ Lancement Ustats.sh impossible : {se}")
             await asyncio.sleep(app_state.USTATS_CACHE_TTL)
 
     asyncio.create_task(_refresh_ustats_loop())
